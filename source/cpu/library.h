@@ -88,6 +88,10 @@ template<class Input>
 int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
 //    check special case 2x2
 
+    if (a.size() == 2 && b.size() == 2) {
+        return a[0] == b[0] ? 1 : 0;
+    }
+
     auto diagonal_size = 1 + std::min(a.size(), b.size());
     auto a1 = new int[diagonal_size];
     auto a2 = new int[diagonal_size];
@@ -98,8 +102,8 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
     auto start_i = pos_i;
     auto start_j = pos_j;
     auto min = std::min(a.size(), b.size());
-    auto num_diag = a.size()+b.size() + 1;
-    auto total_same_length_diag = num_diag - (min+1) - min;
+    auto num_diag = a.size() + b.size() + 1;
+    auto total_same_length_diag = num_diag - (min + 1) - min - 1;
 
 //    init step
     for (int k = 0; k < diagonal_size; ++k) {
