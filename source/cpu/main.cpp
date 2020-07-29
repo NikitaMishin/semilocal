@@ -5,17 +5,74 @@
 #include "library.h"
 #include <string>
 #include <iostream>
+#include <chrono>
+#include <immintrin.h>
 
-int main(){
-    std::string str_a = "lazer";
-    std::string str_b = "fraer";
-    std::vector<char>a(str_a.begin(),str_a.end());
-    std::vector<char>b(str_b.begin(),str_b.end());
 
-    std::cout<<naive_prefix_lcs<char>(a,b)<<std::endl;
-    std::cout << prefix_lcs_sequential<char>(a, b) << std::endl;
+#include "omp.h"
 
-    std::cout << prefix_lcs_sequential<char>(a, b) << std::endl;
+inline __m256d reverse(__m256d x){
+    x = _mm256_permute2f128_pd(x,x,1);
+    x = _mm256_permute_pd(x,5);
+    return x;
+}
+
+int main() {
+
+//    #pragma omp parallel
+//    {
+//        int ID = omp_get_thread_num();
+//        std::cout<<"Hello from id="<<ID<<std::endl;
+//        std::cout<<omp_get_num_procs();
+//
+//    }
+    std::srand(std::time(nullptr)); // use current time as seed for random generator
+    auto a = gen_seq(25000, 5);
+    auto b = gen_seq(150000, 4);
+//    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+
+
+//    auto time = std::chrono::high_resolution_clock::now() - begin;
+
+
+
+    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << prefix_lcs_via_braid_sequential<int>(a, b) << std::endl;
+    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+    std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
+
+//
+//
+//
+    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << sticky_braid_sequential(a, b) << std::endl;
+    auto time = std::chrono::high_resolution_clock::now() - begin;
+    std::cout << std::chrono::duration<double, std::milli>(time).count() << std::endl;
+
+    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << prefix_lcs_sequential<int>(a, b) << std::endl;
+    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+
+
+//    __m256d x = _mm256_set_pd(13,12,11,10);
+//
+//    std::cout << x.m256d_f64[0] << "  " << x.m256d_f64[1] << "  " << x.m256d_f64[2] << "  " << x.m256d_f64[3] <<std::endl;
+//    x = reverse(x);
+//    std::cout << x.m256d_f64[0] << "  " << x.m256d_f64[1] << "  " << x.m256d_f64[2] << "  " << x.m256d_f64[3] << std::endl;
+//}
+
     return 0;
 }
+
+double get_elapsed_time_ms() {
+    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto time = std::chrono::high_resolution_clock::now() - begin;
+    return std::chrono::duration<double, std::milli>(time).count();
+}
+
+
+
+
 
