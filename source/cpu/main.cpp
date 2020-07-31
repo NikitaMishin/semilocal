@@ -27,8 +27,8 @@ int main() {
 //
 //    }
     std::srand(std::time(nullptr)); // use current time as seed for random generator
-    auto a = gen_seq(25000, 5);
-    auto b = gen_seq(150000, 4);
+    auto a = gen_vector_seq(45000, 6);
+    auto b = gen_vector_seq(90000/2+5, 5);
 //    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
 
 
@@ -45,7 +45,7 @@ int main() {
 //
 //
     auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << sticky_braid_sequential(a, b) << std::endl;
+    std::cout << prefix_lcs_via_braid_sequential_skewed(a, b) << std::endl;
     auto time = std::chrono::high_resolution_clock::now() - begin;
     std::cout << std::chrono::duration<double, std::milli>(time).count() << std::endl;
 
