@@ -11,9 +11,9 @@
 
 #include "omp.h"
 
-inline __m256d reverse(__m256d x){
-    x = _mm256_permute2f128_pd(x,x,1);
-    x = _mm256_permute_pd(x,5);
+inline __m256d reverse(__m256d x) {
+    x = _mm256_permute2f128_pd(x, x, 1);
+    x = _mm256_permute_pd(x, 5);
     return x;
 }
 
@@ -26,31 +26,43 @@ int main() {
 //        std::cout<<omp_get_num_procs();
 //
 //    }
-    std::srand(std::time(nullptr)); // use current time as seed for random generator
-    auto a = gen_vector_seq(45000, 6);
-    auto b = gen_vector_seq(90000/2+5, 5);
-//    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    std::srand(std::time(nullptr)); // use current time as seed for random generator
+    std::srand(std::time(0)); // use current time as seed for random generator
 
+    std::string str_a = "10", str_b = "010";
 
-//    auto time = std::chrono::high_resolution_clock::now() - begin;
-
+    auto a = gen_vector_seq(5000 * 2, 4345435);
+    auto b = gen_vector_seq(100000 * 5, 3435435345);
 
 
     auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << prefix_lcs_via_braid_sequential<int>(a, b) << std::endl;
+    std::cout << sticky_braid_sequential(a, b) << std::endl;
     auto time2 = std::chrono::high_resolution_clock::now() - begin2;
     std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
+
+
+    auto cor = sticky_braid_sequential(a, b);
+    auto cur = sticky_braid_sequential_skewed(a, b);
+
+//    for (int i = 0; i <a.size()+b.size() ; ++i) {
+//
+//        if (cor[i]!=cur[i]) {
+//            std::cout<<"Bad in "<< i <<std::endl;
+//            return 1;
+//        }
+//
+//    }
 
 //
 //
 //
     auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << prefix_lcs_via_braid_sequential_skewed(a, b) << std::endl;
+    std::cout << sticky_braid_sequential_skewed(a, b) << std::endl;
     auto time = std::chrono::high_resolution_clock::now() - begin;
     std::cout << std::chrono::duration<double, std::milli>(time).count() << std::endl;
 
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << prefix_lcs_sequential<int>(a, b) << std::endl;
+    std::cout << prefix_lcs_sequential(a, b) << std::endl;
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 

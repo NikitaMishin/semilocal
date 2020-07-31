@@ -52,7 +52,7 @@ int prefix_lcs_via_braid_sequential(std::vector<Input> a, std::vector<Input> b) 
 
 
 /**
- * Assume a < b
+ * Assume a <= b
  * @tparam Input
  * @param a
  * @param b
@@ -68,9 +68,8 @@ int prefix_lcs_via_braid_sequential_skewed(std::vector<Input> a, std::vector<Inp
     auto size = m + n;
     auto strand_map = new bool[size];
 
-    auto min = std::min(a.size(), b.size());
     auto num_diag = a.size() + b.size() - 1;
-    auto total_same_length_diag = num_diag - (min - 1) - (min - 1);
+    auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
     int left_edge, top_edge;
 
     //    init phase
@@ -123,7 +122,7 @@ int prefix_lcs_via_braid_sequential_skewed(std::vector<Input> a, std::vector<Inp
 
     }
 
-
+    //    phase 4 sum up
     for (int i1 = 0; i1 < m; ++i1) {
         dis_braid += strand_map[i1];
     }
