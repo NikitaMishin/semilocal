@@ -45,7 +45,6 @@ int *sticky_braid_sequential(std::vector<Input> a, std::vector<Input> b) {
     return reduced_sticky_braid;
 }
 
-
 /**
  * Assume a <= b
  * @tparam Input
@@ -54,10 +53,8 @@ int *sticky_braid_sequential(std::vector<Input> a, std::vector<Input> b) {
  * @return
  */
 template<class Input>
-int * sticky_braid_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
+int * sticky_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_num = 1) {
 
-//    10
-//    010
     auto m = a.size();
     auto n = b.size();
 
@@ -69,69 +66,77 @@ int * sticky_braid_sequential_skewed(std::vector<Input> a, std::vector<Input> b)
     auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
     int left_edge, top_edge;
 
-    //    init phase
-    for (int k = 0; k < m+n; ++k) {
-        strand_map[k] = k;
-    }
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, left_edge, top_edge, total_same_length_diag, size, m, n,reduced_sticky_braid)
+    {
+        //    init phase
+#pragma omp for schedule(static)
+        for (int k = 0; k < m; ++k) {
+            strand_map[k] = k;
+        }
 
-    //    phase one
-    for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-        left_edge = m - 1 - cur_diag_len;
-        top_edge = m;
-        for (int j = 0, i = cur_diag_len; j <= cur_diag_len; ++j, left_edge++, top_edge++, i--) {
-            auto left_strand = strand_map[left_edge];
-            auto right_strand = strand_map[top_edge];
-            bool r = a[i] == b[j] || (left_strand > right_strand);
-            if (r) std::swap(strand_map[top_edge], strand_map[left_edge]);
+#pragma omp for schedule(static)
+        for (int l = 0; l < n; ++l) {
+            strand_map[l + m] = l+m;
+        }
+
+        //    phase one
+        for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
+            left_edge = m - 1 - cur_diag_len;
+            top_edge = m;
+#pragma omp for schedule(static)
+            for (int j = 0; j < cur_diag_len + 1; ++j) {
+                int left_strand = strand_map[left_edge + j];
+                int right_strand = strand_map[top_edge + j];
+                bool r = a[cur_diag_len - j] == b[j] || (left_strand > right_strand);
+                if (r) std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
+            }
         }
 
 
-    }
-
-    // phase two
-    // equals
-    for (int j = 0; j < total_same_length_diag; ++j) {
-        left_edge = 0;
-        top_edge = m + j;
-        auto i = m - 1;
-        for (int k = 0; k < m; ++k, top_edge++, left_edge++, i--) {
-            auto left_strand = strand_map[left_edge];
-            auto right_strand = strand_map[top_edge];
-            bool r = a[i] == b[left_edge + j] || (left_strand > right_strand);
-            if (r) std::swap(strand_map[top_edge], strand_map[left_edge]);
-
+        for (int j = 0; j < total_same_length_diag; ++j) {
+            left_edge = 0;
+            top_edge = m + j;
+            auto i = m - 1;
+#pragma omp for schedule(static)
+            for (int k = 0; k < m; ++k) {
+                auto left_strand = strand_map[left_edge + k];
+                auto right_strand = strand_map[top_edge + k];
+                bool r = a[i - k] == b[left_edge + j + k] || (left_strand > right_strand);
+                if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
+            }
         }
-    }
 
 ////    phase 3
-    auto start_j = total_same_length_diag;
-    for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-        left_edge = 0;
-        top_edge = start_j + m;
-        auto i = m - 1;
-        auto j = start_j;
-        for (int k = 0; k <= diag_len; ++k, left_edge++, top_edge++, i--, j++) {
-            auto left_strand = strand_map[left_edge];
-            auto right_strand = strand_map[top_edge];
-            bool r = a[i] == b[j] || (left_strand > right_strand);
-            if (r) std::swap(strand_map[top_edge], strand_map[left_edge]);
+        auto start_j = total_same_length_diag;
+        for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
+            left_edge = 0;
+            top_edge = start_j + m;
+            auto i = m - 1;
+            auto j = start_j;
+#pragma omp for schedule(static)
+            for (int k = 0; k < diag_len + 1; ++k) {
+                auto left_strand = strand_map[left_edge + k];
+                auto right_strand = strand_map[top_edge + k];
+                bool r = a[i - k] == b[j + k] || (left_strand > right_strand);
+                if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
+            }
+        }
 
+#pragma omp for schedule(static)
+        for (int l = 0; l < m; ++l) {
+                        reduced_sticky_braid[strand_map[l]] =  n + l;
+//        reduced_sticky_braid[n+l] =  strand_map[l]; // seems faster
+        }
+#pragma omp for schedule(static)
+        for (int r = m; r < n+m ; ++r) {
+            reduced_sticky_braid[strand_map[r]] = r - m;
+//        reduced_sticky_braid[r-m] = strand_map[r];//seems faster
         }
 
     }
 
-    for (int l = 0; l < m; ++l) {
-        reduced_sticky_braid[strand_map[l]] =  n + l;
-//        reduced_sticky_braid[n+l] =  strand_map[l];
-    }
-    for (int r = m; r < n+m ; ++r) {
-        reduced_sticky_braid[strand_map[r]] = r - m;
-//        reduced_sticky_braid[r-m] = strand_map[r];
-    }
-
-
+    delete[] strand_map;
     return reduced_sticky_braid;
 }
-
 
 #endif //CPU_LIBRARY_H

@@ -9,7 +9,7 @@
 #include <immintrin.h>
 
 
-#include "omp.h"
+
 
 inline __m256d reverse(__m256d x) {
     x = _mm256_permute2f128_pd(x, x, 1);
@@ -31,35 +31,8 @@ int main() {
 
     std::string str_a = "10", str_b = "010";
 
-    auto a = gen_vector_seq(5000 * 2, 4345435);
-    auto b = gen_vector_seq(100000 * 5, 3435435345);
-
-
-    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << sticky_braid_sequential(a, b) << std::endl;
-    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
-    std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
-
-
-    auto cor = sticky_braid_sequential(a, b);
-    auto cur = sticky_braid_sequential_skewed(a, b);
-
-//    for (int i = 0; i <a.size()+b.size() ; ++i) {
-//
-//        if (cor[i]!=cur[i]) {
-//            std::cout<<"Bad in "<< i <<std::endl;
-//            return 1;
-//        }
-//
-//    }
-
-//
-//
-//
-    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << sticky_braid_sequential_skewed(a, b) << std::endl;
-    auto time = std::chrono::high_resolution_clock::now() - begin;
-    std::cout << std::chrono::duration<double, std::milli>(time).count() << std::endl;
+    auto a = gen_vector_seq( 20000, 4);
+    auto b = gen_vector_seq(50000, 2);
 
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     std::cout << prefix_lcs_sequential(a, b) << std::endl;
@@ -67,13 +40,32 @@ int main() {
     std::cout << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
 
+    auto start = omp_get_wtime();
+    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << sticky_braid_mpi(a, b,8) << std::endl;
+    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+//    auto end = omp_get_wtime();
+//    printf("Time: %f\n", end - start);
+//    std::cout<<std::endl;
+    std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
-//    __m256d x = _mm256_set_pd(13,12,11,10);
+std::cout<<std::endl;
+//    auto cor = sticky_braid_sequential(a, b);
+//    auto cur = sticky_braid_mpi(a, b,8);
+//    for (int i = 0; i <a.size()+b.size(); ++i) {
+//        if (cor[i]==cur[i])std::cout<<"ddddd";
+//    }
+
+
 //
-//    std::cout << x.m256d_f64[0] << "  " << x.m256d_f64[1] << "  " << x.m256d_f64[2] << "  " << x.m256d_f64[3] <<std::endl;
-//    x = reverse(x);
-//    std::cout << x.m256d_f64[0] << "  " << x.m256d_f64[1] << "  " << x.m256d_f64[2] << "  " << x.m256d_f64[3] << std::endl;
-//}
+//
+//
+    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << prefix_lcs_sequential_skewed(a, b) << std::endl;
+    auto time = std::chrono::high_resolution_clock::now() - begin;
+    std::cout << std::chrono::duration<double, std::milli>(time).count() << std::endl;
+
+
 
     return 0;
 }
