@@ -6,9 +6,10 @@ set(CMAKE_CXX_STANDARD 11)
 add_library(cpu  library.h  prefix_lcs.h transposition_network.h utils.h library.cpp)
 
 # added -fopenmp
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp   -Wall -Ofast  ")
-#-O3-g0
-
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp   -Wall  -O3 -march=native   -fopt-info  ")
+#-O3-g0 -Ofast -mavx -ftree-vectorize -ffast-math -mprefer-vector-width=512 -march=skylake-avx512
+# -fopenmp-simd -simd-
+#-fopt-info
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
 add_executable(main main.cpp)

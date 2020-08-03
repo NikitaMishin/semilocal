@@ -23,7 +23,7 @@ int *sticky_braid_sequential(std::vector<Input> a, std::vector<Input> b) {
     for (int i = 0; i < size; ++i) {
         strand_map[i] = i;
     }
-    
+
     for (int i = 0; i < m; ++i) {
         for (int j = 0; j < n; ++j) {
             auto left_edge = m - 1 - i;
@@ -53,7 +53,7 @@ int *sticky_braid_sequential(std::vector<Input> a, std::vector<Input> b) {
  * @return
  */
 template<class Input>
-int * sticky_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_num = 1) {
+int *sticky_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_num = 1) {
 
     auto m = a.size();
     auto n = b.size();
@@ -64,26 +64,27 @@ int * sticky_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_n
 
     auto num_diag = a.size() + b.size() - 1;
     auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
-    int left_edge, top_edge;
 
-#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, left_edge, top_edge, total_same_length_diag, size, m, n,reduced_sticky_braid)
+
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, total_same_length_diag, size, m, n, reduced_sticky_braid)
     {
+        int left_edge, top_edge;
         //    init phase
-#pragma omp for schedule(static)
+#pragma omp for simd schedule(static) safelen(1)
         for (int k = 0; k < m; ++k) {
             strand_map[k] = k;
         }
 
-#pragma omp for schedule(static)
+#pragma omp for simd schedule(static) safelen(1)
         for (int l = 0; l < n; ++l) {
-            strand_map[l + m] = l+m;
+            strand_map[l + m] = l + m;
         }
 
         //    phase one
         for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
             left_edge = m - 1 - cur_diag_len;
             top_edge = m;
-#pragma omp for schedule(static)
+#pragma omp for simd schedule(static) safelen(1)
             for (int j = 0; j < cur_diag_len + 1; ++j) {
                 int left_strand = strand_map[left_edge + j];
                 int right_strand = strand_map[top_edge + j];
@@ -97,7 +98,7 @@ int * sticky_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_n
             left_edge = 0;
             top_edge = m + j;
             auto i = m - 1;
-#pragma omp for schedule(static)
+#pragma omp for simd schedule(static) safelen(1)
             for (int k = 0; k < m; ++k) {
                 auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
@@ -113,22 +114,23 @@ int * sticky_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_n
             top_edge = start_j + m;
             auto i = m - 1;
             auto j = start_j;
-#pragma omp for schedule(static)
+#pragma omp for simd schedule(static) safelen(1)
             for (int k = 0; k < diag_len + 1; ++k) {
-                auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
+                auto left_strand = strand_map[left_edge + k];
+
                 bool r = a[i - k] == b[j + k] || (left_strand > right_strand);
                 if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
             }
         }
 
-#pragma omp for schedule(static)
+#pragma omp for simd schedule(static) safelen(1)
         for (int l = 0; l < m; ++l) {
-                        reduced_sticky_braid[strand_map[l]] =  n + l;
+            reduced_sticky_braid[strand_map[l]] = n + l;
 //        reduced_sticky_braid[n+l] =  strand_map[l]; // seems faster
         }
-#pragma omp for schedule(static)
-        for (int r = m; r < n+m ; ++r) {
+#pragma omp for simd schedule(static) safelen(1)
+        for (int r = m; r < n + m; ++r) {
             reduced_sticky_braid[strand_map[r]] = r - m;
 //        reduced_sticky_braid[r-m] = strand_map[r];//seems faster
         }

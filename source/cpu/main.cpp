@@ -7,8 +7,7 @@
 #include <iostream>
 #include <chrono>
 #include <immintrin.h>
-
-
+#include <algorithm>
 
 
 inline __m256d reverse(__m256d x) {
@@ -18,6 +17,7 @@ inline __m256d reverse(__m256d x) {
 }
 
 int main() {
+    std::cout<<sizeof(short)<<std::endl;
 
 //    #pragma omp parallel
 //    {
@@ -31,9 +31,8 @@ int main() {
 
     std::string str_a = "10", str_b = "010";
 
-    auto a = gen_vector_seq( 20000, 4);
-    auto b = gen_vector_seq(50000, 2);
-
+    auto a = gen_vector_seq( 100000, 4);
+    auto b = gen_vector_seq(500000, 2);
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     std::cout << prefix_lcs_sequential(a, b) << std::endl;
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
@@ -42,7 +41,7 @@ int main() {
 
     auto start = omp_get_wtime();
     auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << sticky_braid_mpi(a, b,8) << std::endl;
+    std::cout << sticky_braid_mpi(a, b,1) << std::endl;
     auto time2 = std::chrono::high_resolution_clock::now() - begin2;
 //    auto end = omp_get_wtime();
 //    printf("Time: %f\n", end - start);
@@ -50,18 +49,19 @@ int main() {
     std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
 std::cout<<std::endl;
-//    auto cor = sticky_braid_sequential(a, b);
-//    auto cur = sticky_braid_mpi(a, b,8);
-//    for (int i = 0; i <a.size()+b.size(); ++i) {
-//        if (cor[i]==cur[i])std::cout<<"ddddd";
-//    }
+    auto cor = sticky_braid_sequential(a, b);
+    auto cur = sticky_braid_mpi(a, b,1);
+    for (int i = 0; i <a.size()+b.size(); ++i) {
+        if (cor[i]!=cur[i])std::cout<<"ddddd";
+    }
 
 
 //
 //
 //
+//    std::reverse(a.begin(),b.end());
     auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << prefix_lcs_sequential_skewed(a, b) << std::endl;
+    std::cout << prefix_lcs_via_braid_mpi(a, b,1) << std::endl;
     auto time = std::chrono::high_resolution_clock::now() - begin;
     std::cout << std::chrono::duration<double, std::milli>(time).count() << std::endl;
 
