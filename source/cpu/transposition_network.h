@@ -8,7 +8,7 @@
 #include <vector>
 
 template<class Input>
-int prefix_lcs_via_braid_sequential(std::vector<Input> a, std::vector<Input> b) {
+int prefix_lcs_via_braid_sequential(std::vector<Input> const & a, std::vector<Input> const & b) {
 
     auto m = a.size();
     auto n = b.size();
@@ -57,7 +57,7 @@ int prefix_lcs_via_braid_sequential(std::vector<Input> a, std::vector<Input> b) 
  * @return
  */
 template<class Input>
-int prefix_lcs_via_braid_mpi(std::vector<Input> a, std::vector<Input> b, int threads_num = 1) {
+int prefix_lcs_via_braid_mpi(std::vector<Input> const & a, std::vector<Input> const & b, int threads_num = 1) {
 
     auto m = a.size();
     auto n = b.size();
@@ -75,12 +75,11 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> a, std::vector<Input> b, int thr
     {
         int left_edge, top_edge;
         //    init phase
-//#pragma omp for schedule(static)
 #pragma omp  for simd schedule(static)
         for (int k = 0; k < m; ++k) {
             strand_map[k] = true;
         }
-//        #pragma omp for schedule(static)
+
 #pragma omp for simd schedule(static)
         for (int l = 0; l < n; ++l) {
             strand_map[l + m] = false;
@@ -90,7 +89,6 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> a, std::vector<Input> b, int thr
         for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
             left_edge = m - 1 - cur_diag_len;
             top_edge = m;
-//#pragma omp for schedule(static)
 #pragma omp for simd schedule(static)
             for (int j = 0; j < cur_diag_len + 1; ++j) {
                 auto left_strand = strand_map[left_edge + j];
@@ -106,12 +104,13 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> a, std::vector<Input> b, int thr
             left_edge = 0;
             top_edge = m + j;
             auto i = m - 1;
-#pragma omp for schedule(static)
-//#pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
             for (int k = 0; k < m; ++k) {
                 auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
-//                auto r = a[left_edge + k] == b[left_edge + j + k] || (!left_strand && right_strand);
+//  ||  ||  ||   || auto r = a[left_edge + k] == b[left_edge + j + k] || (!left_strand && right_strand);
+//  ||  ||  ||   || auto r = |  |  a[left_edge + k] == b[left_edge + j + k]  |  |
+//  ||  ||  ||   ||
                 bool r = a[i - k] == b[left_edge + j + k] || (!left_strand && right_strand);
                 if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
             }
@@ -124,8 +123,7 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> a, std::vector<Input> b, int thr
             top_edge = start_j + m;
             auto i = m - 1;
             auto j = start_j;
-#pragma omp for schedule(static)
-//#pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
             for (int k = 0; k < diag_len + 1; ++k) {
                 auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
@@ -146,8 +144,29 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> a, std::vector<Input> b, int thr
     delete[] strand_map;
 
 
+
     return m - dis_braid;
 }
 
+
+template<class Input>
+int prefix_lcs_via_braid_bits_binary(long * a_reverse, long * b,int a_size, int b_size, int bits_per_symbol) {
+    auto m = a_size, n = b_size;
+    long * strand_map = static_cast<long*>(aligned_alloc(1024, sizeof(long) * (a_size + b_size)));
+    int dis_braid = 0;
+    auto num_diag = m + n - 1;
+    auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
+
+    int left_edge, top_edge;
+    //    init phase
+//#pragma omp  for simd schedule(static)
+    for (int k = 0; k < m; ++k) {
+        strand_map[k] = true;
+    }
+
+
+
+
+}
 
 #endif //CPU_TRANSPOSITION_NETWORK_H
