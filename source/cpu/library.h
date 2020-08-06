@@ -148,61 +148,6 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
 }
 
 
-/**
- *
- * @tparam Input
- * @tparam Output
- * @param a
- * @return
- */
-template<class Input,class Output>
-std::pair<std::pair<Output *,std::pair<int,int>>, std::unordered_map<Output, Input>> encode(std::vector<Input> const &a) {
-
-    auto mapper_forward = new std::unordered_map<char, Output>();
-    auto mapper_reverse = new std::unordered_map<Output, Input>();
-    for (int i = 0, encoder = 0; i < a.size(); ++i) {
-        if (mapper_forward->count(a[i]) == 0) {
-            (*mapper_forward)[a[i]] = Output(encoder);
-            (*mapper_reverse)[encoder] = a[i];
-            encoder++;
-        }
-    }
-    auto alphabet_size = mapper_reverse->size();
-    auto bits_per_symbol = int(std::ceil(log2(alphabet_size)));
-    auto shift = bits_per_symbol;
-    auto word_size_in_bits = sizeof(Output) * 8;
-    auto symbols_in_word = word_size_in_bits / shift;
-
-    auto bytes_needed = int(std::ceil(a.size() * 1.0 / symbols_in_word) * sizeof(Output));
-
-    auto bitset_array = static_cast<Output *> (aligned_alloc(sizeof(Output), bytes_needed));
-    auto n = bytes_needed / sizeof(Output);
-
-
-//    fill bitset
-    for (int i = 0; i < n - 1; ++i) {
-        Output word = 0;
-        for (int symbol = 0; symbol < symbols_in_word; symbol++) {
-            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) << shift * symbol;
-        }
-        bitset_array[i] = word;
-    }
-
-//    fill last
-    for (int i = n - 1; i < n; ++i) {
-        Output word = 0;
-        for (int symbol = 0; i * symbols_in_word + symbol < a.size(); symbol++) {
-            word |= (*mapper_forward)[a[i * symbols_in_word + symbol]] << shift * symbol;
-        }
-        bitset_array[i] = word;
-    }
-
-    return std::make_pair(std::make_pair(bitset_array,std::make_pair(n,a.size())), *mapper_reverse);
-
-
-}
-
-
 
 
 #endif //CPU_LIBRARY_H
