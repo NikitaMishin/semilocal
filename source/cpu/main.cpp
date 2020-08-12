@@ -45,14 +45,33 @@ int main(int argc, char *argv[]) {
 //    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
 //    std::cout <<"Hahah"<< std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 //
-    auto a = encode_reverse<int,size_t>(gen_vector_seq( 5*100000/2+47,2),&mappers.first,&mappers.second);
-    auto b = encode<int, size_t>(gen_vector_seq( 10*500000*2/2+1+3,2),&mappers.first,&mappers.second);
 
+    auto seq_a = gen_vector_seq( 10000/2+47,2);
+    auto seq_b = gen_vector_seq( 50000*2/2+1+3,2);
+    auto a = encode_reverse<int,size_t>(seq_a,&mappers.first,&mappers.second);
+    auto b = encode<int, size_t>(seq_b,&mappers.first,&mappers.second);
+//    std::cout<<std::endl;
+//    for(auto elem : seq_a){
+//        std::cout<<elem;
+//    }
+//    std::cout<<std::endl;
+//    for(auto elem : seq_b){
+//        std::cout<<elem;
+//    }
+    std::cout<<std::endl;
     auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout <<""<< prefix_lcs_via_braid_bits_binary(a.first.first,a.first.second, a.second ,
+    std::cout << std::endl<<"ResBin: "<< prefix_lcs_via_braid_bits_binary(a.first.first,a.first.second, a.second ,
                                                       b.first.first,b.first.second, b.second,2) << std::endl;
     auto time = std::chrono::high_resolution_clock::now() - begin;
     std::cout <<"Time:" <<std::chrono::duration<double, std::milli>(time).count() << std::endl;
+
+//    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout <<"Res:"<< prefix_lcs_sequential(seq_a, seq_b) << std::endl;
+//    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+//    auto end = omp_get_wtime();
+//    printf("Time: %f\n", end - start);
+//    std::cout<<std::endl;
+//    std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
 
 
@@ -73,6 +92,7 @@ int main(int argc, char *argv[]) {
 //    std::string str_a = "10", str_b = "010";
 //    auto a = gen_vector_seq( 100000/2, 40000000);
 //    auto b = gen_vector_seq(500000*2, 200000000);
+
 
     //    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
 //    std::cout << prefix_lcs_sequential(a, b) << std::endl;

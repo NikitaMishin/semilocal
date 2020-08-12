@@ -9,7 +9,7 @@ add_library(cpu  library.h  prefix_lcs.h transposition_network.h utils.h library
 set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp -fopt-info-vec-optimized    -Wall -ffast-math  -march=native  -O0     -fopt-info        ")
 #-O3-g0 -Ofast -mavx -ftree-vectorize -ffast-math -mprefer-vector-width=512 -march=skylake-avx512-g
 #-mprefer-vector-width=512
-#-vec -simd -qopenmp
+#-vec -simd -qopenmp -O3
 #-qopt-report=5
 # -fopenmp-simd -simd- -fopt-info-vec-missed
 #-fopt-info
