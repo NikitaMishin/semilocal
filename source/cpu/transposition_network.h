@@ -199,7 +199,7 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
         bitset_top_strand_map[k] = Input(0);
     }
 
-    auto upper_bound = (sizeof(Input) * 8) - 1
+    auto upper_bound = (sizeof(Input) * 8) - 1;
     //process first triangle in 0,0 cube
     mask = Input(0);
 
@@ -311,7 +311,7 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
                 }
             }
             top_edge++;
-            mask~ = mask;
+            mask =~ mask;
             //parallel  process next
             for (int k = 0; k < m; ++k) {
                 auto left_strand = bitset_left_strand_map[left_edge + k];

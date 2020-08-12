@@ -46,8 +46,8 @@ int main(int argc, char *argv[]) {
 //    std::cout <<"Hahah"<< std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 //
 
-    auto seq_a = gen_vector_seq( 10000/2+47,2);
-    auto seq_b = gen_vector_seq( 50000*2/2+1+3,2);
+    auto seq_a = gen_vector_seq( 100000/2+47,2);
+    auto seq_b = gen_vector_seq( 500000*2/2+1+3,2);
     auto a = encode_reverse<int,size_t>(seq_a,&mappers.first,&mappers.second);
     auto b = encode<int, size_t>(seq_b,&mappers.first,&mappers.second);
 //    std::cout<<std::endl;
@@ -65,13 +65,13 @@ int main(int argc, char *argv[]) {
     auto time = std::chrono::high_resolution_clock::now() - begin;
     std::cout <<"Time:" <<std::chrono::duration<double, std::milli>(time).count() << std::endl;
 
-//    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     std::cout <<"Res:"<< prefix_lcs_sequential(seq_a, seq_b) << std::endl;
-//    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
 //    auto end = omp_get_wtime();
 //    printf("Time: %f\n", end - start);
 //    std::cout<<std::endl;
-//    std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
+    std::cout << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
 
 
