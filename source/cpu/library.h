@@ -48,7 +48,7 @@ int *sticky_braid_sequential(std::vector<Input> &a, std::vector<Input> &b) {
 }
 
 /**
- * Assume a <= b
+ * Assume |a| <= |b|
  * @tparam Input
  * @param a
  * @param b
@@ -61,8 +61,6 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
     auto n = b.size();
 
     auto size = m + n;
-//    int strand_map[100000/2 + 500000*2];// = new int[size];
-//    int  reduced_sticky_braid[100000/2 + 500000*2];// = new int[size];
     auto reduced_sticky_braid = new int[size];
     auto strand_map = new int[size];
 
@@ -135,6 +133,7 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
 //            reduced_sticky_braid[strand_map[l]] = n + l;
             reduced_sticky_braid[n + l] = strand_map[l]; // seems faster
         }
+
 #pragma omp for simd schedule(static) safelen(1)
         for (int r = m; r < n + m; ++r) {
 //            reduced_sticky_braid[strand_map[r]] = r - m;

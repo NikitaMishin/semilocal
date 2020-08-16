@@ -52,6 +52,7 @@ int prefix_lcs_via_braid_sequential(std::vector<Input> const &a, std::vector<Inp
 
 /**
  * Assume a <= b
+ * unsigned types only!
  * @tparam Input
  * @param a
  * @param b
@@ -134,7 +135,6 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> con
             }
         }
 
-//#pragma omp for reduction(+:dis_braid) schedule(static)
 #pragma omp for simd reduction(+:dis_braid) schedule(static)
         for (int i1 = 0; i1 < m; ++i1) {
             dis_braid += strand_map[i1];
@@ -165,10 +165,10 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
 
     int dis_braid = 0;
     auto num_diag = m + n - 1;
-    auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
+    auto total_same_length_diag = num_diag - (m) - (m - 1);
 
-    auto not_garbage_bits_a = m % (sizeof(Input) * 8);
-    auto not_garbage_bits_b = n % (sizeof(Input) * 8);
+    auto not_garbage_bits_a = a_total_symbols % (sizeof(Input) * 8);
+    auto not_garbage_bits_b = b_total_symbols % (sizeof(Input) * 8);
 
     //    at least one bit is okay
     // We set garbage bits of a to  ones and gatbage bits of b to ones  to get d==1 for all garbage bits and then just substract part that always mathes
@@ -190,6 +190,9 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
 
 
 //    #pragma omp  for simd schedule(static)
+
+    // we store them reversely aka given l_0,l_1,l_2,l_3.... l_n/w words  we store them reversely l_n/w, .... l_0.
+    // Moreover we also store reversely inside words, aka w = edcba -> we store w^R  = abcde
     for (int k = 0; k < m; ++k) {
         bitset_left_strand_map[k] = ~Input(0);
     }
@@ -201,77 +204,125 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
 
     auto upper_bound = (sizeof(Input) * 8) - 1;
     //process first triangle in 0,0 cube
-    mask = Input(0);
+    mask = Input(1);
+    auto mask_r = Input(1) << (sizeof(Input) * 8 - 1);
+    auto rev_counter = (sizeof(Input) * 8 - 1);
 
-    for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num) {
-        mask = (mask << 1) | 1;
+    //PHASE 0:Process first triangle
+    for (int inside_diag_num = 0; inside_diag_num <= upper_bound; ++inside_diag_num, rev_counter--) {
+
         auto left_strand = bitset_left_strand_map[m - 1];
         auto top_strand = bitset_top_strand_map[0];
-        auto combing_condition = mask & ((~(a_reverse[m - 1] ^ b[0])) | ((~left_strand) & top_strand));
+        auto left_cap = left_strand >> rev_counter;
+        auto symbol_a = a_reverse[m - 1];
+        auto symbol_b = b[0];
+        auto combing_condition = mask & (((~(symbol_a >> rev_counter)) ^ symbol_b) | (((~(left_cap)) & top_strand)));
         auto rev_combing_cond = ~combing_condition;
+
         if (combing_condition) {
-            bitset_left_strand_map[m - 1] =
-                    (rev_combing_cond & left_strand) || (combing_condition & top_strand);
             bitset_top_strand_map[0] =
-                    (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                    (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+
+            top_strand = top_strand << rev_counter;
+            combing_condition =
+                    mask_r & (((~(symbol_a)) ^ (symbol_b << rev_counter)) | ((~(left_strand) & top_strand)));
+            rev_combing_cond = ~combing_condition;
+
+            bitset_left_strand_map[m - 1] =
+                    (rev_combing_cond & left_strand) | (combing_condition & top_strand);
         }
-    }
 
-    auto left_strand = bitset_left_strand_map[m - 1];
-    auto top_strand = bitset_top_strand_map[0];
-    auto combing_condition = ((~(a_reverse[m - 1] ^ b[0])) | ((~left_strand) & top_strand));
-    auto rev_combing_cond = ~combing_condition;
-    if (combing_condition) {
-        bitset_left_strand_map[m - 1] =
-                (rev_combing_cond & left_strand) || (combing_condition & top_strand);
-        bitset_top_strand_map[0] =
-                (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+        mask = (mask << 1) | Input(1);
+        mask_r = mask_r | (mask_r >> 1);
+
     }
 
 
-    //    phase one
-    for (int cur_diag_cube_len = 0; cur_diag_cube_len < m - 1; cur_diag_cube_len++) {
-        mask = Input(0);
-        left_edge = m - 1 - cur_diag_cube_len; // todo + 1
+    //PHASE 1: Process diagonal till fill big left triangle,
+    for (int cur_diag_cube_len = 1; cur_diag_cube_len < m - 1; cur_diag_cube_len++) {
+
+        left_edge = m - 1 - cur_diag_cube_len;
         top_edge = 0;
-        //        process previous size/2 - 1 cubes and current size/2 -1  cubes with iteration for mask 11111111111
-        for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num) {
-            mask = (mask << 1) | 1;
 
-            //parallel  process curent
+        //to process current
+        rev_counter = (sizeof(Input) * 8 - 1);
+        mask = Input(1);
+        mask_r = Input(1) << rev_counter;
+
+        //to process previous
+        auto mask_prev = ~Input(0);
+        auto mask_prev_r = ~Input(0);
+
+
+        //process previous size/2 - 1 cubes and current size/2 -1  cubes
+        for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num,rev_counter--) {
+            //update mask of prev move
+            mask_prev <<= 1;
+            mask_prev_r >>= 1;
+
+            //parallel  process current
             for (int j = 0; j < cur_diag_cube_len + 1; ++j) {
                 auto left_strand = bitset_left_strand_map[left_edge + j];
                 auto top_strand = bitset_top_strand_map[top_edge + j];
-                auto combing_condition = mask & ((~(a_reverse[left_edge + j] ^ b[j])) | ((~left_strand) & top_strand));
+                auto left_cap = left_strand >> rev_counter;
+                auto symbol_a = a_reverse[left_edge + j];
+                auto symbol_b = b[j];
+                auto combing_condition =
+                        mask & (((~(symbol_a >> rev_counter)) ^ symbol_b) | (((~(left_cap)) & top_strand)));
                 auto rev_combing_cond = ~combing_condition;
+
                 if (combing_condition) {
-                    bitset_left_strand_map[left_edge + j] =
-                            (rev_combing_cond & left_strand) || (combing_condition & top_strand);
                     bitset_top_strand_map[top_edge + j] =
-                            (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                            (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+                    top_strand = top_strand << rev_counter;
+                    combing_condition =
+                            mask_r & (((~(symbol_a)) ^ (symbol_b << rev_counter)) | ((~(left_strand) & top_strand)));
+                    rev_combing_cond = ~combing_condition;
+
+                    bitset_left_strand_map[left_edge + j] =
+                            (rev_combing_cond & left_strand) | (combing_condition & top_strand);
                 }
+
             }
+
+
             left_edge--;
-            mask = ~mask;
             // parallel process previous
             for (int j = 0; j < cur_diag_cube_len; ++j) {
+
                 auto left_strand = bitset_left_strand_map[left_edge + j];
                 auto top_strand = bitset_top_strand_map[top_edge + j];
-                auto combing_condition = mask & ((~(a_reverse[left_edge + j] ^ b[j])) | ((~left_strand) & top_strand));
+                auto left_cap = left_strand << (inside_diag_num + 1);
+                auto symbol_a = a_reverse[left_edge + j];
+                auto symbol_b = b[j];
+                auto combing_condition =
+                        mask_prev & (((~(symbol_a << (inside_diag_num+1))) ^ symbol_b) | (((~(left_cap)) & top_strand)));
                 auto rev_combing_cond = ~combing_condition;
+
                 if (combing_condition) {
-                    bitset_left_strand_map[left_edge + j] =
-                            (rev_combing_cond & left_strand) || (combing_condition & top_strand);
                     bitset_top_strand_map[top_edge + j] =
-                            (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                            (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+                    top_strand = top_strand >> (inside_diag_num+1);
+                    combing_condition =
+                            mask_prev_r &
+                            (((~(symbol_a)) ^ (symbol_b >> (inside_diag_num+1))) | ((~(left_strand) & top_strand)));
+                    rev_combing_cond = ~combing_condition;
+
+                    bitset_left_strand_map[left_edge + j] =
+                            (rev_combing_cond & left_strand) | (combing_condition & top_strand);
                 }
             }
-            mask = ~mask;
             left_edge++;
+
+
+            //update mask of current move
+            mask = (mask << 1) | Input(1);
+            mask_r = mask_r | (mask_r >> 1);
+
         }
 
 //        process last center mask is always all ones
-        // parallel process previous
+        // parallel process cur
         for (int j = 0; j < cur_diag_cube_len + 1; ++j) {
             auto left_strand = bitset_left_strand_map[left_edge + j];
             auto top_strand = bitset_top_strand_map[top_edge + j];
@@ -279,158 +330,262 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
             auto rev_combing_cond = ~combing_condition;
             if (combing_condition) {
                 bitset_left_strand_map[left_edge + j] =
-                        (rev_combing_cond & left_strand) || (combing_condition & top_strand);
+                        (rev_combing_cond & left_strand) | (combing_condition & top_strand);
                 bitset_top_strand_map[top_edge + j] =
-                        (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                        (rev_combing_cond & top_strand) | (combing_condition & left_strand);
             }
         }
     }
 
-
-    //phase 2
-//    -1 to process  correct
-    for (int j = 0; j < total_same_length_diag - 1; ++j) {
-        mask = Input(0);
+    //PHASE 2
+    for (int k = 0; k < total_same_length_diag; ++k){
         left_edge = 0;
-        top_edge = j;
-        for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num) {
-            mask = (mask << 1) | 1;
-            mask = ~mask;
+        top_edge = k;
+
+        //to process current
+        rev_counter = (sizeof(Input) * 8 - 1);
+        mask = Input(1);
+        mask_r = Input(1) << rev_counter;
+
+        //to process previous
+        auto mask_prev = ~Input(0);
+        auto mask_prev_r = ~Input(0);
+
+        //process previous size/2 - 1 cubes and current size/2 -1  cubes
+        for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num,rev_counter--) {
+            //update mask of prev move
+            mask_prev <<= 1;
+            mask_prev_r >>= 1;
+
             //parallel  process current
-            for (int k = 0; k < m; ++k) {
-                auto left_strand = bitset_left_strand_map[left_edge + k];
-                auto top_strand = bitset_top_strand_map[top_edge + k];
-                auto combing_condition =
-                        mask & ((~(a_reverse[left_edge + k] ^ b[top_edge + k])) | ((~left_strand) & top_strand));
-                auto rev_combing_cond = ~combing_condition;
-                if (combing_condition) {
-                    bitset_left_strand_map[left_edge + k] =
-                            (rev_combing_cond & left_strand) || (combing_condition & top_strand);
-                    bitset_top_strand_map[top_edge + k] =
-                            (rev_combing_cond & top_strand) || (combing_condition & left_strand);
-                }
-            }
-            top_edge++;
-            mask =~ mask;
-            //parallel  process next
-            for (int k = 0; k < m; ++k) {
-                auto left_strand = bitset_left_strand_map[left_edge + k];
-                auto top_strand = bitset_top_strand_map[top_edge + k];
-                auto combing_condition =
-                        mask & ((~(a_reverse[left_edge + k] ^ b[top_edge + k])) | ((~left_strand) & top_strand));
-                auto rev_combing_cond = ~combing_condition;
-                if (combing_condition) {
-                    bitset_left_strand_map[left_edge + k] =
-                            (rev_combing_cond & left_strand) || (combing_condition & top_strand);
-                    bitset_top_strand_map[top_edge + k] =
-                            (rev_combing_cond & top_strand) || (combing_condition & left_strand);
-                }
-            }
-            top_edge--;
-
-        }
-        //last
-
-        //        process last center mask is always all ones
-        // parallel process next center
-        for (int k = 0; k < m; ++k) {
-            auto left_strand = bitset_left_strand_map[left_edge + k];
-            auto top_strand = bitset_top_strand_map[top_edge + k];
-            auto combing_condition = ((~(a_reverse[left_edge + k] ^ b[top_edge + k])) | ((~left_strand) & top_strand));
-            auto rev_combing_cond = ~combing_condition;
-            if (combing_condition) {
-                bitset_left_strand_map[left_edge + k] =
-                        (rev_combing_cond & left_strand) || (combing_condition & top_strand);
-                bitset_top_strand_map[top_edge + k] =
-                        (rev_combing_cond & top_strand) || (combing_condition & left_strand);
-            }
-        }
-
-    }
-
-    // process cur and prev
-    ////    phase 3
-    auto start_j = total_same_length_diag;
-    for (int cur_diag_cube_len = m - 2; cur_diag_cube_len >= 1; cur_diag_cube_len--, start_j++) {
-        mask = Input(0);
-        left_edge = 0;
-        top_edge = start_j;
-        //        process previous size/2 - 1 cubes and current size/2 -1  cubes with iteration for mask 11111111111
-        for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num) {
-            mask = (mask << 1) | 1;
-
-            //parallel  process curent
-            for (int j = 0; j < cur_diag_cube_len + 1; ++j) {
+            for (int j = 0; j < m; ++j) {
                 auto left_strand = bitset_left_strand_map[left_edge + j];
                 auto top_strand = bitset_top_strand_map[top_edge + j];
+                auto left_cap = left_strand >> rev_counter;
+                auto symbol_a = a_reverse[left_edge + j];
+                auto symbol_b = b[top_edge + j];
                 auto combing_condition =
-                        mask & ((~(a_reverse[left_edge + j] ^ b[top_edge + j])) | ((~left_strand) & top_strand));
+                        mask & (((~(symbol_a >> rev_counter)) ^ symbol_b) | (((~(left_cap)) & top_strand)));
                 auto rev_combing_cond = ~combing_condition;
+
                 if (combing_condition) {
-                    bitset_left_strand_map[left_edge + j] =
-                            (rev_combing_cond & left_strand) || (combing_condition & top_strand);
                     bitset_top_strand_map[top_edge + j] =
-                            (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                            (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+                    top_strand = top_strand << rev_counter;
+                    combing_condition =
+                            mask_r & (((~(symbol_a)) ^ (symbol_b << rev_counter)) | ((~(left_strand) & top_strand)));
+                    rev_combing_cond = ~combing_condition;
+
+                    bitset_left_strand_map[left_edge + j] =
+                            (rev_combing_cond & left_strand) | (combing_condition & top_strand);
                 }
+
             }
+
+
             top_edge--;
-            mask = ~mask;
             // parallel process previous
-            for (int j = 0; j < cur_diag_cube_len; ++j) {
+            for (int j = 0; j < m; ++j) {
+
                 auto left_strand = bitset_left_strand_map[left_edge + j];
                 auto top_strand = bitset_top_strand_map[top_edge + j];
+                auto left_cap = left_strand << (inside_diag_num + 1);
+                auto symbol_a = a_reverse[left_edge + j];
+                auto symbol_b = b[top_edge + j];
                 auto combing_condition =
-                        mask & ((~(a_reverse[left_edge + j] ^ b[top_edge + j])) | ((~left_strand) & top_strand));
+                        mask_prev & (((~(symbol_a << (inside_diag_num+1))) ^ symbol_b) | (((~(left_cap)) & top_strand)));
                 auto rev_combing_cond = ~combing_condition;
+
                 if (combing_condition) {
-                    bitset_left_strand_map[left_edge + j] =
-                            (rev_combing_cond & left_strand) || (combing_condition & top_strand);
                     bitset_top_strand_map[top_edge + j] =
-                            (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                            (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+                    top_strand = top_strand >> (inside_diag_num+1);
+                    combing_condition =
+                            mask_prev_r &
+                            (((~(symbol_a)) ^ (symbol_b >> (inside_diag_num+1))) | ((~(left_strand) & top_strand)));
+                    rev_combing_cond = ~combing_condition;
+
+                    bitset_left_strand_map[left_edge + j] =
+                            (rev_combing_cond & left_strand) | (combing_condition & top_strand);
                 }
             }
-            mask = ~mask;
             top_edge++;
+
+
+            //update mask of current move
+            mask = (mask << 1) | Input(1);
+            mask_r = mask_r | (mask_r >> 1);
+
         }
 
-//        process last center mask is always all ones
-        // parallel process previous
-        for (int j = 0; j < cur_diag_cube_len + 1; ++j) {
+
+
+
+        //proccess center
+        for (int j = 0; j < m; ++j) {
             auto left_strand = bitset_left_strand_map[left_edge + j];
             auto top_strand = bitset_top_strand_map[top_edge + j];
-            auto combing_condition = ((~(a_reverse[left_edge + j] ^ b[j + top_edge])) | ((~left_strand) & top_strand));
+            auto combing_condition = ((~(a_reverse[left_edge + j] ^ b[top_edge + j])) | ((~left_strand) & top_strand));
             auto rev_combing_cond = ~combing_condition;
             if (combing_condition) {
                 bitset_left_strand_map[left_edge + j] =
-                        (rev_combing_cond & left_strand) || (combing_condition & top_strand);
+                        (rev_combing_cond & left_strand) | (combing_condition & top_strand);
                 bitset_top_strand_map[top_edge + j] =
-                        (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                        (rev_combing_cond & top_strand) | (combing_condition & left_strand);
             }
         }
+
     }
 
 
 
-// first process previous level with mask and second process current
+//PHASE 2
+    auto start_j = total_same_length_diag + 1;
+    for (int cur_diag_cube_len = m - 1; cur_diag_cube_len >= 1; cur_diag_cube_len--, start_j++){
+        left_edge = 0;
+        top_edge = start_j;
 
-    //process first triangle in 0,0 cube
+        //to process current
+        rev_counter = (sizeof(Input) * 8 - 1);
+        mask = Input(1);
+        mask_r = Input(1) << rev_counter;
+
+        //to process previous
+        auto mask_prev = ~Input(0);
+        auto mask_prev_r = ~Input(0);
+
+        //process previous size/2 - 1 cubes and current size/2 -1  cubes
+        for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num,rev_counter--) {
+            //update mask of prev move
+            mask_prev <<= 1;
+            mask_prev_r >>= 1;
+
+            //parallel  process current
+            for (int j = 0; j < cur_diag_cube_len; ++j) {
+                auto left_strand = bitset_left_strand_map[left_edge + j];
+                auto top_strand = bitset_top_strand_map[top_edge + j];
+                auto left_cap = left_strand >> rev_counter;
+                auto symbol_a = a_reverse[left_edge + j];
+                auto symbol_b = b[top_edge + j];
+                auto combing_condition =
+                        mask & (((~(symbol_a >> rev_counter)) ^ symbol_b) | (((~(left_cap)) & top_strand)));
+                auto rev_combing_cond = ~combing_condition;
+
+                if (combing_condition) {
+                    bitset_top_strand_map[top_edge + j] =
+                            (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+                    top_strand = top_strand << rev_counter;
+                    combing_condition =
+                            mask_r & (((~(symbol_a)) ^ (symbol_b << rev_counter)) | ((~(left_strand) & top_strand)));
+                    rev_combing_cond = ~combing_condition;
+
+                    bitset_left_strand_map[left_edge + j] =
+                            (rev_combing_cond & left_strand) | (combing_condition & top_strand);
+                }
+
+            }
+
+
+            top_edge--;
+            // parallel process previous
+            for (int j = 0; j < cur_diag_cube_len + 1; ++j) {
+
+                auto left_strand = bitset_left_strand_map[left_edge + j];
+                auto top_strand = bitset_top_strand_map[top_edge + j];
+                auto left_cap = left_strand << (inside_diag_num + 1);
+                auto symbol_a = a_reverse[left_edge + j];
+                auto symbol_b = b[top_edge + j];
+                auto combing_condition =
+                        mask_prev & (((~(symbol_a << (inside_diag_num+1))) ^ symbol_b) | (((~(left_cap)) & top_strand)));
+                auto rev_combing_cond = ~combing_condition;
+
+                if (combing_condition) {
+                    bitset_top_strand_map[top_edge + j] =
+                            (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+                    top_strand = top_strand >> (inside_diag_num+1);
+                    combing_condition =
+                            mask_prev_r &
+                            (((~(symbol_a)) ^ (symbol_b >> (inside_diag_num+1))) | ((~(left_strand) & top_strand)));
+                    rev_combing_cond = ~combing_condition;
+
+                    bitset_left_strand_map[left_edge + j] =
+                            (rev_combing_cond & left_strand) | (combing_condition & top_strand);
+                }
+            }
+            top_edge++;
+
+
+            //update mask of current move
+            mask = (mask << 1) | Input(1);
+            mask_r = mask_r | (mask_r >> 1);
+
+        }
+
+
+
+
+        //proccess center
+        for (int j = 0; j < m; ++j) {
+            auto left_strand = bitset_left_strand_map[left_edge + j];
+            auto top_strand = bitset_top_strand_map[top_edge + j];
+            auto combing_condition = ((~(a_reverse[left_edge + j] ^ b[top_edge + j])) | ((~left_strand) & top_strand));
+            auto rev_combing_cond = ~combing_condition;
+            if (combing_condition) {
+                bitset_left_strand_map[left_edge + j] =
+                        (rev_combing_cond & left_strand) | (combing_condition & top_strand);
+                bitset_top_strand_map[top_edge + j] =
+                        (rev_combing_cond & top_strand) | (combing_condition & left_strand);
+            }
+        }
+
+    }
+
+
+    //process last triangle in position  m-1, n-1  cube
     mask = ~Input(0);
+    mask_r = mask;
     for (int inside_diag_num = 0; inside_diag_num < upper_bound; ++inside_diag_num) {
         mask = mask << 1;
+        mask_r = mask_r >> 1;
+
         auto left_strand = bitset_left_strand_map[0];
+        auto left_cap = left_strand << (inside_diag_num + 1);
+        auto symbol_a = a_reverse[0];
+        auto symbol_b = b[n - 1];
+
         auto top_strand = bitset_top_strand_map[n - 1];
-        auto combing_condition = mask & ((~(a_reverse[0] ^ b[n - 1])) | ((~left_strand) & top_strand));
+        auto combing_condition =
+                mask & ((~((symbol_a << (inside_diag_num + 1)) ^ symbol_b)) | ((~left_cap) & top_strand));
         auto rev_combing_cond = ~combing_condition;
         if (combing_condition) {
-            bitset_left_strand_map[0] =
-                    (rev_combing_cond & left_strand) || (combing_condition & top_strand);
             bitset_top_strand_map[n - 1] =
-                    (rev_combing_cond & top_strand) || (combing_condition & left_strand);
+                    (rev_combing_cond & top_strand) | (combing_condition & left_cap);
+
+            top_strand = top_strand >> (inside_diag_num + 1);
+            combing_condition =
+                    mask_r & ((~(symbol_a ^ (symbol_b >> (inside_diag_num + 1)))) | ((~(left_strand) & top_strand)));
+            rev_combing_cond = ~combing_condition;
+            bitset_left_strand_map[0] =
+                    (rev_combing_cond & left_strand) | (combing_condition & top_strand);
+
         }
+
+
+//        std::cout<<"mask:"<<std::bitset<sizeof(Input)*8>(mask)<<std::endl;
+//        std::cout<<"left:"<<std::bitset<sizeof(Input)*8>(bitset_left_strand_map[m-1])<<std::endl;
+//        std::cout<<"new_left:"<<std::bitset<sizeof(Input)*8>((rev_combing_cond & left_strand) | (combing_condition & top_strand))<<std::endl;
+//        std::cout<<"top:"<<std::bitset<sizeof(Input)*8>(bitset_top_strand_map[m-1])<<std::endl;
+//        std::cout<<"top_new:"<<std::bitset<sizeof(Input)*8>((rev_combing_cond & top_strand) | (combing_condition & left_strand))<<std::endl;
+//        std::cout<<"combing:"<<std::bitset<sizeof(Input)*8>(combing_condition)<<std::endl;
+//        std::cout<<"a_rev"<<std::bitset<sizeof(Input)*8>(a_reverse[m - 1])<<std::endl;
+//        std::cout<<"b"<<std::bitset<sizeof(Input)*8>(b[0])<<std::endl;
+
+
+
+
+
     }
 
-
-    //TODO is it working only with positive number?
 //#pragma omp for simd reduction(+:dis_braid) schedule(static)
     for (int i1 = 0; i1 < m; ++i1) {
         //  Brian Kernighan’s Algorithm
@@ -445,12 +600,9 @@ int prefix_lcs_via_braid_bits_binary(Input *a_reverse, int a_size, int a_total_s
     }
 
 
-    //todo think
-//    if (std::min(not_garbage_bits_a,not_garbage_bits_b == 0)
     return a_total_symbols - dis_braid;
 
 }
-//    return  a_total_symbols  - dis_braid +  (sizeof(Input)*8 - std::max(not_garbage_bits_a,not_garbage_bits_b)) ;
 
 
 #endif //CPU_TRANSPOSITION_NETWORK_H
