@@ -72,12 +72,12 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
     {
         int left_edge, top_edge;
         //    init phase
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
         for (int k = 0; k < m; ++k) {
             strand_map[k] = k;
         }
 
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
         for (int l = 0; l < n; ++l) {
             strand_map[l + m] = l + m;
         }
@@ -86,7 +86,7 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
         for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
             left_edge = m - 1 - cur_diag_len;
             top_edge = m;
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
             for (int j = 0; j < cur_diag_len + 1; ++j) {
                 int left_strand = strand_map[left_edge + j];
                 int right_strand = strand_map[top_edge + j];
@@ -101,7 +101,7 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
             left_edge = 0;
             top_edge = m + j;
             auto i = m - 1;
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
             for (int k = 0; k < m; ++k) {
                 auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
@@ -118,7 +118,7 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
             top_edge = start_j + m;
             auto i = m - 1;
             auto j = start_j;
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
             for (int k = 0; k < diag_len + 1; ++k) {
                 auto right_strand = strand_map[top_edge + k];
                 auto left_strand = strand_map[left_edge + k];
@@ -128,13 +128,13 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
             }
         }
 
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
         for (int l = 0; l < m; ++l) {
 //            reduced_sticky_braid[strand_map[l]] = n + l;
             reduced_sticky_braid[n + l] = strand_map[l]; // seems faster
         }
 
-#pragma omp for simd schedule(static) safelen(1)
+#pragma omp for simd schedule(static)
         for (int r = m; r < n + m; ++r) {
 //            reduced_sticky_braid[strand_map[r]] = r - m;
             reduced_sticky_braid[r - m] = strand_map[r];//seems faster

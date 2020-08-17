@@ -5,9 +5,11 @@ set(CMAKE_CXX_STANDARD 11)
 
 add_library(cpu  library.h  prefix_lcs.h transposition_network.h utils.h library.cpp)
 
+#-ftree-vectorizer-verbose=
 # added -fopenmp
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp -fopt-info-vec-optimized    -Wall  -ffast-math  -march=native  -O0     -fopt-info        ")
-#-O3-g0 -Ofast -mavx -ftree-vectorize -ffast-math -mprefer-vector-width=512 -march=skylake-avx512-g
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp -Wall  -ffast-math  -march=native  -O2  -fopt-info-vec-optimized-optimized")
+#set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp -floop-parallelize-all -ftree-parallelize-loops=4    -Wall  -ffast-math  -march=native  -O3 -fstrict-aliasing  -fopt-info-vec-optimized-all -funsafe-math-optimizations     -fopt-info       ")
+#-O3-g0 -Ofast  -ftree-vectorize -ffast-math -mprefer-vector-width=512 -march=skylake-avx512-g
 #-mprefer-vector-width=512
 #-vec -simd -qopenmp -O3
 #-qopt-report=5
