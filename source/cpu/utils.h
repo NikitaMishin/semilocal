@@ -100,11 +100,6 @@ encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *m
     std::vector<Input> destination(a.size());
     std::reverse_copy(std::begin(a), std::end(a), std::begin(destination));
     return encode<Input,Output>(destination,mapper_forward,mapper_reverse);
-//    std::pair<std::pair<Output *, int>, int> rs  = encode<Input, Output>(a, mapper_forward, mapper_reverse);
-//    for (int i = 0; i <rs.first.second ; ++i) {
-//        std::swap(rs.first.first[rs.first.second-1 - i],rs.first.first[i]);
-//    }
-//    return rs;
 }
 
 
