@@ -3,6 +3,7 @@
 //
 
 #include "library.h"
+#include "transposition_network_approach/transposition_network_binary_alphabet.h"
 #include <string>
 #include <iostream>
 #include <chrono>
@@ -18,8 +19,7 @@ int main(int argc, char *argv[]) {
 //    std::cout<<sizeof(wordType) <<std::endl;
     std::srand(std::time(NULL)); // use current time as seed for random generator
 
-//    std::vector<int> seq_a{1,0,0,1,1,0,1,1,0,0,1,0,0,1,1,0};
-//    std::vector<int> seq_b{0,1,0,1,1,0,0,0 ,1,1,0,1,1,0,1,0};
+
 //    ok a:00100010
 //    ok b:01000101
 //    ok a:1001101100100110
@@ -35,8 +35,8 @@ int main(int argc, char *argv[]) {
     int thds = strtol(argv[1], NULL, 10);
 //    int a_size = strtol(argv[2], NULL, 10);
 //    int b_size = strtol(argv[3], NULL, 10);
-    int a_size = 6400;
-    int b_size = 6400*3;
+    int a_size = 14;
+    int b_size = 31;
 //    10 10 10 00
 //     11 01 00 00
 
@@ -48,8 +48,9 @@ int main(int argc, char *argv[]) {
 //    std::vector<int>seq_b = {3,3,1,3,1,3,3,3};
 //    std::vector<int>seq_a =  {1,1,1,1,1,1,1,1};
 
-        auto seq_a = gen_vector_seq(a_size ,3);
-    auto seq_b = gen_vector_seq( b_size,4);
+        auto seq_a = gen_vector_seq(a_size ,4);
+    auto seq_b = gen_vector_seq( b_size,2);
+
     auto a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
 
     auto b = encode<int, wordType >(seq_b,&mappers.first,&mappers.second);
@@ -67,59 +68,57 @@ int main(int argc, char *argv[]) {
 //    std::cout<<std::bitset<8>(a.first.first[0])<<" "<<std::bitset<8>(a.first.first[1])<<std::endl;
 //    std::cout<<std::bitset<8>(b.first.first[0])<<" "<<std::bitset<8>(b.first.first[1])<<std::endl;
 
-int i = 0;
-    while (true){
-        i++;
-        auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({3,2,1,0}));
-        std::srand(NULL); // use current time as seed for random generator
+//int i = 0;
+//    while (true){
+//        std::cout<<"run number"<<i<<std::endl;
+//        i++;
+//        auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({3,2,1,0}));
+//        std::srand(NULL); // use current time as seed for random generator
+//
+//        auto seq_a = gen_vector_seq(a_size ,2);
+//        auto seq_b = gen_vector_seq( b_size,4);
+//
+//        auto a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
+//
+//        auto b = encode<int, wordType >(seq_b,&mappers.first,&mappers.second);
+//        auto bit_mpi = prefix_lcs_via_braid_bits_4symbol_mpi(a.first.first,a.first.second, a.second ,
+//                                                    b.first.first,b.first.second, b.second,thds);
+//        auto c = prefix_lcs_sequential(seq_a,seq_b);
+//
+//        if( c!=bit_mpi){
+//
+//            std::cout<<"bit_mpi:"<<bit_mpi<<",bit:"<<",correct:"<<c<<std::endl;
+//            for (int j:seq_a) {
+//                std::cout<<j;
+//            }
+//            std::cout<<std::endl<<std::endl;
+//            for (int j:seq_b) {
+//                std::cout<<j;
+//            }
+//            std::cout<<std::endl;
+//            return 0 ;
+//        }
+//
+//    }
 
-        auto seq_a = gen_vector_seq(a_size ,4);
-        auto seq_b = gen_vector_seq( b_size,4);
 
-        auto a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
+    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<": "<< prefix_lcs_via_braid_4symbol_one_one_size(a.first.first[0],a.second ,b.first.first[0], b.second) << std::endl;
+    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout <<"Time: binary:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
-        auto b = encode<int, wordType >(seq_b,&mappers.first,&mappers.second);
-        auto bit_mpi = prefix_lcs_via_braid_bits_4symbol_mpi(a.first.first,a.first.second, a.second ,
-                                                    b.first.first,b.first.second, b.second,thds);
-        auto c = prefix_lcs_sequential(seq_a,seq_b);
 
-        if( c!=bit_mpi){
-
-            std::cout<<"bit_mpi:"<<bit_mpi<<",bit:"<<",correct:"<<c<<std::endl;
-            for (int j:seq_a) {
-                std::cout<<j;
-            }
-            std::cout<<std::endl<<std::endl;
-            for (int j:seq_b) {
-                std::cout<<j;
-            }
-            std::cout<<std::endl;
-            return 0 ;
-        }
-
-    }
-
-    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<"Res4symbolalppabet: "<< prefix_lcs_via_braid_bits_4symbol_mpi(a.first.first,a.first.second, a.second ,
-                                                      b.first.first,b.first.second, b.second,thds) << std::endl;
-    auto time = std::chrono::high_resolution_clock::now() - begin;
-    std::cout <<"Time 4symbol alphabet with open mpi:" <<std::chrono::duration<double, std::milli>(time).count() << std::endl;
+//    auto begin = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    std::cout << std::endl<<"Res4symbolalppabet: "<< prefix_lcs_via_braid_bits_4symbol_mpi(a.first.first,a.first.second, a.second ,
+//                                                      b.first.first,b.first.second, b.second,thds) << std::endl;
+//    auto time = std::chrono::high_resolution_clock::now() - begin;
+//    std::cout <<"Time 4symbol alphabet with open mpi:" <<std::chrono::duration<double, std::milli>(time).count() << std::endl;
 
 //    std::cout << std::endl<<"Res binary mpi : "<< prefix_lcs_via_braid_bits_binary_mpi(a.first.first,a.first.second, a.second ,
 ////                                                                                   b.first.first,b.first.second, b.second,2,thds) << std::endl;
 
 
-    mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({1,0}));
-    a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
 
-    b = encode<int, wordType >(seq_b,&mappers.first,&mappers.second);
-
-
-    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<": "<< prefix_lcs_via_braid_bits_binary_mpi(a.first.first,a.first.second, a.second ,
-                                                                         b.first.first,b.first.second, b.second,thds) << std::endl;
-    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout <<"Time: binary:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
 
 auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false

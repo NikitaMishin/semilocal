@@ -1,15 +1,15 @@
 //
-// Created by nikita on 30.07.2020.
+// Created by nikita on 19.08.2020.
 //
 
-#ifndef CPU_UTILS_H
-#define CPU_UTILS_H
-
+#ifndef CPU_ENCODERS_AND_DECODERS_H
+#define CPU_ENCODERS_AND_DECODERS_H
 
 #include <cmath>
 #include <algorithm>
 #include <unordered_set>
-
+#include <unordered_map>
+#include <vector>
 
 /**
  * Maps alphabet symbols to numbers from interval 0 to alpabet_size
@@ -32,8 +32,9 @@ encode_alphabet(std::unordered_set<Input> alphabet_set) {
         }
     }
     return std::pair<std::unordered_map<Input, Output>, std::unordered_map<Output, Input>>(*mapper_forward,
-                                                                                           *mapper_reverse);
+            *mapper_reverse);
 }
+
 
 
 /**
@@ -81,6 +82,7 @@ encode(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_fo
 
     return std::make_pair(std::make_pair(bitset_array, n), a.size());
 }
+
 
 /*
 *
@@ -154,6 +156,7 @@ std::vector<Output> decode(Input const *a, int n, int total_symbols, std::unorde
 
 }
 
+
 /**
  * Decode given reversed packed sequence in bits in numeric type Input to symbol vector of type Output
  * according to decoder and amount of bits per symbol
@@ -174,23 +177,7 @@ decode_reverse(Input const *a, int n, int total_symbols, std::unordered_map<Inpu
 }
 
 
-/**
- * Generate sequence of int numbers
- * @param size int
- * @param alphabet_size int, default = 4
- * @return vector<int> of size @size
- */
-std::vector<int> gen_vector_seq(int size, int alphabet_size = 4) {
 
-    auto v = std::vector<int>();
-    for (int i = 0; i < size; ++i) {
-        v.push_back(rand() % alphabet_size);
-    }
-    return v;
-}
+#endif //CPU_ENCODERS_AND_DECODERS_H
 
 
-
-
-
-#endif //CPU_UTILS_H

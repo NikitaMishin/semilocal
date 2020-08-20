@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include "utils.h"
 #include "prefix_lcs.h"
-#include "transposition_network.h"
+#include "transposition_network_approach/transposition_network_4symbol_alphabet.h"
 #include  <cstdlib>
 
 template<class Input>
@@ -145,7 +145,6 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
     delete[] strand_map;
     return reduced_sticky_braid;
 }
-
 
 
 
