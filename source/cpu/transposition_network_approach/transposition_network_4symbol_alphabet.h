@@ -1500,8 +1500,9 @@ int prefix_lcs_via_braid_4symbol_one_one_size(Input a_reverse, int a_total_symbo
         r_active_mask |= (Input(1) << (2 * i));
     }
 
-    a_reverse <<= (sizeof(Input)*8 - 2*active_symbols_a_active ); //since we have a_reverse =  00000 last,.....
-
+//    if(active_symbols_a_active != 0) {
+//        a_reverse = a_reverse << (sizeof(Input) * 8 - 2 * active_symbols_a_active); //since we have a_reverse =  00000 last,.....
+//    }
 
     int upper_bound = (sizeof(Input) * 8 / 2) - 1;
     Input left_strand = l_active_mask;
@@ -1569,8 +1570,11 @@ int prefix_lcs_via_braid_4symbol_one_one_size(Input a_reverse, int a_total_symbo
     dis_braid += counter;
 
 
-    return a_total_symbols - dis_braid;
+    return a_total_symbols - dis_braid + (sizeof(Input)*4 - active_symbols_a_active );
 }
+
+
+
 
 
 

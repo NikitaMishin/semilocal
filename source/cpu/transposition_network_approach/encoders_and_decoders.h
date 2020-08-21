@@ -10,6 +10,8 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <vector>
+#include <iostream>
+#include <bitset>
 
 /**
  * Maps alphabet symbols to numbers from interval 0 to alpabet_size
@@ -99,10 +101,42 @@ std::pair<std::pair<Output *, int>, int>
 encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_forward,
                std::unordered_map<Output, Input> *mapper_reverse) {
 
-    std::vector<Input> destination(a.size());
-    std::reverse_copy(std::begin(a), std::end(a), std::begin(destination));
-    return encode<Input,Output>(destination,mapper_forward,mapper_reverse);
+
+    auto alphabet_size = mapper_reverse->size();
+    auto bits_per_symbol = int(std::ceil(log2(alphabet_size)));
+    auto shift = bits_per_symbol;
+    auto word_size_in_bits = sizeof(Output) * 8;
+    auto symbols_in_word = int(word_size_in_bits / shift);
+
+    auto bytes_needed = int(std::ceil(a.size() * 1.0 / symbols_in_word) * sizeof(Output));
+
+    auto bitset_array = static_cast<Output *> (aligned_alloc(sizeof(Output), bytes_needed));
+    auto n = bytes_needed / sizeof(Output);
+
+
+    // fill first guy
+    for (int i = 0; i < n-1 ; ++i) {
+        Output word = Output(0);
+        for (int symbol = 0; symbol < symbols_in_word; symbol++) {
+            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1));
+            }
+        bitset_array[n-1-i] = word;
+    }
+
+    //    fill last
+    for (int i = n-1; i < n; ++i) {
+        Output word = 0;
+        for (int symbol = 0; (n-1) * symbols_in_word + symbol < a.size(); symbol++) {
+            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1));
+        }
+        bitset_array[n-1-i] = word;
+    }
+
+    return std::make_pair(std::make_pair(bitset_array, n), a.size());
+
+
 }
+
 
 
 /**
