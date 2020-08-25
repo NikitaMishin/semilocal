@@ -1,0 +1,1 @@
+/usr/bin/g++-10  -g  -rdynamic CMakeFiles/Google_Tests_run.dir/test1.o  -o Google_Tests_run   -L/home/nikita/projects/semilocal/source/cpu/Google_tests/cmake-build-debug/lib  -lcpu lib/libgtestd.a lib/libgtest_maind.a lib/libgtestd.a -lpthread 
