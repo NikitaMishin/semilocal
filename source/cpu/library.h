@@ -10,18 +10,19 @@
 #include <map>
 #include <unordered_map>
 #include "utils.h"
-#include "prefix_lcs.h"
-#include "transposition_network_approach/transposition_network_4symbol_alphabet.h"
+#include "library_correctnesses_tests.h"
+#include "transposition_network_approach/transposition_network_4symbol_alphabet_bit.h"
 #include  <cstdlib>
 
-template<class Input>
-int *sticky_braid_sequential(std::vector<Input> &a, std::vector<Input> &b) {
+
+template<class Input, class StrandHolder>
+StrandHolder *sticky_braid_sequential(std::vector<Input> &a, std::vector<Input> &b) {
     auto m = a.size();
     auto n = b.size();
 
     auto size = m + n;
-    auto strand_map = new int[size];
-    auto reduced_sticky_braid = new int[size];
+    StrandHolder *strand_map = new StrandHolder[size];
+    StrandHolder *reduced_sticky_braid = new StrandHolder[size];
     for (int i = 0; i < size; ++i) {
         strand_map[i] = i;
     }
@@ -36,33 +37,39 @@ int *sticky_braid_sequential(std::vector<Input> &a, std::vector<Input> &b) {
             if (a[i] == b[j] || (left_strand > right_strand)) std::swap(strand_map[top_edge], strand_map[left_edge]);
 
             if (j == n - 1) {
-                reduced_sticky_braid[strand_map[left_edge]] = left_edge + n;
+//                reduced_sticky_braid[strand_map[left_edge]] = left_edge + n;
+                reduced_sticky_braid[left_edge + n] = strand_map[left_edge];
             }
             if (i == m - 1) {
-                reduced_sticky_braid[strand_map[top_edge]] = top_edge - m;
+//                reduced_sticky_braid[strand_map[top_edge]] = top_edge - m;
+                reduced_sticky_braid[top_edge - m] = strand_map[top_edge];
             }
 
         }
     }
+
+    delete [] strand_map;
+
     return reduced_sticky_braid;
 }
 
 /**
- * Assume |a| <= |b|
  * @tparam Input
  * @param a
  * @param b
  * @return
  */
-template<class Input>
-int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, int threads_num = 1) {
+template<class Input, class StrandHolder>
+StrandHolder *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, int threads_num = 1) {
+
+    if (a.size() > b.size()) return sticky_braid_mpi<Input, StrandHolder>(b, a, threads_num);
 
     auto m = a.size();
     auto n = b.size();
 
     auto size = m + n;
-    auto reduced_sticky_braid = new int[size];
-    auto strand_map = new int[size];
+    StrandHolder *reduced_sticky_braid = new StrandHolder[size];
+    StrandHolder *strand_map = new StrandHolder[size];
 
     auto num_diag = a.size() + b.size() - 1;
     auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
@@ -74,12 +81,12 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
         //    init phase
 #pragma omp for simd schedule(static)
         for (int k = 0; k < m; ++k) {
-            strand_map[k] = k;
+            strand_map[k] = StrandHolder(k);
         }
 
 #pragma omp for simd schedule(static)
         for (int l = 0; l < n; ++l) {
-            strand_map[l + m] = l + m;
+            strand_map[l + m] = StrandHolder(l + m);
         }
 
         //    phase one
@@ -88,8 +95,8 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
             top_edge = m;
 #pragma omp for simd schedule(static)
             for (int j = 0; j < cur_diag_len + 1; ++j) {
-                int left_strand = strand_map[left_edge + j];
-                int right_strand = strand_map[top_edge + j];
+                StrandHolder left_strand = strand_map[left_edge + j];
+                StrandHolder right_strand = strand_map[top_edge + j];
 //                bool r = a[left_edge + j] == b[j] || (!left_strand && right_strand);
                 bool r = a[cur_diag_len - j] == b[j] || (left_strand > right_strand);
                 if (r) std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
@@ -103,8 +110,8 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
             auto i = m - 1;
 #pragma omp for simd schedule(static)
             for (int k = 0; k < m; ++k) {
-                auto left_strand = strand_map[left_edge + k];
-                auto right_strand = strand_map[top_edge + k];
+                StrandHolder left_strand = strand_map[left_edge + k];
+                StrandHolder right_strand = strand_map[top_edge + k];
                 bool r = a[i - k] == b[left_edge + j + k] || (left_strand > right_strand);
 //                auto r = a[left_edge + k] == b[left_edge + j + k] || (left_strand > right_strand);
                 if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
@@ -120,8 +127,8 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
             auto j = start_j;
 #pragma omp for simd schedule(static)
             for (int k = 0; k < diag_len + 1; ++k) {
-                auto right_strand = strand_map[top_edge + k];
-                auto left_strand = strand_map[left_edge + k];
+                StrandHolder right_strand = strand_map[top_edge + k];
+                StrandHolder left_strand = strand_map[left_edge + k];
 //                auto r = a[left_edge+k] == b[j + k] || (!left_strand && right_strand);
                 bool r = a[i - k] == b[j + k] || (left_strand > right_strand);
                 if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
@@ -145,7 +152,6 @@ int *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, 
     delete[] strand_map;
     return reduced_sticky_braid;
 }
-
 
 
 #endif //CPU_LIBRARY_H

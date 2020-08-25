@@ -15,10 +15,11 @@
  * @param b
  * @return
  */
-template<class Input,class StrandHolder>
-int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> const &b, int threads_num = 1) {
+template<class Input, class StrandHolder>
+int prefix_lcs_via_braid_mpi_bitwise_operator(std::vector<Input> const &a, std::vector<Input> const &b,
+                                              int threads_num = 1) {
 
-    if(a.size()>b.size()) return prefix_lcs_via_braid_mpi(b,a,threads_num);
+    if (a.size() > b.size()) return prefix_lcs_via_braid_mpi_bitwise_operator<Input, StrandHolder>(b, a, threads_num);
 
     auto m = a.size();
     auto n = b.size();
@@ -26,20 +27,20 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> con
     auto dis_braid = 0;
     auto size = m + n;
 
-    auto strand_map = new StrandHolder[size];
+    StrandHolder *strand_map = new StrandHolder[size];
     auto num_diag = a.size() + b.size() - 1;
     auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
 
-    #pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, total_same_length_diag, size, m, n, dis_braid)
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, total_same_length_diag, size, m, n, dis_braid)
     {
         int left_edge, top_edge;
         //    init phase
-        #pragma omp  for simd schedule(static)
+#pragma omp  for simd schedule(static)
         for (int k = 0; k < m; ++k) {
             strand_map[k] = StrandHolder(true);
         }
 
-        #pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
         for (int l = 0; l < n; ++l) {
             strand_map[l + m] = StrandHolder(false);
         }
@@ -48,11 +49,12 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> con
         for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
             left_edge = m - 1 - cur_diag_len;
             top_edge = m;
-            #pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
             for (int j = 0; j < cur_diag_len + 1; ++j) {
                 StrandHolder left_strand = strand_map[left_edge + j];
                 StrandHolder right_strand = strand_map[top_edge + j];
-                if ((a[cur_diag_len - j] == b[j]) || (left_strand > right_strand)) std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
+                if ((a[cur_diag_len - j] == b[j]) || (!left_strand & right_strand))
+                    std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
             }
         }
 
@@ -60,11 +62,12 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> con
         for (int j = 0; j < total_same_length_diag; ++j) {
             top_edge = m + j;
             auto i = m - 1;
-            #pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
             for (int k = 0; k < m; ++k) {
                 StrandHolder left_strand = strand_map[k];
                 StrandHolder right_strand = strand_map[top_edge + k];
-                if ((a[i - k] == b[j + k]) || (left_strand > right_strand)) std::swap(strand_map[top_edge + k], strand_map[k]);
+                if ((a[i - k] == b[j + k]) || (!left_strand & right_strand))
+                    std::swap(strand_map[top_edge + k], strand_map[k]);
             }
         }
 
@@ -74,15 +77,97 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> con
             top_edge = start_j + m;
             auto i = m - 1;
             auto j = start_j;
-            #pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
             for (int k = 0; k < diag_len + 1; ++k) {
                 StrandHolder left_strand = strand_map[k];
                 StrandHolder right_strand = strand_map[top_edge + k];
-                if ((a[i - k] == b[j + k]) || (left_strand > right_strand)) std::swap(strand_map[top_edge + k], strand_map[k]);
+                if ((a[i - k] == b[j + k]) || (!left_strand & right_strand))
+                    std::swap(strand_map[top_edge + k], strand_map[k]);
             }
         }
 
-        #pragma omp for simd reduction(+:dis_braid) schedule(static)
+#pragma omp for simd reduction(+:dis_braid) schedule(static)
+        for (int i1 = 0; i1 < m; ++i1) {
+            dis_braid += strand_map[i1];
+        }
+    }
+    delete[] strand_map;
+
+    return m - dis_braid;
+}
+
+template<class Input, class StrandHolder>
+int
+prefix_lcs_via_braid_mpi_less_operator(std::vector<Input> const &a, std::vector<Input> const &b, int threads_num = 1) {
+
+    if (a.size() > b.size()) return prefix_lcs_via_braid_mpi_less_operator<Input, StrandHolder>(b, a, threads_num);
+
+    auto m = a.size();
+    auto n = b.size();
+
+    auto dis_braid = 0;
+    auto size = m + n;
+
+    StrandHolder *strand_map = new StrandHolder[size];
+    auto num_diag = a.size() + b.size() - 1;
+    auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
+
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, total_same_length_diag, size, m, n, dis_braid)
+    {
+        int left_edge, top_edge;
+        //    init phase
+#pragma omp  for simd schedule(static)
+        for (int k = 0; k < m; ++k) {
+            strand_map[k] = StrandHolder(true);
+        }
+
+#pragma omp for simd schedule(static)
+        for (int l = 0; l < n; ++l) {
+            strand_map[l + m] = StrandHolder(false);
+        }
+
+        //    phase one
+        for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
+            left_edge = m - 1 - cur_diag_len;
+            top_edge = m;
+#pragma omp for simd schedule(static)
+            for (int j = 0; j < cur_diag_len + 1; ++j) {
+                StrandHolder left_strand = strand_map[left_edge + j];
+                StrandHolder right_strand = strand_map[top_edge + j];
+                if ((a[cur_diag_len - j] == b[j]) || (left_strand < right_strand))
+                    std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
+            }
+        }
+
+
+        for (int j = 0; j < total_same_length_diag; ++j) {
+            top_edge = m + j;
+            auto i = m - 1;
+#pragma omp for simd schedule(static)
+            for (int k = 0; k < m; ++k) {
+                StrandHolder left_strand = strand_map[k];
+                StrandHolder right_strand = strand_map[top_edge + k];
+                if ((a[i - k] == b[j + k]) || (left_strand < right_strand))
+                    std::swap(strand_map[top_edge + k], strand_map[k]);
+            }
+        }
+
+////    phase 3
+        auto start_j = total_same_length_diag;
+        for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
+            top_edge = start_j + m;
+            auto i = m - 1;
+            auto j = start_j;
+#pragma omp for simd schedule(static)
+            for (int k = 0; k < diag_len + 1; ++k) {
+                StrandHolder left_strand = strand_map[k];
+                StrandHolder right_strand = strand_map[top_edge + k];
+                if ((a[i - k] == b[j + k]) || (left_strand < right_strand))
+                    std::swap(strand_map[top_edge + k], strand_map[k]);
+            }
+        }
+
+#pragma omp for simd reduction(+:dis_braid) schedule(static)
         for (int i1 = 0; i1 < m; ++i1) {
             dis_braid += strand_map[i1];
         }
@@ -93,8 +178,7 @@ int prefix_lcs_via_braid_mpi(std::vector<Input> const &a, std::vector<Input> con
 }
 
 
-
-template<class Input,class StrandHolder>
+template<class Input, class StrandHolder>
 int prefix_lcs_via_braid_sequential(std::vector<Input> const &a, std::vector<Input> const &b) {
 
     auto m = a.size();
@@ -128,13 +212,6 @@ int prefix_lcs_via_braid_sequential(std::vector<Input> const &a, std::vector<Inp
 
     return m - dis_braid;
 }
-
-
-
-
-
-
-
 
 
 #endif //CPU_TRANSPOSITION_NETWORK_UNBOUNDED_ALPHABET_H

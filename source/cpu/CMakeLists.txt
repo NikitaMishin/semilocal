@@ -3,7 +3,9 @@ project(cpu)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_library(cpu  library.h  prefix_lcs.h transposition_network_approach/transposition_network_4symbol_alphabet.h utils.h library.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h transposition_network_approach/tmp.h)
+add_library(cpu  library.h library_correctnesses_tests.h transposition_network_approach/transposition_network_4symbol_alphabet_bit.h utils.h library.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h transposition_network_approach/transposition_network_4symbol_alphabet_bit_mpi.h)
+add_subdirectory(Google_tests )
+
 #/usr/bin/clang++-10
 #/usr/bin/g++-10
 #-ftree-vectorizer-verbose=
@@ -14,7 +16,7 @@ add_library(cpu  library.h  prefix_lcs.h transposition_network_approach/transpos
 #
 #-fopenmp=libomp
 # -fopenmp=libiomp5
-set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall -fstrict-aliasing  -ffast-math  -march=native  -O3  -fopt-info-vec-optimized-optimized ")
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall -fstrict-aliasing  -ffast-math  -march=native  -O0   -fopt-info-vec-optimized-optimized ")
 #set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp -floop-parallelize-all -ftree-parallelize-loops=4    -Wall  -ffast-math  -march=native  -O3 -fstrict-aliasing  -fopt-info-vec-optimized-all -funsafe-math-optimizations     -fopt-info       ")
 #-O3-g0 -Ofast  -ftree-vectorize -ffast-math -mprefer-vector-width=512 -march=skylake-avx512-g
 #-mprefer-vector-width=512
