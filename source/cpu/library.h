@@ -9,7 +9,7 @@
 #include <cstring>
 #include <map>
 #include <unordered_map>
-#include "utils.h"
+#include "fasta_parser.h"
 #include "library_correctnesses_tests.h"
 #include "transposition_network_approach/transposition_network_4symbol_alphabet_bit.h"
 #include  <cstdlib>

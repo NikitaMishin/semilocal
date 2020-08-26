@@ -9,7 +9,7 @@ include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR})
 # 'test1.cpp tests2.cpp' are source files with tests
 
 
-add_executable(Google_Tests_run library_correctnesses_tests.cpp semilocal_kernel.cpp)
+add_executable(Google_Tests_run library_correctnesses_tests.cpp)
 
 target_link_libraries(Google_Tests_run cpu )
 

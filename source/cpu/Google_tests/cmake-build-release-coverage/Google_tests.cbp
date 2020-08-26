@@ -338,10 +338,7 @@
 		<Unit filename="/home/nikita/projects/semilocal/source/cpu/Google_tests/lib/googletest/src/gtest_main.cc">
 			<Option target="gtest_main"/>
 		</Unit>
-		<Unit filename="/home/nikita/projects/semilocal/source/cpu/Google_tests/test1.cpp">
-			<Option target="Google_Tests_run"/>
-		</Unit>
-		<Unit filename="/home/nikita/projects/semilocal/source/cpu/Google_tests/test1.h">
+		<Unit filename="/home/nikita/projects/semilocal/source/cpu/Google_tests/library_correctnesses_tests.cpp">
 			<Option target="Google_Tests_run"/>
 		</Unit>
 		<Unit filename="/home/nikita/projects/semilocal/source/cpu/Google_tests/CMakeLists.txt">

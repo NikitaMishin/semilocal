@@ -53,7 +53,7 @@ int prefix_lcs_via_braid_mpi_bitwise_operator(std::vector<Input> const &a, std::
             for (int j = 0; j < cur_diag_len + 1; ++j) {
                 StrandHolder left_strand = strand_map[left_edge + j];
                 StrandHolder right_strand = strand_map[top_edge + j];
-                if ((a[cur_diag_len - j] == b[j]) || (!left_strand & right_strand))
+                if ((a[cur_diag_len - j] == b[j]) || ((!left_strand) & right_strand))
                     std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
             }
         }
@@ -66,7 +66,7 @@ int prefix_lcs_via_braid_mpi_bitwise_operator(std::vector<Input> const &a, std::
             for (int k = 0; k < m; ++k) {
                 StrandHolder left_strand = strand_map[k];
                 StrandHolder right_strand = strand_map[top_edge + k];
-                if ((a[i - k] == b[j + k]) || (!left_strand & right_strand))
+                if ((a[i - k] == b[j + k]) || ((!left_strand) & right_strand))
                     std::swap(strand_map[top_edge + k], strand_map[k]);
             }
         }
@@ -81,7 +81,7 @@ int prefix_lcs_via_braid_mpi_bitwise_operator(std::vector<Input> const &a, std::
             for (int k = 0; k < diag_len + 1; ++k) {
                 StrandHolder left_strand = strand_map[k];
                 StrandHolder right_strand = strand_map[top_edge + k];
-                if ((a[i - k] == b[j + k]) || (!left_strand & right_strand))
+                if ((a[i - k] == b[j + k]) || ((!left_strand) & right_strand))
                     std::swap(strand_map[top_edge + k], strand_map[k]);
             }
         }

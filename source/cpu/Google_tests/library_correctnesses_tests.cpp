@@ -6,7 +6,6 @@
 #include "../library.h"
 #include "../transposition_network_approach/transposition_network_binary_alphabet.h"
 #include "../transposition_network_approach/encoders_and_decoders.h"
-#include "../transposition_network_approach/transposition_network_4symbol_alphabet_bit_mpi.h"
 
 const int MAX_SIZE_B = 1800;
 const int ITERATIONS_PER_INPUT = 1;
