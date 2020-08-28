@@ -14,35 +14,42 @@
 #include <fstream>
 #include <sstream>
 
-std::pair<int,std::pair<std::string,std::string>> parse_fasta(const std::string&  filename){
-    std::ifstream input(filename);
-    if(!input.good()){
-        std::cerr << "Error opening "<<filename<<std::endl;
-        return std::make_pair(-1,std::make_pair("",""));
-    }
+std::pair<int,std::pair<std::string,std::string>> parse_input_file(const std::string&  filename){
+    std::ifstream file(filename);
+    std::string name;
+    std::string sequence;
+    std::getline(file, name);
+    std::getline(file, sequence);
+    return std::make_pair(0,std::make_pair(name,sequence));
 
-    std::string line, name, content;
-
-    while( std::getline( input, line ).good() ){
-        if( line.empty() || line[0] == '>' ){ // Identifier marker
-            if( !name.empty() ){ // Print out what we read from the last entry
-                std::cout << name << " : " << content << std::endl;
-                name.clear();
-            }
-            if( !line.empty() ){
-                name = line.substr(1);
-            }
-            content.clear();
-        } else if( !name.empty() ){
-            if( line.find(' ') != std::string::npos ){ // Invalid sequence--no spaces allowed
-                name.clear();
-                content.clear();
-            } else {
-                content += line;
-            }
-        }
-    }
-    return std::make_pair(0,std::make_pair(name,content));
+//    std::ifstream input(filename);
+//    if(!input.good()){
+//        std::cerr << "Error opening "<<filename<<std::endl;
+//        return std::make_pair(-1,std::make_pair("",""));
+//    }
+//
+//    std::string line, name, content;
+//
+//    while( std::getline( input, line ).good() ){
+//        if( line.empty() || line[0] == '>' ){ // Identifier marker
+//            if( !name.empty() ){ // Print out what we read from the last entry
+//                std::cout << name << " : " << content << std::endl;
+//                name.clear();
+//            }
+//            if( !line.empty() ){
+//                name = line.substr(1);
+//            }
+//            content.clear();
+//        } else if( !name.empty() ){
+//            if( line.find(' ') != std::string::npos ){ // Invalid sequence--no spaces allowed
+//                name.clear();
+//                content.clear();
+//            } else {
+//                content += line;
+//            }
+//        }
+//    }
+//    return std::make_pair(0,std::make_pair(name,content));
 };
 
 std::unordered_map<char,int> acgt_to_int( {{'a',0},{'c',1},{'g',2},{'t',3}});

@@ -22,8 +22,8 @@ int main(int argc, char *argv[])
     int thds = strtol(argv[1], NULL, 10);
     std::string a_filepath = std::string(argv[2]);
     std::string b_filepath = std::string(argv[3]);
-    auto name_content_a = parse_fasta(a_filepath);
-    auto name_content_b = parse_fasta(b_filepath);
+    auto name_content_a = parse_input_file(a_filepath);
+    auto name_content_b = parse_input_file(b_filepath);
     auto seq_a = transform_to_int_vector(name_content_a.second.second);
     auto seq_b = transform_to_int_vector(name_content_b.second.second);
     auto beg = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
@@ -33,7 +33,6 @@ int main(int argc, char *argv[])
 
     std::cout<<0<<std::endl;
     std::cout<<elapsed_time<<std::endl;
-    std::cout<<name_content_a.second.first<<std::endl;
     std::cout<<res;
 
 }
