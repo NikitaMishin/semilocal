@@ -13,7 +13,8 @@ from typing import List, Tuple, Dict
 import fastaparser
 
 CXX_COMPILER_PATH = '/usr/bin/g++-10'
-SINGLE_THREADED_SOLUTIONS = ['prefix_lcs', 'prefix_lcs_via_braid_bits_4symbol_int',
+SINGLE_THREADED_SOLUTIONS = ['prefix_lcs',
+                             'prefix_lcs_via_braid_bits_4symbol_int',
                              'prefix_lcs_via_braid_bits_4symbol_long_long',
                              'prefix_lcs_via_braid_bits_binary_int',
                              'prefix_lcs_via_braid_bits_binary_long_long',
@@ -25,6 +26,7 @@ MULTI_THREADED_SOLUTIONS = ['prefix_lcs_via_braid_bits_4symbol_mpi_int',
                             'prefix_lcs_via_braid_bits_binary_mpi_int',
                             'prefix_lcs_via_braid_bits_binary_mpi_long_long',
                             'semi_local_lcs_mpi'
+                            'prefix_lcs_via_braid_mpi_less_operator'
                             ]
 MAX_THREADS = 4
 REPEATS = 3
@@ -277,7 +279,8 @@ def run_tests(runners: List[Runner], tests: List[Test], repeats: int, flags):
 def generate_sequence(destination_folder: str, name: str, size: int, alphabet) -> Tuple[str, int, int]:
     seed(a=name)
     path = os.path.join(destination_folder, f'generated_{name}')
-    weights = [uniform(0, 10) for _ in alphabet]
+    #weights = [uniform(0, 10) for _ in alphabet] run with
+    weights = [1 for _ in alphabet]
     with open(path, 'w+') as f:
         # lst = [str(choice(range(alphabet_size))) for _ in range(size)]
         lst = choices(list(alphabet), weights=weights, k=size)

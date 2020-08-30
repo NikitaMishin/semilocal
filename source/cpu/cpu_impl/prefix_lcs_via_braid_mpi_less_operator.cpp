@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
     if (seq_b.size()>seq_a.size()) std::swap(seq_a,seq_b);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    auto res = prefix_lcs_via_braid_sequential<int,int>(seq_a, seq_b);
+    auto res = prefix_lcs_via_braid_mpi_less_operator<int,int>(seq_a, seq_b, thds);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
 

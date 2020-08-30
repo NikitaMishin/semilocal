@@ -46,7 +46,7 @@ add_executable(semi_local_lcs_sequential cpu_impl/semi_local_lcs_sequential.cpp 
 
 add_executable(semi_local_lcs_mpi cpu_impl/semi_local_lcs_mpi.cpp )
 
-add_executable(prefix_lcs_via_braid_sequential cpu_impl/prefix_lcs_via_braid_sequential.cpp)
+add_executable(prefix_lcs_via_braid_mpi_less_operator cpu_impl/prefix_lcs_via_braid_mpi_less_operator.cpp)
 
 add_executable(prefix_lcs_via_braid_bits_4symbol_int cpu_impl/prefix_lcs_via_braid_bits_4symbol_int.cpp)
 #CUDACXX=/usr/local/cuda-11.0/bin/nvcc
@@ -64,3 +64,5 @@ add_executable(prefix_lcs_via_braid_bits_binary_long_long cpu_impl/prefix_lcs_vi
 add_executable(prefix_lcs_via_braid_bits_binary_mpi_int cpu_impl/prefix_lcs_via_braid_bits_binary_mpi_int.cpp)
 
 add_executable(prefix_lcs_via_braid_bits_binary_mpi_long_long cpu_impl/prefix_lcs_via_braid_bits_binary_mpi_long_long.cpp)
+
+add_executable(prefix_lcs_via_braid_sequential cpu_impl/prefix_lcs_via_braid_sequential.cpp)
