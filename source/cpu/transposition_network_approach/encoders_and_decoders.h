@@ -23,13 +23,13 @@
 template<class Input, class Output>
 std::pair<std::unordered_map<Input, Output>, std::unordered_map<Output, Input>>
 encode_alphabet(std::unordered_set<Input> alphabet_set) {
-    auto mapper_forward = new std::unordered_map<Input, Output>;
-    auto mapper_reverse = new std::unordered_map<Output, Input>;
-    auto encoder = Output(0);
+    std::unordered_map<Input, Output> * mapper_forward = new std::unordered_map<Input, Output>;
+    std::unordered_map<Output, Input> * mapper_reverse = new std::unordered_map<Output, Input>;
+    Output encoder = Output(0);
     for (Input s : alphabet_set) {
         if (mapper_forward->count(s) == 0) {
-            (*mapper_forward)[s] = Output(encoder);
-            (*mapper_reverse)[encoder] = s;
+            mapper_forward->insert(std::make_pair(s,encoder));
+            mapper_reverse->insert(std::make_pair(encoder,s));
             encoder++;
         }
     }
@@ -124,7 +124,7 @@ encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *m
     }
 
     //    fill last
-    for (int i = n-1; i < n; ++i) {
+    for (int i = n - 1; i < n; ++i) {
         Output word = 0;
         for (int symbol = 0; (n-1) * symbols_in_word + symbol < a.size(); symbol++) {
             word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1));

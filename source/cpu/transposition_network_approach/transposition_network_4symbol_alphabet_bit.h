@@ -8,9 +8,6 @@
 #include <vector>
 #include <cmath>
 
-void brian_kernighans_algorithm() {
-
-}
 
 template<class Input>
 inline void loop_upper_half_mpi(int lower_bound, int upper_bound, int rev_counter, int left_edge, int top_edge,

@@ -242,19 +242,19 @@ gtest/fast:
 .PHONY : gtest/fast
 
 # target to build an object file
-test1.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Google_Tests_run.dir/build.make CMakeFiles/Google_Tests_run.dir/test1.o
-.PHONY : test1.o
+library_correctnesses_tests.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Google_Tests_run.dir/build.make CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o
+.PHONY : library_correctnesses_tests.o
 
 # target to preprocess a source file
-test1.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Google_Tests_run.dir/build.make CMakeFiles/Google_Tests_run.dir/test1.i
-.PHONY : test1.i
+library_correctnesses_tests.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Google_Tests_run.dir/build.make CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.i
+.PHONY : library_correctnesses_tests.i
 
 # target to generate assembly for a file
-test1.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Google_Tests_run.dir/build.make CMakeFiles/Google_Tests_run.dir/test1.s
-.PHONY : test1.s
+library_correctnesses_tests.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Google_Tests_run.dir/build.make CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.s
+.PHONY : library_correctnesses_tests.s
 
 # Help Target
 help:
@@ -273,9 +273,9 @@ help:
 	@echo "... gmock_main"
 	@echo "... gtest"
 	@echo "... gtest_main"
-	@echo "... test1.o"
-	@echo "... test1.i"
-	@echo "... test1.s"
+	@echo "... library_correctnesses_tests.o"
+	@echo "... library_correctnesses_tests.i"
+	@echo "... library_correctnesses_tests.s"
 .PHONY : help
 
 

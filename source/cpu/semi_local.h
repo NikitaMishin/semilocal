@@ -1,5 +1,5 @@
-#ifndef CPU_LIBRARY_H
-#define CPU_LIBRARY_H
+#ifndef CPU_SEMI_LOCAL_H
+#define CPU_SEMI_LOCAL_H
 
 #include <vector>
 
@@ -9,8 +9,6 @@
 #include <cstring>
 #include <map>
 #include <unordered_map>
-#include "fasta_parser.h"
-#include "library_correctnesses_tests.h"
 #include "transposition_network_approach/transposition_network_4symbol_alphabet_bit.h"
 #include  <cstdlib>
 
@@ -154,4 +152,4 @@ StrandHolder *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> c
 }
 
 
-#endif //CPU_LIBRARY_H
+#endif //CPU_SEMI_LOCAL_H

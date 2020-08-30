@@ -13,6 +13,8 @@
 
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
+#include <vector>
 
 std::pair<int,std::pair<std::string,std::string>> parse_input_file(const std::string&  filename){
     std::ifstream file(filename);
@@ -22,49 +24,21 @@ std::pair<int,std::pair<std::string,std::string>> parse_input_file(const std::st
     std::getline(file, sequence);
     return std::make_pair(0,std::make_pair(name,sequence));
 
-//    std::ifstream input(filename);
-//    if(!input.good()){
-//        std::cerr << "Error opening "<<filename<<std::endl;
-//        return std::make_pair(-1,std::make_pair("",""));
-//    }
-//
-//    std::string line, name, content;
-//
-//    while( std::getline( input, line ).good() ){
-//        if( line.empty() || line[0] == '>' ){ // Identifier marker
-//            if( !name.empty() ){ // Print out what we read from the last entry
-//                std::cout << name << " : " << content << std::endl;
-//                name.clear();
-//            }
-//            if( !line.empty() ){
-//                name = line.substr(1);
-//            }
-//            content.clear();
-//        } else if( !name.empty() ){
-//            if( line.find(' ') != std::string::npos ){ // Invalid sequence--no spaces allowed
-//                name.clear();
-//                content.clear();
-//            } else {
-//                content += line;
-//            }
-//        }
-//    }
-//    return std::make_pair(0,std::make_pair(name,content));
 };
 
-std::unordered_map<char,int> acgt_to_int( {{'a',0},{'c',1},{'g',2},{'t',3}});
-std::unordered_map<char,int> int_to_acgt( {{0,'a'},{1,'c'},{2,'g'},{3,'t'}});
 
 
 std::vector<int> transform_to_int_vector(std::string & sequence){
+    std::unordered_map<char,int> acgt_to_int( {{'a',0},{'c',1},{'g',2},{'t',3}});
+    std::unordered_map<char,int> int_to_acgt( {{0,'a'},{1,'c'},{2,'g'},{3,'t'}});
 
     std::for_each(sequence.begin(), sequence.end(), [](char & c){
         c = ::tolower(c);
     });
 
     auto vector = new std::vector<int>();
-    for (int i = 0; i < sequence.size(); ++i) {
-        vector->push_back(acgt_to_int.count(sequence[i]) ? 0 : acgt_to_int[sequence[i]]);
+    for (char & i : sequence) {
+        vector->push_back(acgt_to_int.count(i)==0 ? 0 : acgt_to_int[i]);
     }
 
     return *vector;

@@ -1,9 +1,9 @@
 #include <unordered_set>
 #include "gtest/gtest.h"
 #include "../sequence_generators.h"
-#include "../library_correctnesses_tests.h"
+#include "../naive_prefix_lcs.h"
 #include "../transposition_network_approach/transposition_network_unbounded_alphabet.h"
-#include "../library.h"
+#include "../semi_local.h"
 #include "../transposition_network_approach/transposition_network_binary_alphabet.h"
 #include "../transposition_network_approach/encoders_and_decoders.h"
 

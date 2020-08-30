@@ -6,7 +6,7 @@
 #define CPU_TRANSPOSITION_NETWORK_BINARY_ALPHABET_H
 
 
-#include <stdlib.h>
+#include <cstdlib>
 
 
 template<class Input>

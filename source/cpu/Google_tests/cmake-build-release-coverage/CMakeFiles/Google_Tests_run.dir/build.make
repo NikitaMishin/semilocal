@@ -77,27 +77,27 @@ include CMakeFiles/Google_Tests_run.dir/progress.make
 # Include the compile flags for this target's objects.
 include CMakeFiles/Google_Tests_run.dir/flags.make
 
-CMakeFiles/Google_Tests_run.dir/test1.o: CMakeFiles/Google_Tests_run.dir/flags.make
-CMakeFiles/Google_Tests_run.dir/test1.o: ../test1.cpp
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/nikita/projects/semilocal/source/cpu/Google_tests/cmake-build-release-coverage/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/Google_Tests_run.dir/test1.o"
-	/usr/bin/g++-10  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Google_Tests_run.dir/test1.o -c /home/nikita/projects/semilocal/source/cpu/Google_tests/test1.cpp
+CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o: CMakeFiles/Google_Tests_run.dir/flags.make
+CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o: ../library_correctnesses_tests.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=/home/nikita/projects/semilocal/source/cpu/Google_tests/cmake-build-release-coverage/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o"
+	/usr/bin/g++-10  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o -c /home/nikita/projects/semilocal/source/cpu/Google_tests/library_correctnesses_tests.cpp
 
-CMakeFiles/Google_Tests_run.dir/test1.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/Google_Tests_run.dir/test1.i"
-	/usr/bin/g++-10 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/nikita/projects/semilocal/source/cpu/Google_tests/test1.cpp > CMakeFiles/Google_Tests_run.dir/test1.i
+CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.i"
+	/usr/bin/g++-10 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/nikita/projects/semilocal/source/cpu/Google_tests/library_correctnesses_tests.cpp > CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.i
 
-CMakeFiles/Google_Tests_run.dir/test1.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/Google_Tests_run.dir/test1.s"
-	/usr/bin/g++-10 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/nikita/projects/semilocal/source/cpu/Google_tests/test1.cpp -o CMakeFiles/Google_Tests_run.dir/test1.s
+CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Compiling CXX source to assembly CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.s"
+	/usr/bin/g++-10 $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/nikita/projects/semilocal/source/cpu/Google_tests/library_correctnesses_tests.cpp -o CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.s
 
 # Object files for target Google_Tests_run
 Google_Tests_run_OBJECTS = \
-"CMakeFiles/Google_Tests_run.dir/test1.o"
+"CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o"
 
 # External object files for target Google_Tests_run
 Google_Tests_run_EXTERNAL_OBJECTS =
 
-Google_Tests_run: CMakeFiles/Google_Tests_run.dir/test1.o
+Google_Tests_run: CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o
 Google_Tests_run: CMakeFiles/Google_Tests_run.dir/build.make
 Google_Tests_run: lib/libgtest.a
 Google_Tests_run: lib/libgtest_main.a

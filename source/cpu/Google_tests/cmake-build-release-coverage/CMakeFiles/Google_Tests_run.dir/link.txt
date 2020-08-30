@@ -1,1 +1,1 @@
-/usr/bin/g++-10  --coverage -O3 -DNDEBUG  -rdynamic CMakeFiles/Google_Tests_run.dir/test1.o  -o Google_Tests_run   -L/home/nikita/projects/semilocal/source/cpu/Google_tests/cmake-build-release-coverage/lib  -lcpu lib/libgtest.a lib/libgtest_main.a lib/libgtest.a -lpthread 
+/usr/bin/g++-10  --coverage -O3 -DNDEBUG  -rdynamic CMakeFiles/Google_Tests_run.dir/library_correctnesses_tests.o  -o Google_Tests_run   -L/home/nikita/projects/semilocal/source/cpu/Google_tests/cmake-build-release-coverage/lib  -lcpu lib/libgtest.a lib/libgtest_main.a lib/libgtest.a -lpthread 
