@@ -10,7 +10,7 @@
 
 int main(int argc, char *argv[])
 {
-    typedef long long wordType;
+    typedef unsigned long long wordType;
     int thds = strtol(argv[1], NULL, 10);
     std::string a_filepath = std::string(argv[2]);
     std::string b_filepath = std::string(argv[3]);

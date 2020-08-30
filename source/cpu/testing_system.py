@@ -27,16 +27,19 @@ MULTI_THREADED_SOLUTIONS = ['prefix_lcs_via_braid_bits_4symbol_mpi_int',
                             'semi_local_lcs_mpi'
                             ]
 MAX_THREADS = 4
-REPEATS = 5
+REPEATS = 3
 SOLUTIONS_FOLDER = 'semilocal_solutions'
 TEST_FOLDER = 'semilocal_tests'
 REAL_FASTA = 'semilocal_real_fasta'
 SYNTHETIC_FASTA = 'synthetic_fasta'
 ALPHABETS = ['ac', 'acgt']
 SYNTHETHIC_SIZES = [1024, 1024, 1024 * 2, 1024 * 2,
-                    # 1024 * 4, 1024 * 4, 1024 * 8, 1024 * 8, 1024 * 16, 1024 * 16,
-                    # 1024 * 32, 1024 * 32,
-                    # 1024 * 64, 1024 * 64, 1024 * 128, 1024 * 128
+                    1024 * 4, 1024 * 4, 1024 * 8, 1024 * 8, 1024 * 16, 1024 * 16,
+                    1024 * 32, 1024 * 32,
+                    1024 * 64, 1024 * 64, 1024 * 128, 1024 * 128,
+                    1024*256,1024*256,
+                    1024 * 512, 1024 * 512,
+                    1024 * 1024
                     ]
 NO_RESTRICT = list(map(len, ALPHABETS)) + [4]
 
@@ -81,7 +84,7 @@ def get_compile_commands(flags: Dict[str, bool]):
     cmake_command = ['cmake', f'-B{SOLUTIONS_FOLDER}',
                      '-H.', '-DCMAKE_BUILD_TYPE=Release',
                      f'-DCMAKE_CXX_COMPILER={CXX_COMPILER_PATH}']
-    if flags.get('-fno-tree-vectorize', False):
+    if flags.get('no_vectorization', False):
         cmake_command += '-DCMAKE_CXX_FLAGS= -fno-tree-vectorize'
 
     make = ['make', '-C', SOLUTIONS_FOLDER]
@@ -115,7 +118,7 @@ class Result:
 
 
 class Runner:
-    TIMEOUT = 60 * 30  ## in second
+    TIMEOUT = 60 * 20  ## in second
 
     def __init__(self, path, **kwargs):
         self.path = path
@@ -353,11 +356,11 @@ if __name__ == '__main__':
     arg_parser.add_argument('tests', type=str, help='Path to directory with real fasta files')
     arg_parser.add_argument('--result_file', type=str, nargs='?', help='Path to file where csv results will be stored',
                             default='result.csv')
-    arg_parser.add_argument('--vectorization', nargs='?', type=bool, default=False,
-                            help='flag that set vectorization option for g++')
+    arg_parser.add_argument('--no_vectorization', nargs='?', type=bool, default=False,
+                            help='flag that disable vectorization option for g++')
     args = arg_parser.parse_args()
 
-    flags['vectorization'] = args.vectorization
+    flags['no_vectorization'] = args.no_vectorization
     flags['result_file'] = args.result_file
 
     runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, MAX_THREADS, flags)
