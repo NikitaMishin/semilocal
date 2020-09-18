@@ -46,7 +46,7 @@ StrandHolder *sticky_braid_sequential(std::vector<Input> &a, std::vector<Input> 
         }
     }
 
-    delete [] strand_map;
+    delete[] strand_map;
 
     return reduced_sticky_braid;
 }
@@ -148,6 +148,59 @@ StrandHolder *sticky_braid_mpi(std::vector<Input> const &a, std::vector<Input> c
     }
 
     delete[] strand_map;
+    return reduced_sticky_braid;
+}
+
+
+template<class Input, class StrandHolder>
+StrandHolder *sticky_braid_sequential_without_if(std::vector<Input> &a, std::vector<Input> &b) {
+    auto m = a.size();
+    auto n = b.size();
+
+    auto size = m + n;
+    StrandHolder *strand_map = new StrandHolder[size];
+    StrandHolder *reduced_sticky_braid = new StrandHolder[size];
+    for (int i = 0; i < size; ++i) {
+        strand_map[i] = i;
+    }
+
+    for (int i = 0; i < m; ++i) {
+        for (int j = 0; j < n; ++j) {
+            auto left_edge = m - 1 - i;
+            auto top_edge = m + j;
+            auto left_strand = strand_map[left_edge];
+            auto right_strand = strand_map[top_edge];
+            int c = a[i] == b[j] || (left_strand > right_strand);
+
+            strand_map[top_edge] = (1 - c) * right_strand + c * left_strand;
+            strand_map[left_edge] = (1 - c) * left_strand + c * right_strand;
+
+
+//            if (j == n - 1) {
+////                reduced_sticky_braid[strand_map[left_edge]] = left_edge + n;
+//                reduced_sticky_braid[left_edge + n] = strand_map[left_edge];
+//            }
+//            if (i == m - 1) {
+////                reduced_sticky_braid[strand_map[top_edge]] = top_edge - m;
+//                reduced_sticky_braid[top_edge - m] = strand_map[top_edge];
+//            }
+
+        }
+    }
+
+    for (int l = 0; l < m; ++l) {
+//            reduced_sticky_braid[strand_map[l]] = n + l;
+        reduced_sticky_braid[n + l] = strand_map[l]; // seems faster
+    }
+
+    for (int r = m; r < n + m; ++r) {
+//            reduced_sticky_braid[strand_map[r]] = r - m;
+        reduced_sticky_braid[r - m] = strand_map[r];//seems faster
+    }
+
+
+    delete[] strand_map;
+
     return reduced_sticky_braid;
 }
 

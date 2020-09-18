@@ -25,7 +25,7 @@ MULTI_THREADED_SOLUTIONS = ['prefix_lcs_via_braid_bits_4symbol_mpi_int',
                             'prefix_lcs_via_braid_bits_4symbol_mpi_long_long',
                             'prefix_lcs_via_braid_bits_binary_mpi_int',
                             'prefix_lcs_via_braid_bits_binary_mpi_long_long',
-                            'semi_local_lcs_mpi'
+                            'semi_local_lcs_mpi',
                             'prefix_lcs_via_braid_mpi_less_operator'
                             ]
 MAX_THREADS = 4
@@ -229,8 +229,6 @@ def update_csv(runners: List[Runner], results: Dict[str, Dict[str, List[Result]]
             f.write( test + f',{seq_a_size},{seq_b_size}'+line + '\n')
 
 
-# a = '/home/nikita/projects/semilocal/source/cpu/bug.fasta'
-
 def run_tests(runners: List[Runner], tests: List[Test], repeats: int, flags):
     run_strategy = RunStrategy(runners, tests, repeats)
     results = {
@@ -333,6 +331,9 @@ def build_real_test_set(path_to_fasta_files) -> List[Test]:
     default_logger.write(f'Built real_test set\nTotal pairs is {len(tests)}')
     return list(map(lambda x: Test(x[0][0], x[0][1], x[1][0], x[1][1], 4), tests))
 
+#todo make owns pairs
+# def build_synthetic_test_set(alphabets, seq_sizes: List[int])->List[Test]:
+#     pass
 
 def build_synthetic_test_set(alphabets, seq_sizes: List[int]) -> List[Test]:
     cnt = 0
@@ -368,6 +369,7 @@ if __name__ == '__main__':
 
     runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, MAX_THREADS, flags)
     tests = build_real_test_set(args.tests)
+    #todo
     tests += build_synthetic_test_set(ALPHABETS, SYNTHETHIC_SIZES)
     run_tests(runners, tests, REPEATS, flags)
     build_logger.close()

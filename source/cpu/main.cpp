@@ -8,6 +8,7 @@
 #include "sequence_generators.h"
 #include "transposition_network_approach/transposition_network_unbounded_alphabet.h"
 #include "fasta_parser.h"
+#include "naive_prefix_lcs.h"
 #include <string>
 #include <iostream>
 #include <chrono>
@@ -25,35 +26,6 @@ int main(int argc, char *argv[]) {
 
     typedef unsigned int wordType;
 
-    int thds = strtol(argv[1], NULL, 10);
-    std::string a_filepath = std::string(argv[2]);
-    std::string b_filepath = std::string(argv[3]);
-    auto name_content_a = parse_input_file(a_filepath);
-    auto name_content_b = parse_input_file(b_filepath);
-
-    auto seq_a = transform_to_int_vector(name_content_a.second.second);
-    auto seq_b = transform_to_int_vector(name_content_b.second.second);
-    if(seq_a.size()>seq_b.size()) std::swap(seq_a,seq_b);
-
-    auto beg_preprocess = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({3,2,1,0}));
-    auto a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
-    auto b = encode<int, wordType >(seq_b,&mappers.first,&mappers.second);
-    auto time_preprocess = std::chrono::high_resolution_clock::now() - beg_preprocess;
-    auto elapsed_time_preprocess  = long (std::chrono::duration<double, std::milli>(time_preprocess).count());
-
-
-    auto beg = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto res = prefix_lcs_via_braid_bits_4symbol(a.first.first,a.first.second, a.second ,b.first.first,b.first.second, b.second);
-    auto time = std::chrono::high_resolution_clock::now() - beg;
-    auto elapsed_time  = long (std::chrono::duration<double, std::milli>(time).count());
-
-    std::cout<<elapsed_time_preprocess<<std::endl;
-    std::cout<<elapsed_time<<std::endl;
-    std::cout<<res<<std::endl;
-    std::cout<<seq_a.size()<<std::endl;
-    std::cout<<seq_b.size();
-    return 0;
 
 //    std::cout<<sizeof(wordType) <<std::endl;
     std::srand(std::time(NULL)); // use current time as seed for random generator
@@ -75,15 +47,15 @@ int main(int argc, char *argv[]) {
 ////    int thds = strtol(argv[1], NULL, 10);
 ////    int a_size = strtol(argv[2], NULL, 10);
 ////    int b_size = strtol(argv[3], NULL, 10);
-//    int a_size = 64*10000;//
-//    int b_size = 64*10000;
+    int a_size = 64*10000;//
+    int b_size = 64*100;
 ////    int a_size = 64*100-31;
 ////    int b_size = 12573;
 //
 ////    10 10 10 00
 ////     11 01 00 00
-////    int a_size =4+1 ;//2320
-////    int b_size = 4*3+4;
+//    int a_size =4+1 ;//2320
+//    int b_size = 4*3+4;
 //
 ////    int a_size =64+1 ;//2320
 ////    int b_size = 32*4+32;
@@ -93,8 +65,25 @@ int main(int argc, char *argv[]) {
 //
 ////    64*640
 ////    64*6400
-//    auto seq_a = gen_vector_seq(a_size ,2);
-//    auto seq_b = gen_vector_seq( b_size,2);
+    auto seq_a = gen_vector_seq(a_size ,200);
+    auto seq_b = gen_vector_seq( b_size,200);
+
+    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout<<sticky_braid_sequential_without_if<int,int>(seq_a,seq_b);
+    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout<<"without if:"<<std::chrono::duration<double, std::milli>(time1).count()<<"ms"<<std::endl;
+
+    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout<<sticky_braid_sequential<int,int>(seq_a,seq_b);
+    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
+    std::cout<<"with if:"<<std::chrono::duration<double, std::milli>(time0).count()<<"ms"<<std::endl;
+
+    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout<<prefix_lcs_sequential<int>(seq_a, seq_b);
+    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+    std::cout<<"prefix_lcs"<<std::chrono::duration<double, std::milli>(time2).count()<<"ms"<<std::endl;
+
+
 //
 //    auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({3,2,1,0}));
 //    auto a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
@@ -153,7 +142,6 @@ int main(int argc, char *argv[]) {
 //                                prefix_lcs_via_braid_bits_4symbol(a.first.first,a.first.second, a.second ,
 //                                                                 b.first.first,b.first.second, b.second)
 //            << std::endl;
-//    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
 //    std::cout <<"Time: 4symbol:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 //
 //    mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({1,0}));
