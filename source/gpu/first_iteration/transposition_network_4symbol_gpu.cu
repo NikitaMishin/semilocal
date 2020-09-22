@@ -1,3 +1,7 @@
+#include <cooperative_groups.h>
+
+using namespace cooperative_groups; // or...
+using cooperative_groups::thread_group; // etc.
 
 
 
@@ -248,8 +252,80 @@ __device__ inline void prefix_braid_fill_cube_without_if(
     // assign to global
     bitset_left_strand_map[left_edge] = left_strand_pack;
     bitset_top_strand_map[top_edge] = top_strand_pack;
+}
+
+__device__ inline void
+semi_local_init_phase_conseq_fill_block(int *reduced_sticky_braid, int thread_id_global, int offset) {
+    reduced_sticky_braid[thread_id_global] = offset + thread_id_global;
+}
+
+
+template<class Input>
+__device__ inline void prefix_braid_init(Input *arr, int arr_size, Input value, int pos) {
+    arr[pos] = value;
+}
+
+
+// total thds = a_size
+template<class Input>
+__global__ void semi_local_gpu_withif(Input const *seq_a_rev, int a_size, Input const *seq_b, int b_size,
+                                      Input *bitset_left_strand_map, Input *bitset_top_strand_map,
+                                      int cells_per_thread, int total_thds, Input braid_ones, Input l_active,
+                                      Input r_active) {
+
+    // a < b
+    //thread_id = m
+
+    // is this thread
+    Input l_active_pack, r_active_pack;
+    bool should = false;
+
+
+    int num_diag = a_size + b_size - 1;
+    int total_same_length_diag = num_diag - (a_size - 1) - (a_size - 1);
+    // in [0..a_size-1]
+    auto thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+
+    //sync primitive to sync whole grid
+    auto g = this_grid();
+
+    //init_phase
+    for (int i = 0; i < cells_per_thread; i++) {
+        if (total_thds * i + thread_id < a_size + b_size)
+            prefix_braid_init(bitset_left_strand_map, braid_ones, thread_id + total_thds * i);
+    }
+
+
+
+    g.sync();
+
+    // phase one and three
+    for (int i = 0; i < a_size - 1; i++) {
+        //todo check and inline
+        int is_first_phase = thread_id >= a_size - 1 - 1 - i;
+        if () {
+            // thread_id
+            // phase one
+            //modulo
+            prefix_braid_fill_cube_without_if();
+        } else {
+
+            prefix_braid_fill_cube_without_if();
+        }
+        g.sync();
+    }
+
+
+    //phase two
+    for (int i = 0; i < total_same_length_diag; i++) {
+        prefix_braid_fill_cube_without_if();
+        g.sync();
+    }
 
 }
+
+
 
 
 

@@ -11,8 +11,8 @@ using cooperative_groups::thread_group; // etc.
  * @param offset
  */
 __device__ inline void
-semi_local_init_phase_conseq_fill_block(int *reduced_sticky_braid, int thread_id_global, int offset) {
-    reduced_sticky_braid[thread_id_global] = offset + thread_id_global;
+semi_local_init_phase_conseq_fill_block(int *reduced_sticky_braid, int pos) {
+    reduced_sticky_braid[pos] = pos;
 }
 
 
@@ -77,7 +77,7 @@ __global__ void semi_local_gpu_withif(int const *seq_a, int a_size, int const *s
     //init_phase
     for (int i = 0; i < cells_per_thread; i++) {
         if (total_thds * i + thread_id < a_size + b_size)
-            semi_local_init_phase_conseq_fill_block(reduced_sticky_braid, thread_id, total_thds * i);
+            semi_local_init_phase_conseq_fill_block(reduced_sticky_braid, thread_id + total_thds * i);
     }
     g.sync();
 
@@ -87,9 +87,9 @@ __global__ void semi_local_gpu_withif(int const *seq_a, int a_size, int const *s
             //todo inline and correct calculation
             if (thread_id >= a_size - 1 - 1 - i) {
                 semi_local_fill_phase_diag_withif(reduced_sticky_braid, seq_a, seq_b,
-                                                  thread_id, thread_id + b_size,
+                                                  thread_id, (thread_id + b_size) % (a_size + b_size),
                                                   a_size - 1 - thread_id,
-                                                  thread_id);
+                                                  thread_id % b_size);
             } else {
                 semi_local_fill_phase_diag_withif(reduced_sticky_braid, seq_a, seq_b,
                                                   thread_id, thread_id + b_size + i + total_same_length_diag,
@@ -109,8 +109,5 @@ __global__ void semi_local_gpu_withif(int const *seq_a, int a_size, int const *s
     }
 
 }
-
-//todo vtornik
-// semi-locla
 
 
