@@ -110,4 +110,7 @@ __global__ void semi_local_gpu_withif(int const *seq_a, int a_size, int const *s
 
 }
 
+//todo vtornik
+// semi-locla
+
 
