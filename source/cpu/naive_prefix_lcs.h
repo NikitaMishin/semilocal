@@ -2,7 +2,7 @@
 // Created by nikita on 30.07.2020.
 //
 
-#ifndef CPU_PREFIX_LCS_H
+#ifndef CPU_NAIVE_PREFIX_LCS_H
 #define CPU_NAIVE_PREFIX_LCS_H
 
 #include <vector>
@@ -432,4 +432,4 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
 //}
 //
 
-#endif //CPU_PREFIX_LCS_H
+#endif //CPU_NAIVE_PREFIX_LCS_H

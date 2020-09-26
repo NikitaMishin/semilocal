@@ -8,6 +8,7 @@
 #include <vector>
 #include <cmath>
 
+#define UNROLL_LARGE_CONSTANT 128
 
 template<class Input>
 inline void process_cubes_antidiag(int lower_bound, int upper_bound, int left_edge, int top_edge,
@@ -30,6 +31,7 @@ inline void process_cubes_antidiag(int lower_bound, int upper_bound, int left_ed
 
 
         // upper half
+#pragma GCC unroll  128
         for (int inside_diag_num = 0; inside_diag_num < sizeof(Input) * 8 / 2 - 1; ++inside_diag_num) {
             left_cap = left_strand >> rev_counter;
             symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
@@ -71,6 +73,7 @@ inline void process_cubes_antidiag(int lower_bound, int upper_bound, int left_ed
         mask_r = braid_ones;
 
         //lower half
+#pragma GCC unroll  128
         for (int inside_diag_num = 0; inside_diag_num < sizeof(Input) * 8 / 2 - 1; ++inside_diag_num) {
             mask <<= 2;
             mask_r >>= 2;
@@ -109,6 +112,7 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
                                    Input *bitset_top_strand_map,
                                    Input *a_reverse, Input *b) {
 
+    const int upper = sizeof(Input) * 8 / 2 - 1;
 #pragma omp  for  simd schedule(static)  aligned(bitset_top_strand_map, bitset_left_strand_map, a_reverse, b:sizeof(Input)*8)
     for (int j = lower_bound; j < upper_bound; ++j) {
         Input left_cap, symbols, combing_condition, rev_combing_cond, top_strand_shifted;
@@ -124,7 +128,8 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
 
 
         // upper half
-        for (int inside_diag_num = 0; inside_diag_num < sizeof(Input) * 8 / 2 - 1; ++inside_diag_num) {
+    #pragma GCC unroll  128
+        for (int inside_diag_num = 0; inside_diag_num < upper; ++inside_diag_num) {
             left_cap = left_strand >> rev_counter;
             symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
             symbols &= (symbols >> 1) & braid_ones;
@@ -165,7 +170,8 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
         mask_r = braid_ones;
 
         //lower half
-        for (int inside_diag_num = 0; inside_diag_num < sizeof(Input) * 8 / 2 - 1; ++inside_diag_num) {
+#pragma GCC unroll 128
+        for (int inside_diag_num = 0; inside_diag_num < upper; ++inside_diag_num) {
             mask <<= 2;
             mask_r >>= 2;
 
@@ -191,7 +197,6 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
 
 
         bitset_left_strand_map[left_edge + j] = left_strand;
-
         bitset_top_strand_map[top_edge + j] = top_strand;
     }
 }
