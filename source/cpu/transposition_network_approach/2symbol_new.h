@@ -1,21 +1,33 @@
 //
-// Created by nikita on 26.09.2020.
+// Created by nikita on 30.09.2020.
 //
 
-#ifndef CPU_4SYMBOL_NEW_H
-#define CPU_4SYMBOL_NEW_H
+#ifndef CPU_2SYMBOL_NEW_H
+#define CPU_2SYMBOL_NEW_H
+
+template<class Input>
+void precompute_info_table(int *a, int a_size, int *b, int b_size) {
+//    int bit_per_word = 8 * sizeof(Input);
+//    for (int i = 0; i < ; ++i) {
+//        // load 64 elems
+//        // 64 equals
+//
+//    }
+}
+
 
 #include <vector>
 #include <cmath>
+#include <bitset>
 
 #define UNROLL_LARGE_CONSTANT 128
 
 template<class Input>
-inline void process_cubes_antidiag(int lower_bound, int upper_bound, int left_edge, int top_edge,
-                                   Input braid_ones,
-                                   Input *bitset_left_strand_map,
-                                   Input *bitset_top_strand_map,
-                                   Input *a_reverse, Input *b) {
+inline void process_cubes_antidiag_bin(int lower_bound, int upper_bound, int left_edge, int top_edge,
+                                       Input braid_ones,
+                                       Input *bitset_left_strand_map,
+                                       Input *bitset_top_strand_map,
+                                       Input *a_reverse, Input *b) {
 
     for (int j = lower_bound; j < upper_bound; ++j) {
         Input left_cap, symbols, combing_condition, rev_combing_cond, top_strand_shifted;
@@ -111,18 +123,16 @@ inline void process_cubes_antidiag(int lower_bound, int upper_bound, int left_ed
 }
 
 template<class Input>
-inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int left_edge, int top_edge,
-                                       Input braid_ones,
-                                       Input *bitset_left_strand_map,
-                                       Input *bitset_top_strand_map,
-                                       Input *a_reverse, Input *b) {
+inline void process_cubes_antidiag_mpi_bin(int lower_bound, int upper_bound, int left_edge, int top_edge,
+                                           Input *bitset_left_strand_map,
+                                           Input *bitset_top_strand_map,
+                                           Input *a_reverse, Input *b) {
 
-    const int upper = sizeof(Input) * 8 / 2 - 1;
+    const int upper = sizeof(Input) * 8 - 1;
 
 #pragma omp   for  simd schedule(static)  aligned(bitset_top_strand_map, bitset_left_strand_map, a_reverse, b:sizeof(Input)*8)
     for (int j = lower_bound; j < upper_bound; ++j) {
         Input left_cap, symbols, combing_condition, rev_combing_cond, top_strand_shifted;
-
         Input left_strand = bitset_left_strand_map[left_edge + j];
         Input top_strand = bitset_top_strand_map[top_edge + j];
         Input symbol_a = a_reverse[left_edge + j];
@@ -132,55 +142,52 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
 
 
         // upper half
-        #pragma GCC unroll  128
-        for (int rev_counter = (sizeof(Input) * 8 - 2); rev_counter > 0; rev_counter -= 2) {
+#pragma GCC unroll  128
+        for (int rev_counter = (sizeof(Input) * 8 - 1); rev_counter > 0; rev_counter--) {
             left_cap = left_strand >> rev_counter;
             symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
-            symbols &= (symbols >> 1) & braid_ones;
+//            symbols &= (symbols >> 1) ;
             combing_condition = mask & (symbols | (((~(left_cap)) & top_strand)));
-            rev_combing_cond = combing_condition ^ braid_ones;
+            rev_combing_cond = ~combing_condition;
 
             top_strand_shifted = top_strand << rev_counter;
             top_strand = (rev_combing_cond & top_strand) | (combing_condition & left_cap);
 
             combing_condition <<= rev_counter;
-            rev_combing_cond = combing_condition ^ braid_ones;
-
+            rev_combing_cond = ~combing_condition;
 
             left_strand = (rev_combing_cond & left_strand) | (combing_condition & top_strand_shifted);
 
-
-            mask = (mask << 2) | Input(1);
+            mask = (mask << 1) | Input(1);
         }
 
         // center
         symbols = (~(symbol_a ^ symbol_b));
-        symbols &= (symbols >> 1) & braid_ones;
+//        symbols &= (symbols >> 1) & braid_ones;
         combing_condition = (symbols | ((~left_strand) & top_strand));
-        rev_combing_cond = combing_condition ^ braid_ones;
+        rev_combing_cond = ~combing_condition;
         top_strand_shifted = top_strand;
         top_strand = (rev_combing_cond & top_strand) | (combing_condition & left_strand);
         left_strand = (rev_combing_cond & left_strand) | (combing_condition & top_strand_shifted);
 
-
-        mask = braid_ones;
+        mask = ~Input(0);
 
         //lower half
 #pragma GCC unroll 128
-        for (int inside_diag_num = 2; inside_diag_num < upper * 2 + 1; inside_diag_num += 2) {
-            mask <<= 2;
+        for (int inside_diag_num = 1; inside_diag_num < upper + 1; inside_diag_num++) {
+            mask <<= 1;
 
             left_cap = left_strand << (inside_diag_num);
             symbols = ~(((symbol_a << inside_diag_num)) ^ symbol_b);
-            symbols &= (symbols >> 1) & braid_ones;
+//            symbols &= (symbols >> 1) & braid_ones;
 
             combing_condition = mask & (symbols | (((~(left_cap)) & top_strand)));
-            rev_combing_cond = combing_condition ^ braid_ones;
+            rev_combing_cond = ~combing_condition;
 
             top_strand_shifted = top_strand >> ((inside_diag_num));
             top_strand = (rev_combing_cond & top_strand) | (combing_condition & left_cap);
             combing_condition >>= ((inside_diag_num));
-            rev_combing_cond = combing_condition ^ braid_ones;
+            rev_combing_cond = ~combing_condition;
 
 
             left_strand = (rev_combing_cond & left_strand) | (combing_condition & top_strand_shifted);
@@ -194,10 +201,11 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
 
 
 template<class Input>
-inline void process_cube_with_exception(int left_edge, int top_edge, int j, Input braid_ones, Input l_active_mask,
-                                        Input r_active_mask,
-                                        Input *bitset_left_strand_map, Input *bitset_top_strand_map, Input *a_reverse,
-                                        Input *b) {
+inline void process_cube_with_exception_bin(int left_edge, int top_edge, int j, Input braid_ones, Input l_active_mask,
+                                            Input r_active_mask,
+                                            Input *bitset_left_strand_map, Input *bitset_top_strand_map,
+                                            Input *a_reverse,
+                                            Input *b) {
 
     Input left_cap, symbols, combing_condition, rev_combing_cond, top_strand_shifted;
 
@@ -289,7 +297,7 @@ inline void process_cube_with_exception(int left_edge, int top_edge, int j, Inpu
 
 
 template<class Input>
-int prefix_lcs_via_braid_bits_4symbol_v2_full_mask(Input *a_reverse, int a_size, int a_total_symbols,
+int prefix_lcs_via_braid_bits_2symbol_v2_full_mask(Input *a_reverse, int a_size, int a_total_symbols,
                                                    Input *b, int b_size, int b_total_symbols, int threads_num) {
 
 
@@ -303,10 +311,8 @@ int prefix_lcs_via_braid_bits_4symbol_v2_full_mask(Input *a_reverse, int a_size,
     auto num_diag = m + n - 1;
     auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
 
-    Input braid_ones = Input(1);
-    for (int shift = 0; shift < sizeof(Input) * 8 / 2; shift++) {
-        braid_ones |= (braid_ones << shift * 2);
-    }
+    Input braid_ones = Input(-1);
+
 
 #pragma omp parallel num_threads(threads_num) default(none) shared(bitset_left_strand_map, bitset_top_strand_map, a_reverse, b, m, n, dis_braid, total_same_length_diag, braid_ones)
     {
@@ -318,25 +324,25 @@ int prefix_lcs_via_braid_bits_4symbol_v2_full_mask(Input *a_reverse, int a_size,
 
 #pragma omp  for simd schedule(static) aligned(bitset_left_strand_map:sizeof(Input)*8)
         for (int k = 0; k < m; ++k) {
-            bitset_left_strand_map[k] = braid_ones;
+            bitset_left_strand_map[k] = ~Input(0);
         }
 
         for (int diag_len = 0; diag_len < m - 1; diag_len++) {
-            process_cubes_antidiag_mpi(0, diag_len + 1, m - 1 - diag_len, 0, braid_ones, bitset_left_strand_map,
-                                       bitset_top_strand_map, a_reverse, b);
+            process_cubes_antidiag_mpi_bin(0, diag_len + 1, m - 1 - diag_len, 0, bitset_left_strand_map,
+                                           bitset_top_strand_map, a_reverse, b);
 
         }
 
         for (int k = 0; k < total_same_length_diag; k++) {
-            process_cubes_antidiag_mpi(0, m, 0, k, braid_ones, bitset_left_strand_map,
-                                       bitset_top_strand_map, a_reverse, b);
+            process_cubes_antidiag_mpi_bin(0, m, 0, k, bitset_left_strand_map,
+                                           bitset_top_strand_map, a_reverse, b);
         }
 
         auto start_j = total_same_length_diag;
 
         for (int diag_len = m - 1; diag_len >= 1; diag_len--) {
-            process_cubes_antidiag_mpi(0, diag_len, 0, start_j, braid_ones, bitset_left_strand_map,
-                                       bitset_top_strand_map, a_reverse, b);
+            process_cubes_antidiag_mpi_bin(0, diag_len, 0, start_j, bitset_left_strand_map,
+                                           bitset_top_strand_map, a_reverse, b);
             start_j++;
         }
 
@@ -364,42 +370,4 @@ int prefix_lcs_via_braid_bits_4symbol_v2_full_mask(Input *a_reverse, int a_size,
 }
 
 
-
-//[.....
-//.....]
-///**
-// * a <= b
-// * @tparam Input
-// * @param a_reverse
-// * @param a_size
-// * @param a_total_symbols
-// * @param b
-// * @param b_size
-// * @param b_total_symbols
-// * @return
-// */
-//template<class Input>
-//int prefix_lcs_via_braid_bits_4symbol_mpi(Input *a_reverse, int a_size, int a_total_symbols,
-//                                          Input *b, int b_size, int b_total_symbols, int threads_num) {
-//    int active_symbols_a_active = a_total_symbols % (sizeof(Input) * 8 / 2);
-//    int active_symbols_b_active = b_total_symbols % (sizeof(Input) * 8 / 2);
-//    phase
-//
-//    if (active_symbols_a_active == 0 && active_symbols_b_active == 0) {
-//        //multiple case
-//        return prefix_lcs_via_braid_bits_4symbol_splited_mpi(a_reverse, a_size, a_total_symbols, b, b_size,
-//                                                             b_total_symbols, threads_num);
-//    } else if (a_size == 1 && b_size == 1) {
-//        return prefix_lcs_via_braid_4symbol_one_one_size(a_reverse[0], a_total_symbols, b[0], b_total_symbols);
-//    } else if (a_size == 1) {
-//        return prefix_lcs_via_braid_bits_4symbol_splited_a_one_b_arbitrary(a_reverse, a_size, a_total_symbols, b,
-//                                                                           b_size, b_total_symbols);
-//    } else if (a_size == b_size) {
-//        return prefix_lcs_via_braid_bits_4symbol_splited_a_equals_b_mpi(a_reverse, a_size, a_total_symbols, b, b_size,
-//                                                                        b_total_symbols, threads_num);
-//    }
-//    return prefix_lcs_via_braid_bits_4symbol_splited_a_less_b_mpi(
-//            a_reverse, a_size, a_total_symbols, b, b_size, b_total_symbols, threads_num);
-//}
-//
-#endif //CPU_4SYMBOL_NEW_H
+#endif //CPU_2SYMBOL_NEW_H

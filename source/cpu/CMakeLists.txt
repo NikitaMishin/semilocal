@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 #set(CMAKE_C_COMPILER /usr/bin/)
 #set(CMAKE_CXX_COMPILER /usr/bin/g++-10)
 #library_correctnesses_tests.h
-add_library(cpu semi_local.h transposition_network_approach/transposition_network_4symbol_alphabet_bit.h fasta_parser.h semi_local.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h   transposition_network_approach/4symbol_new.h)
+add_library(cpu semi_local.h transposition_network_approach/transposition_network_4symbol_alphabet_bit.h fasta_parser.h semi_local.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h transposition_network_approach/2symbol_new.h   transposition_network_approach/4symbol_new.h)
 add_subdirectory(Google_tests)
 
 #/usr/bin/clang++-10
