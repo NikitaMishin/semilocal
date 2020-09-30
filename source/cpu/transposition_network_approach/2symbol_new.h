@@ -142,11 +142,10 @@ inline void process_cubes_antidiag_mpi_bin(int lower_bound, int upper_bound, int
 
 
         // upper half
-#pragma GCC unroll  128
+#pragma GCC unroll  256
         for (int rev_counter = (sizeof(Input) * 8 - 1); rev_counter > 0; rev_counter--) {
             left_cap = left_strand >> rev_counter;
             symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
-//            symbols &= (symbols >> 1) ;
             combing_condition = mask & (symbols | (((~(left_cap)) & top_strand)));
             rev_combing_cond = ~combing_condition;
 
@@ -173,7 +172,7 @@ inline void process_cubes_antidiag_mpi_bin(int lower_bound, int upper_bound, int
         mask = ~Input(0);
 
         //lower half
-#pragma GCC unroll 128
+#pragma GCC unroll 256
         for (int inside_diag_num = 1; inside_diag_num < upper + 1; inside_diag_num++) {
             mask <<= 1;
 
@@ -311,7 +310,7 @@ int prefix_lcs_via_braid_bits_2symbol_v2_full_mask(Input *a_reverse, int a_size,
     auto num_diag = m + n - 1;
     auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
 
-    Input braid_ones = Input(-1);
+    Input braid_ones = ~Input(0);
 
 
 #pragma omp parallel num_threads(threads_num) default(none) shared(bitset_left_strand_map, bitset_top_strand_map, a_reverse, b, m, n, dis_braid, total_same_length_diag, braid_ones)
@@ -324,7 +323,7 @@ int prefix_lcs_via_braid_bits_2symbol_v2_full_mask(Input *a_reverse, int a_size,
 
 #pragma omp  for simd schedule(static) aligned(bitset_left_strand_map:sizeof(Input)*8)
         for (int k = 0; k < m; ++k) {
-            bitset_left_strand_map[k] = ~Input(0);
+            bitset_left_strand_map[k] = braid_ones;
         }
 
         for (int diag_len = 0; diag_len < m - 1; diag_len++) {

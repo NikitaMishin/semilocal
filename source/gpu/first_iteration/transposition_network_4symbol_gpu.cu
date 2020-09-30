@@ -102,7 +102,7 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
 
     int num_diag = a_size + b_size - 1;
     int total_same_length_diag = num_diag - (a_size - 1) - (a_size - 1);
-    auto thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
     //sync primitive to sync whole grid
     auto g = this_grid();
@@ -119,7 +119,7 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
 
     Input braid_one = braid_ones;
     Input left_strand = braid_one;
-    Input left_symbol = a_size - 1 - thread_id >= 0 ? seq_a_rev[thread_id] : 0;
+    Input left_symbol = (a_size - 1 - thread_id ) >= 0 ? seq_a_rev[thread_id] : 0;
     bool use_with_mask = false;
 
     g.sync();
@@ -161,6 +161,8 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
         }
         g.sync();
     }
+
+    bitset_left_strand[thread_id] = left_strand;
 }
 
 

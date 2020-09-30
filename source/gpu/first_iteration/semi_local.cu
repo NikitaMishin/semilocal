@@ -17,8 +17,6 @@ semi_local_init_phase_conseq_fill(int *reduced_sticky_braid, int pos) {
 }
 
 
-
-
 /**
  *
  * @param reduced_sticky_braid
@@ -71,7 +69,7 @@ __global__ void semi_local_withoutif_prestored_lefts(int const *seq_a, int a_siz
 
     int num_diag = a_size + b_size - 1;
     int total_same_length_diag = num_diag - (a_size - 1) - (a_size - 1);
-    auto thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
     //sync primitive to sync whole grid
     auto g = this_grid();
@@ -84,7 +82,7 @@ __global__ void semi_local_withoutif_prestored_lefts(int const *seq_a, int a_siz
 
 
     // todo do we need apply forward access pattern and then swap within warp?
-    int left_symbol = a_size - 1 - thread_id >= 0 ? seq_a[a_size - 1 - thread_id] : 0;
+    int left_symbol = (a_size - 1 - thread_id) >= 0 ? seq_a[a_size - 1 - thread_id] : 0;
     // economy of
     int left_strand = thread_id;
 
@@ -118,6 +116,8 @@ __global__ void semi_local_withoutif_prestored_lefts(int const *seq_a, int a_siz
         }
         g.sync();
     }
+
+    reduced_sticky_braid[thread_id] = left_strand;
 }
 
 

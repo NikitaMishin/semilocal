@@ -132,7 +132,7 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
 
 
         // upper half
-        #pragma GCC unroll  128
+        #pragma GCC unroll  64
         for (int rev_counter = (sizeof(Input) * 8 - 2); rev_counter > 0; rev_counter -= 2) {
             left_cap = left_strand >> rev_counter;
             symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
@@ -166,7 +166,7 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
         mask = braid_ones;
 
         //lower half
-#pragma GCC unroll 128
+         #pragma GCC unroll 64
         for (int inside_diag_num = 2; inside_diag_num < upper * 2 + 1; inside_diag_num += 2) {
             mask <<= 2;
 
