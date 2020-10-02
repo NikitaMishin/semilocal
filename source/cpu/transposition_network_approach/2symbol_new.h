@@ -20,7 +20,6 @@ void precompute_info_table(int *a, int a_size, int *b, int b_size) {
 #include <cmath>
 #include <bitset>
 
-#define UNROLL_LARGE_CONSTANT 128
 
 template<class Input>
 inline void process_cubes_antidiag_bin(int lower_bound, int upper_bound, int left_edge, int top_edge,

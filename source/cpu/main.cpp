@@ -10,6 +10,7 @@
 #include "naive_prefix_lcs.h"
 #include "transposition_network_approach/4symbol_new.h"
 #include "transposition_network_approach/2symbol_new.h"
+#include "transposition_network_approach/2symbol_new_2.h"
 #include <string>
 #include <iostream>
 #include <chrono>
@@ -25,7 +26,7 @@
 
 int main(int argc, char *argv[]) {
 
-    typedef unsigned int wordType;
+    typedef unsigned long long wordType;
 
 
 //    std::cout<<sizeof(wordType) <<std::endl;
@@ -37,9 +38,12 @@ int main(int argc, char *argv[]) {
 
     int a_size = 64*100*21;//
     int b_size = 64*100*25;
+//    int a_size = 1024*32*10;//
+//    int b_size = 1024*1024*64;
+//96458
 
     auto seq_a = gen_vector_seq(a_size ,2);
-    auto seq_b = gen_vector_seq( b_size,2);
+    auto seq_b = gen_vector_seq(b_size,2);
 
 
     auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({3,2,1,0}));
@@ -56,32 +60,32 @@ int main(int argc, char *argv[]) {
 
 
     auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<"res: "<< prefix_lcs_via_braid_bits_binary_mpi<wordType>
-            (a.first.first,a.first.second, a.second ,b.first.first,b.first.second, b.second,4) << std::endl;
+    std::cout << std::endl<<"res: "<< prefix_lcs_via_braid_bits_2symbol_v3_full_mask<unsigned int,wordType>
+            (a.first.first,a.first.second, a.second ,b.first.first,b.first.second, b.second,1) << std::endl;
     auto time0 = std::chrono::high_resolution_clock::now() - begin0;
     std::cout <<"time 2: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
 
 
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     std::cout << std::endl<<"res: "<<
-              prefix_lcs_via_braid_bits_2symbol_v2_full_mask<wordType>(a.first.first,a.first.second, a.second ,
-                                                                       b.first.first,b.first.second, b.second,4)<< std::endl;
+              prefix_lcs_via_braid_bits_4symbol_v2_full_mask<wordType>(a.first.first,a.first.second, a.second ,
+                                                                       b.first.first,b.first.second, b.second,1)<< std::endl;
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout <<"Time 4: " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
-
+    std::cout << std::endl<<"res corret: "<< prefix_lcs_sequential(seq_a,seq_b) << std::endl;
 
     //
 //
-////    std::cout << std::endl<<"Res binary mpi : "<< prefix_lcs_via_braid_bits_binary_mpi(a.first.first,a.first.second, a.second ,
-//////                                                                                   b.first.first,b.first.second, b.second,2,thds) << std::endl;
+//    std::cout << std::endl<<"Res binary mpi : "<< prefix_lcs_via_braid_bits_binary_mpi(a.first.first,a.first.second, a.second ,
+////                                                                                   b.first.first,b.first.second, b.second,2,thds) << std::endl;
 //
 //
 //
 //
 //
 //auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-//    std::cout << std::endl<<"res corret: "<< prefix_lcs_sequential(seq_a,seq_b) << std::endl;
+
 //    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
 //    std::cout <<"Time prefix_lcs:" <<std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 //

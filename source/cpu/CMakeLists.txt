@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 11)
 #set(CMAKE_C_COMPILER /usr/bin/)
 #set(CMAKE_CXX_COMPILER /usr/bin/g++-10)
 #library_correctnesses_tests.h
-add_library(cpu semi_local.h transposition_network_approach/transposition_network_4symbol_alphabet_bit.h fasta_parser.h semi_local.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h transposition_network_approach/2symbol_new.h   transposition_network_approach/4symbol_new.h)
+add_library(cpu semi_local.h transposition_network_approach/transposition_network_4symbol_alphabet_bit.h fasta_parser.h semi_local.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h transposition_network_approach/2symbol_new.h   transposition_network_approach/4symbol_new.h transposition_network_approach/2symbol_new_2.h)
 add_subdirectory(Google_tests)
 
 #/usr/bin/clang++-10
@@ -21,7 +21,7 @@ add_subdirectory(Google_tests)
 #-fopt-info-vec-optimized-optimized
 # -fopenmp=libiomp5
 #-floop-parallelize-all
-set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall     -fstrict-aliasing   -fopt-info-vec-optimized-optimized -ffast-math -fopenmp   -march=native  -O2  -fopt-info-vec-optimized-all -funsafe-math-optimizations -fopt-info-vec-optimized-optimized " )#    ")
+set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall     -fstrict-aliasing   -fopt-info-vec-optimized-optimized -ffast-math -fopenmp   -march=native  -O3  -fopt-info-vec-optimized-all -funsafe-math-optimizations -fopt-info-vec-optimized-optimized " )#    ")
 #set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -fopenmp -floop-parallelize-all -ftree-parallelize-loops=4    -Wall  -ffast-math  -march=native  -O3 -fstrict-aliasing  -fopt-info-vec-optimized-all -funsafe-math-optimizations     -fopt-info       ")
 #-O3-g0 -Ofast  -ftree-vectorize -ffast-math -mprefer-vector-width=512 -march=skylake-avx512-g
 #-mprefer-vector-width=512

@@ -28,14 +28,14 @@ semi_local_init_phase_conseq_fill(int *reduced_sticky_braid, int pos) {
  * @param top_b
  */
 __device__ inline void
-semi_local_diag_fill(int *sticky_braid, int &l_strand, int &a_symbol, int const *seq_b, int &top, int &b_pos) {
+semi_local_diag_fill(int *sticky_braid, int &l_strand, int &top_strand, int &a_symbol, int const *seq_b, int &top, int &b_pos) {
 
     int old_left = l_strand;
-    int top_strand = sticky_braid[b_pos + top];
     int should_swap = (a_symbol == seq_b[b_pos]) || (l_strand > top_strand);
     // aka change
     l_strand = (1 - should_swap) * l_strand + should_swap * top_strand;
-    sticky_braid[b_pos + top] = (1 - should_swap) * top_strand + should_swap * old_left;
+
+    top_strand = (1 - should_swap) * top_strand + should_swap * old_left;
 }
 
 __global__ void
@@ -93,7 +93,9 @@ __global__ void semi_local_withoutif_prestored_lefts(int const *seq_a, int a_siz
     for (int i = a_size - 1; i > 0; i--) {
         // only specific threads  && only active thread should perform
         if (thread_id >= i && thread_id < a_size) {
-            semi_local_diag_fill(reduced_sticky_braid, left_strand, left_symbol, seq_b, a_size, b_pos);
+            int top_strand = reduced_sticky_braid[b_pos + a_size];
+            semi_local_diag_fill(reduced_sticky_braid, left_strand,top_strand, left_symbol, seq_b, a_size, b_pos);
+            reduced_sticky_braid[b_pos + a_size] = top_strand;
             b_pos++;
         }
         g.sync();
@@ -102,7 +104,9 @@ __global__ void semi_local_withoutif_prestored_lefts(int const *seq_a, int a_siz
     //2 phase
     for (int i = 0; i < total_same_length_diag; i++) {
         if (thread_id < a_size) {
-            semi_local_diag_fill(reduced_sticky_braid, left_strand, left_symbol, seq_b, a_size, b_pos);
+            int top_strand = reduced_sticky_braid[b_pos + a_size];
+            semi_local_diag_fill(reduced_sticky_braid, left_strand,top_strand, left_symbol, seq_b, a_size, b_pos);
+            reduced_sticky_braid[b_pos + a_size] = top_strand;
             b_pos++;
         }
         g.sync();
@@ -111,7 +115,9 @@ __global__ void semi_local_withoutif_prestored_lefts(int const *seq_a, int a_siz
     //3 phase
     for (int i = a_size - 2; i >= 0; i--) {
         if (thread_id <= i) {
-            semi_local_diag_fill(reduced_sticky_braid, left_strand, left_symbol, seq_b, a_size, b_pos);
+            int top_strand = reduced_sticky_braid[b_pos + a_size];
+            semi_local_diag_fill(reduced_sticky_braid, left_strand,top_strand, left_symbol, seq_b, a_size, b_pos);
+            reduced_sticky_braid[b_pos + a_size] = top_strand;
             b_pos++;
         }
         g.sync();

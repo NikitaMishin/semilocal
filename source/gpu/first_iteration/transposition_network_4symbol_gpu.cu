@@ -6,6 +6,14 @@ using namespace cooperative_groups; // or...
 using cooperative_groups::thread_group; // etc.
 
 
+
+/**
+ * Fill array in pos with specified value for each cell
+ * @tparam Input
+ * @param arr
+ * @param value
+ * @param pos
+ */
 template<class Input>
 __device__ inline void prefix_braid_init(Input *arr, Input value, int pos) {
     arr[pos] = value;
@@ -19,11 +27,10 @@ __device__ inline void process_cube_withoutif(Input &symbol_a, Input &left_stran
 
     Input left_cap, symbols, combing_condition, rev_combing_cond, top_strand_shifted;
 
-    int rev_counter = (sizeof(Input) * 8 - 2);
     Input mask = Input(1);
 
     // upper half
-#pragma unroll
+    #pragma unroll
     for (int rev_counter = (sizeof(Input) * 8 - 2); rev_counter > 0; rev_counter -= 2) {
         left_cap = left_strand >> rev_counter;
         symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
@@ -64,7 +71,7 @@ __device__ inline void process_cube_withoutif(Input &symbol_a, Input &left_stran
     top_strand = (rev_combing_cond & top_strand) | (combing_condition & left_strand);
     left_strand = (rev_combing_cond & left_strand) | (combing_condition & top_strand_shifted);
 
-#pragma unroll
+    #pragma unroll
     for (int inside_diag_num = 2; inside_diag_num < (sizeof(Input) * 8 / 2 - 1) * 2 + 1; inside_diag_num += 2) {
         mask <<= 2;
 
@@ -100,28 +107,30 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
         Input *bitset_left_strand, Input *bitset_top_strand, int cells_per_thread_l, int cells_per_thread_t,
         int total_thds) {
 
-
     int num_diag = a_size + b_size - 1;
     int total_same_length_diag = num_diag - (a_size - 1) - (a_size - 1);
     int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
 
     //sync primitive to sync whole grid
-    auto g = this_grid();
+//    auto g = this_grid();
+    auto g = this_thread_block();
 
     //init_phase
     for (int i = 0; i < cells_per_thread_l; i++) {
         if (total_thds * i + thread_id < a_size)
             prefix_braid_init(bitset_left_strand, braid_one, thread_id + total_thds * i);
     }
+
     for (int i = 0; i < cells_per_thread_t; i++) {
         if (total_thds * i + thread_id < a_size)
             prefix_braid_init(bitset_top_strand, Input(0), thread_id + total_thds * i);
     }
 
+
     Input left_strand = braid_one;
     Input left_symbol = (a_size - 1 - thread_id) >= 0 ? seq_a_rev[thread_id] : 0;
     bool use_with_mask = false;
-
+//
     g.sync();
 
     //1 phase
@@ -131,13 +140,15 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
         if (thread_id >= i && thread_id < a_size) {
             Input symbol_b = seq_b[b_pos];
             Input top_strand = bitset_top_strand[b_pos];
-            process_cube_withoutif<Input>(left_symbol, left_strand, symbol_b, top_strand, braid_one, braid_one,
+            process_cube_withoutif(left_symbol, left_strand, symbol_b, top_strand, braid_one, braid_one,
                                           use_with_mask,
                                           braid_one);
+            bitset_top_strand[b_pos] = top_strand;
             b_pos++;
         }
         g.sync();
     }
+
 
     //2 phase
     for (int i = 0; i < total_same_length_diag; i++) {
@@ -146,6 +157,7 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
             Input top_strand = bitset_top_strand[b_pos];
             process_cube_withoutif(left_symbol, left_strand, symbol_b, top_strand, braid_one, braid_one, use_with_mask,
                                    braid_one);
+            bitset_top_strand[b_pos] = top_strand;
             b_pos++;
         }
         g.sync();
@@ -158,6 +170,7 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
             Input top_strand = bitset_top_strand[b_pos];
             process_cube_withoutif(left_symbol, left_strand, symbol_b, top_strand, braid_one, braid_one, use_with_mask,
                                    braid_one);
+            bitset_top_strand[b_pos] = top_strand;
             b_pos++;
         }
         g.sync();
@@ -168,34 +181,100 @@ __global__ void prefix_braid_withoutif_prestored_lefts(
 
 
 template<class Input>
-Input *four_symbol_gpu_runner_fully_gpu(Input *a_reverse_gpu, int a_size, int a_total_symbols,
+__global__ void
+process_diag(
+        Input *sticky_braid, Input const *seq_a, int a_size, Input const *seq_b, int b_size, int offset_l,
+             Input l_active_mAK,
+             int offset_top, int diag_len) {
+//
+//    int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+//    if (thread_id < diag_len) {
+//
+//
+//        //load left symbol
+//        Input a_symbol = seq_a[a_size - offset_l - 1 - thread_id];
+//        Input left_strand = seq_a[thread_id + offset_l];
+//        Input top_strand = sticky_braid[thread_id + offset_top + a_size];
+//        Input b_symbol = seq_b[thread_id + offset_top];
+//        bool use_with_mask =
+//
+//        process_cube_withoutif(a_symbol,left_strand,b_symbol,top_strand,)
+//
+//
+//        sticky_braid[thread_id + offset_l] = (1 - should_swap) * left_strand + should_swap * top_strand;
+//        sticky_braid[thread_id + offset_top + a_size] = (1 - should_swap) * top_strand + should_swap * left_strand;
+//
+//    }
+
+
+}
+
+
+
+template<class Input>
+void four_symbol_gpu_runner_fully_gpu(Input *a_reverse_gpu, int a_size, int a_total_symbols,
                                         Input *b_gpu, int b_size, int b_total_symbols,
                                         Input *bitset_left_strand_gpu,
                                         Input *bitset_top_strand_gpu,
                                         int block_size) {
     Input braid_ones = Input(1);
 
+
+
     for (int shift = 0; shift < sizeof(Input) * 8 / 2; shift++) {
         braid_ones |= (braid_ones << shift * 2);
     }
+
 
     int cells_per_thd_l = 1;
     int cells_per_thd_t = std::ceil((1.0 * b_size) / a_size);
     int total_thds = a_size;
     dim3 grid(std::ceil(1.0 * a_size / block_size), 1);
     dim3 block(block_size, 1);
-
-    prefix_braid_withoutif_prestored_lefts <<< grid, block >>>
+    prefix_braid_withoutif_prestored_lefts <<< grid,block >>>
             (a_reverse_gpu, a_size, b_gpu, b_size, braid_ones, bitset_left_strand_gpu, bitset_top_strand_gpu,
              cells_per_thd_l, cells_per_thd_t, total_thds);
+    memory_management::gpuAssert(cudaGetLastError(), __FILE__, __LINE__);
+
     memory_management::synchronize_with_gpu();
 
-    return bitset_left_strand_gpu;
+//    return bitset_left_strand_gpu;
 }
 
 
 
-
+//
+//
+//template<class Input>
+//Input *four_symbol_fill_gpu_line(Input *a_reverse_gpu, int a_size, int a_total_symbols,
+//                                        Input *b_gpu, int b_size, int b_total_symbols,
+//                                        Input *bitset_left_strand_gpu,
+//                                        Input *bitset_top_strand_gpu,
+//                                        int block_size) {
+//    Input braid_ones = Input(1);
+//
+//    for (int shift = 0; shift < sizeof(Input) * 8 / 2; shift++) {
+//        braid_ones |= (braid_ones << shift * 2);
+//    }
+//
+//    int cells_per_thd_l = 1;
+//    int cells_per_thd_t = std::ceil((1.0 * b_size) / a_size);
+//    int total_thds = a_size;
+//    dim3 grid(std::ceil(1.0 * a_size / block_size), 1);
+//    dim3 block(block_size, 1);
+//
+//    prefix_braid_withoutif_prestored_lefts<Input> <<< grid, block >>>
+//            (a_reverse_gpu, a_size, b_gpu, b_size, braid_ones, bitset_left_strand_gpu, bitset_top_strand_gpu,
+//             cells_per_thd_l, cells_per_thd_t, total_thds);
+//
+//    memory_management::gpuAssert(cudaGetLastError(), __FILE__, __LINE__);
+//
+//    memory_management::synchronize_with_gpu();
+//
+//
+//    return bitset_left_strand_gpu;
+//}
+//
 
 
 
