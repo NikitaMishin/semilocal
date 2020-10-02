@@ -3,6 +3,7 @@
 #include <chrono>
 #include "memory_management.h"
 #include "first_iteration/transposition_network_4symbol_gpu.cu"
+#include "first_iteration/semi_local.cu"
 using namespace memory_management;
 
 int main() {
@@ -13,16 +14,16 @@ int main() {
 //    int a_size = 64*100;//
 //    int b_size = 64*100;
 
-    int a_size = 1024*32*10;//
-    int b_size = 1024*1024*64;
+    int a_size = 10240000;//
+    int b_size = 10240000;
 
-    a_size = a_size / 32;//
-    b_size = b_size / 32;
+    a_size = a_size;//
+    b_size = b_size;
 
     //bitsetleft
 
-    auto bitset_left = allocate_1D_array_aligned_on_gpu<wordType>(a_size);
-    auto bitset_top = allocate_1D_array_aligned_on_gpu<wordType>(b_size);
+    auto bitset_left = allocate_1D_array_aligned_on_gpu<wordType>(a_size+b_size);
+//    auto bitset_top = allocate_1D_array_aligned_on_gpu<wordType>(b_size);
     auto a_rev = allocate_1D_array_aligned_on_gpu<wordType>(a_size);
     auto b = allocate_1D_array_aligned_on_gpu<wordType>(b_size);
 
@@ -45,10 +46,10 @@ int main() {
         d[i] = rand() % 40000000;
     }
     copy_from_cpu_to_gpu_sync(c,bitset_left,a_size);
-    copy_from_cpu_to_gpu_sync(d,bitset_top,b_size);
+//    copy_from_cpu_to_gpu_sync(d,bitset_top,b_size);
 
     auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    four_symbol_gpu_runner_fully_gpu(a_rev,a_size,a_size*32,b,b_size,b_size*32,bitset_left,bitset_top,512);
+    semi_local_lcs_gpu::gpu_wrappers::semi_local_process_diagonal(a_rev,a_size,b,b_size,bitset_left,512,256*100,0,0,a_size);
     auto time0 = std::chrono::high_resolution_clock::now() - begin0;
     memory_management::gpuAssert(cudaGetLastError(), __FILE__, __LINE__);
 //    copy_from_gpu_to_cpu_sync(res,c,a_size);

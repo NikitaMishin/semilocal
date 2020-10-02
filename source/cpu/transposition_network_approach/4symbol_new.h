@@ -344,6 +344,7 @@ int prefix_lcs_via_braid_bits_4symbol_v2_full_mask(Input *a_reverse, int a_size,
         for (int i1 = 0; i1 < m; ++i1) {
             //  Brian Kernighan’s Algorithm
             int counter = 0;
+//            dis_braid+= __builtin_popcount(bitset_left_strand_map[i1]);
             Input number = bitset_left_strand_map[i1];
             //  LogNumber
             while (number) {
