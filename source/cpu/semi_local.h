@@ -176,15 +176,6 @@ StrandHolder *sticky_braid_sequential_without_if(std::vector<Input> &a, std::vec
             strand_map[left_edge] = (1 - c) * left_strand + c * right_strand;
 
 
-//            if (j == n - 1) {
-////                reduced_sticky_braid[strand_map[left_edge]] = left_edge + n;
-//                reduced_sticky_braid[left_edge + n] = strand_map[left_edge];
-//            }
-//            if (i == m - 1) {
-////                reduced_sticky_braid[strand_map[top_edge]] = top_edge - m;
-//                reduced_sticky_braid[top_edge - m] = strand_map[top_edge];
-//            }
-
         }
     }
 

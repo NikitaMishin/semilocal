@@ -36,14 +36,14 @@ int main(int argc, char *argv[]) {
 
 
 
-    int a_size = 64*100*25;//
-    int b_size = 64*100*26;
+    int a_size = 64*1000;//
+    int b_size = 64*1000;
 //    int a_size = 1024*32*10;//
 //    int b_size = 1024*1024*64;
 //96458
 
-    auto seq_a = gen_vector_seq(a_size ,4);
-    auto seq_b = gen_vector_seq(b_size,4);
+    auto seq_a = gen_vector_seq(a_size ,1);
+    auto seq_b = gen_vector_seq(b_size,1);
 
 
     auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({3,2,1,0}));
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout <<"Time 4: " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
-    std::cout << std::endl<<"res corret: "<< prefix_lcs_sequential(seq_a,seq_b) << std::endl;
+//    std::cout << std::endl<<"res corret: "<< sticky_braid_sequential_without_if<int,int>(seq_a,seq_b) << std::endl;
 
     //
 //
@@ -96,16 +96,16 @@ int main(int argc, char *argv[]) {
 //
 ////
 ////
-//    auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-//    std::cout << std::endl<<"ResBin: "<< prefix_lcs_via_braid_mpi_bitwise_operator<int,int>(seq_a,seq_b,1) << std::endl;
-//    auto time4 = std::chrono::high_resolution_clock::now() - begin4;
-//    std::cout <<"Time:" <<std::chrono::duration<double, std::milli>(time4).count() << std::endl;
-//
-//    auto begin5 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-//    std::cout << std::endl<<"ResBin: "<< prefix_lcs_via_braid_mpi_less_operator <int,int>(seq_a,seq_b,1) << std::endl;
-//    auto time5 = std::chrono::high_resolution_clock::now() - begin5;
-//    std::cout <<"Time:" <<std::chrono::duration<double, std::milli>(time5).count() << std::endl;
-//
+    auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<"ResWithoutIF: "<< sticky_braid_sequential_without_if<int,int>(seq_a,seq_b) << std::endl;
+    auto time4 = std::chrono::high_resolution_clock::now() - begin4;
+    std::cout <<"Time:" <<std::chrono::duration<double, std::milli>(time4).count() << std::endl;
+
+    auto begin5 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<"ResWithif: "<< sticky_braid_sequential<int,int>(seq_a,seq_b) << std::endl;
+    auto time5 = std::chrono::high_resolution_clock::now() - begin5;
+    std::cout <<"Time:" <<std::chrono::duration<double, std::milli>(time5).count() << std::endl;
+
 ////
 ////    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
 //////    prefix_lcs_via_braid_bits_binary_mpi(a.first.first,a.first.second, a.second ,
