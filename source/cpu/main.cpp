@@ -1,7 +1,7 @@
 //
 // Created by nikita on 27.07.2020.
 //
-
+//
 #include "semi_local.h"
 #include "transposition_network_approach/transposition_network_binary_alphabet.h"
 #include "transposition_network_approach/encoders_and_decoders.h"
@@ -20,39 +20,30 @@
 #include <unordered_set>
 //static const int length = 1024*8;
 //static float a[length];
-
-
+//
+//
 int main(int argc, char *argv[]) {
 
-    auto m = distance_product::get_permutation_matrix(10, 10, -233);
-    m->print(std::cout);
+    auto m = distance_product::get_permutation_matrix(1000, 1000, -233);
+//    m->print(std::cout);
 
-    auto n = distance_product::get_permutation_matrix(10, 10, -234);
-    std::cout << std::endl;
-    n->print(std::cout);
-    std::cout << "Product:" << std::endl;
-    auto c = distance_product::naive::mult_dist(m, n);
-    c->print(std::cout);
-//    delete c;
-    std::cout<<"sticky:"<<std::endl;
-    auto res = steady_ant::steady_ant(m,n);
-    res->print(std::cout);
-    std::cout<<res->is_equal_to(*c);
+    auto n = distance_product::get_permutation_matrix(1000, 1000, -2);
 
-    delete res;
+    std::cout<<"Started on 1000000x1000000"<<std::endl;
+    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
+    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
+    std::cout <<"time 2: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
+
+//    delete res;
     delete n;
     delete m;
 
 
-//    auto dominance_matrix = distance_product::naive::get_dominance_matrix(*m,distance_product::top_right_summator);
-//    std::cout<<"Dominance"<<std::endl;
-//    dominance_matrix->print(std::cout);
-
-
 
 }
-
-
+//
+//
 //int main(int argc, char *argv[]) {
 //
 //    typedef  unsigned int wordType;
@@ -167,6 +158,6 @@ int main(int argc, char *argv[]) {
 ////    return 0 ;
 //
 //}
-
-
-
+//
+//
+//
