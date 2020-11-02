@@ -22,6 +22,49 @@
 //static float a[length];
 //
 //
+
+void
+precalc(std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map,
+        int max_size) {
+    using namespace std;
+    int p_arr[max_size];
+    int q_arr[max_size];
+
+    for (int size = 1; size < max_size + 1; size++) {
+
+
+        for (int i = 0; i < size; ++i) p_arr[i] = i;
+
+
+        do {
+            for (int i = 0; i < size; ++i) q_arr[i] = i;
+
+            do {
+                auto p = new Permutation(size, size);
+                for (int i = 0; i < size; ++i) p->set_point(i, p_arr[i]);
+
+                auto q = new Permutation(size, size);
+                for (int i = 0; i < size; ++i) q->set_point(i, q_arr[i]);
+                long long hash_p = hash<AbstractPermutation>()(*p);
+                long long hash_q = hash<AbstractPermutation>()(*q);
+
+                Permutation r = *steady_ant::steady_ant(p, q);
+
+                auto points = std::vector<std::pair<int, int>>();
+                if (map[size][hash_p].count(hash_q) > 0) {
+                    std::cout << " Some error";
+                    return;
+                }
+                r.to_points_on_grid(points);
+                map[size][hash_p][hash_q] = points;
+
+            } while (std::next_permutation(q_arr, q_arr + size));
+
+
+        } while (std::next_permutation(p_arr, p_arr + size));
+    }
+}
+
 int main(int argc, char *argv[]) {
 
     auto m = distance_product::get_permutation_matrix(1000, 1000, -233);
@@ -29,19 +72,44 @@ int main(int argc, char *argv[]) {
 
     auto n = distance_product::get_permutation_matrix(1000, 1000, -2);
 
-    std::cout<<"Started on 1000000x1000000"<<std::endl;
-    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
-    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
-    std::cout <<"time 2: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
+    auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
+
+    auto  expected = distance_product::naive::mult_dist(m,n);
+//
+//    std::cout<<sizeof(n);
+
+
+    std::cout<<"Precalc for value 5"<<std::endl;
+    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    precalc(map,5);
+    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout <<"Precalc " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+    std::cout<<"Started on 10000000x10000000"<<std::endl;
+    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto actual = steady_ant::steady_ant_with_precalc(m, n, map);
+    std::cout << std::endl<<"res: "<< actual->get_col_by_row(7) << std::endl;
+    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+    std::cout <<"with precalc " <<std::chrono::duration<double, std::milli>(time2).count() << std::endl;
+
+//    m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
+////    m->print(std::cout);
+//
+//    n = distance_product::get_permutation_matrix(10000000, 10000000, -2);
+//
+//
+//    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
+//    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
+//    std::cout <<"without precalc: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
 
 //    delete res;
+
+    std::cout<<expected->is_equal_to(*actual);
     delete n;
     delete m;
-
-
-
 }
+
 //
 //
 //int main(int argc, char *argv[]) {

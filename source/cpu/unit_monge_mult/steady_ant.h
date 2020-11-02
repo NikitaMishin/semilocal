@@ -13,53 +13,29 @@
 #define NOPOINT (-1)
 
 
-class Permutation {
-private:
-    int *row_to_col;
-    int *col_to_row;
-
+class AbstractPermutation {
 public:
-    const int col_size; // rows aka height
-    const int row_size; // cols aka width
+    int col_size; // rows aka height
+    int row_size; // cols aka width
+
+    inline virtual void set_point(int row, int col) = 0;
+
+    inline virtual void unset_point(int row, int col) = 0;
+
+    inline virtual void unset_all() = 0;
 
 
-    inline void set_point(int row, int col) {
-        row_to_col[row] = col;
-        col_to_row[col] = row;
-    }
+    inline virtual int get_row_by_col(int col) const = 0;
 
-    inline void unset_point(int row, int col) {
-        if (row_to_col[col] == col) {
-            row_to_col[col] = NOPOINT;
-            col_to_row[row] = NOPOINT;
-        }
-    }
+    inline virtual int get_col_by_row(int row) const = 0;
 
-    inline void unset_all() {
-        for (int i = 0; i < row_size; ++i) row_to_col[i] = NOPOINT;
-        for (int i = 0; i < col_size; ++i) col_to_row[i] = NOPOINT;
-    }
-
-    bool is_equal_to(Permutation &other) {
-        if (other.row_size != row_size || other.col_size != col_size) return false;
-        for (int i = 0; i < row_size; ++i) {
-            if (get_col_by_row(i) != other.get_col_by_row(i)) return false;
-        }
-        for (int i = 0; i < col_size; ++i) {
-            if (get_row_by_col(i) != other.get_row_by_col(i)) return false;
-        }
+    virtual ~AbstractPermutation() = default;;
 
 
-        return true;
-
-    }
-
-    inline int get_row_by_col(int col) { return col_to_row[col]; }
-
-    inline int get_col_by_row(int row) { return row_to_col[row]; }
+    AbstractPermutation(int row, int col) : col_size(col), row_size(row) {}
 
 
-    void print(std::ostream &os) {
+    void print(std::ostream &os) const {
         for (int i = 0; i < row_size; ++i) {
             for (int j = 0; j < col_size; ++j) {
                 if (get_col_by_row(i) == j) {
@@ -73,18 +49,168 @@ public:
         }
     }
 
-    Permutation(int row, int col) : col_size(col), row_size(row) {
+
+    bool is_equal_to(const AbstractPermutation &other) const {
+        if (other.row_size != row_size || other.col_size != col_size) return false;
+        for (int i = 0; i < row_size; ++i) {
+            if (get_col_by_row(i) != other.get_col_by_row(i)) return false;
+        }
+        for (int i = 0; i < col_size; ++i) {
+            if (get_row_by_col(i) != other.get_row_by_col(i)) return false;
+        }
+        return true;
+    }
+
+
+    void to_points_on_grid(std::vector<std::pair<int, int>> &result) const {
+        for (int i = 0; i < col_size; ++i) {
+            auto col = get_col_by_row(i);
+            if (col != NOPOINT) result.emplace_back(i, col);
+        }
+    }
+
+
+};
+
+
+class Permutation : public AbstractPermutation {
+private:
+    int *row_to_col;
+    int *col_to_row;
+
+public:
+
+    inline void set_point(int row, int col) override {
+        row_to_col[row] = col;
+        col_to_row[col] = row;
+    }
+
+    inline void unset_point(int row, int col) override {
+        if (row_to_col[col] == col) {
+            row_to_col[col] = NOPOINT;
+            col_to_row[row] = NOPOINT;
+        }
+    }
+
+    inline void unset_all() override {
+        for (int i = 0; i < row_size; ++i) row_to_col[i] = NOPOINT;
+        for (int i = 0; i < col_size; ++i) col_to_row[i] = NOPOINT;
+    }
+
+    inline int get_row_by_col(int col) const override { return col_to_row[col]; }
+
+    inline int get_col_by_row(int row) const override { return row_to_col[row]; }
+
+
+    Permutation(int row, int col) : AbstractPermutation(row, col) {
         row_to_col = new int[row];
         col_to_row = new int[col];
         for (int i = 0; i < row_size; ++i) row_to_col[i] = NOPOINT;
         for (int i = 0; i < col_size; ++i) col_to_row[i] = NOPOINT;
     }
 
-    ~Permutation() {
+    Permutation(int row, int col, std::vector<std::pair<int, int>> &points) : Permutation(row, col) {
+        for (auto &point: points) {
+            row_to_col[point.first] = point.second;
+            col_to_row[point.second] = point.first;
+        }
+    }
+
+    ~Permutation() override {
         delete[] row_to_col;
         delete[] col_to_row;
     };
+
+
 };
+
+class PermutationPreAllocated: public AbstractPermutation {
+
+public:
+
+    int *row_to_col;
+    int *col_to_row;
+
+    inline void set_point(int row, int col) override {
+        row_to_col[row] = col;
+        col_to_row[col] = row;
+    }
+
+    inline void unset_point(int row, int col) override {
+        if (row_to_col[col] == col) {
+            row_to_col[col] = NOPOINT;
+            col_to_row[row] = NOPOINT;
+        }
+    }
+
+    inline void unset_all() override {
+        for (int i = 0; i < row_size; ++i) row_to_col[i] = NOPOINT;
+        for (int i = 0; i < col_size; ++i) col_to_row[i] = NOPOINT;
+    }
+
+
+    inline int get_row_by_col(int col) const { return col_to_row[col]; }
+
+    inline int get_col_by_row(int row) const { return row_to_col[row]; }
+
+
+    PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row) : AbstractPermutation(row,col),
+                                                                                  row_to_col(row_to_col),
+                                                                                  col_to_row(col_to_row) {};
+
+
+
+    PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row,
+                            std::vector<std::pair<int, int>> &points) :
+            PermutationPreAllocated(row, col, row_to_col, col_to_row) {
+        for (int i = 0; i < row_size; ++i) row_to_col[i] = NOPOINT;
+        for (int i = 0; i < col_size; ++i) col_to_row[i] = NOPOINT;
+        for (auto &point: points) {
+            row_to_col[point.first] = point.second;
+            col_to_row[point.second] = point.first;
+        }
+    }
+
+    ~PermutationPreAllocated() override = default;;
+
+};
+
+
+namespace std {
+
+    template<>
+    struct hash<std::pair<int, int>> {
+        std::size_t operator()(const std::pair<int, int> &pair) const {
+            return hash<long long>()(((long long) pair.first) ^ (((long long) pair.second) << 32));
+        }
+    };
+
+
+    template<>
+    struct hash<AbstractPermutation> {
+        std::size_t operator()(const AbstractPermutation &k) const {
+            using std::size_t;
+            using std::hash;
+            using std::string;
+
+            auto pass_by_row = k.row_size < k.col_size;
+            size_t sum = 0;
+            auto bits_per_symbol = int(std::ceil(log2(k.row_size)));
+
+            for (int i = 0; i < k.row_size; ++i) {
+                sum = (sum << bits_per_symbol) + k.get_col_by_row(i);
+
+            }
+            return sum;
+        }
+
+    };
+
+    bool operator==(const Permutation &p1, const Permutation &p2) {
+        return std::hash<AbstractPermutation>()(p1) == std::hash<AbstractPermutation>()(p1);
+    }
+
+}
 
 class Matrix {
 private:
@@ -124,28 +250,28 @@ namespace dominance_sum_counting {
     //ok
     namespace top_left_arrow {
 
-        inline int left_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int left_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (col == 0) return sum;
             auto row_cap = perm_matrix->get_row_by_col(col - 1);
             if (row_cap >= row && row_cap != NOPOINT) sum++;
             return sum;
         }
 
-        inline int down_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int down_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (row >= perm_matrix->row_size) return 0;
             auto col_cap = perm_matrix->get_col_by_row(row);
             if (col_cap >= col && col_cap != NOPOINT) sum--;
             return sum;
         }
 
-        inline int up_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int up_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (row == 0) return sum;
             auto col_cap = perm_matrix->get_col_by_row(row - 1);
             if (col_cap >= col && col_cap != NOPOINT) sum++;
             return sum;
         }
 
-        inline int right_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int right_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (col >= perm_matrix->col_size) return 0;
             auto row_cap = perm_matrix->get_row_by_col(col);
             if (row_cap >= row && row_cap != NOPOINT) sum--;
@@ -157,7 +283,7 @@ namespace dominance_sum_counting {
     //ok
     namespace bottom_right_arrow {
 
-        inline int left_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int left_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (col == 0) return sum;
             auto row_cap = perm_matrix->get_row_by_col(col - 1);
 
@@ -165,21 +291,21 @@ namespace dominance_sum_counting {
             return sum;
         }
 
-        inline int down_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int down_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (row >= perm_matrix->row_size) return 0;
             auto col_cap = perm_matrix->get_col_by_row(row);
             if (col_cap < col && col_cap != NOPOINT) sum++;
             return sum;
         }
 
-        inline int up_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int up_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (row == 0) return sum;
             auto col_cap = perm_matrix->get_col_by_row(row - 1);
             if (col_cap < col && col_cap != NOPOINT) sum--;
             return sum;
         }
 
-        inline int right_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int right_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (col >= perm_matrix->col_size) return 0;
             auto row_cap = perm_matrix->get_row_by_col(col);
             if (row_cap < row && row_cap != NOPOINT) sum++;
@@ -191,28 +317,28 @@ namespace dominance_sum_counting {
     namespace top_right_arrow {
 
 
-        inline int left_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int left_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (col == 0) return sum;
             auto row_cap = perm_matrix->get_row_by_col(col - 1);
             if (row_cap >= row && row_cap != NOPOINT) sum--;
             return sum;
         }
 
-        inline int down_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int down_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (row >= perm_matrix->row_size) return 0;
             auto col_cap = perm_matrix->get_col_by_row(row);
             if (col_cap < col && col_cap != NOPOINT) sum--;
             return sum;
         }
 
-        inline int up_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int up_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (row == 0) return sum;
             auto col_cap = perm_matrix->get_col_by_row(row - 1);
             if (col_cap < col && col_cap != NOPOINT) sum++;
             return sum;
         }
 
-        inline int right_move(int row, int col, int sum, Permutation *perm_matrix) {
+        inline int right_move(int row, int col, int sum, AbstractPermutation *perm_matrix) {
             if (col >= perm_matrix->col_size) return 0;
             auto row_cap = perm_matrix->get_row_by_col(col);
 
@@ -226,7 +352,7 @@ namespace dominance_sum_counting {
 
 namespace distance_product {
 
-    Permutation *get_permutation_matrix(int row_size, int col_size, int seed = 0) {
+    AbstractPermutation *get_permutation_matrix(int row_size, int col_size, int seed = 0) {
         auto m = new Permutation(row_size, col_size);
 
         auto is_used = new bool[col_size];
@@ -262,7 +388,7 @@ namespace distance_product {
     namespace naive {
 
         template<typename Lambda>
-        Matrix *get_dominance_matrix(Permutation &m, Lambda &&func) {
+        Matrix *get_dominance_matrix(AbstractPermutation &m, Lambda &&func) {
             auto row_size = m.row_size + 1;
             auto col_size = m.col_size + 1;
             auto dominance_matrix = new Matrix(row_size, col_size);
@@ -282,7 +408,7 @@ namespace distance_product {
         }
 
 
-        Permutation *mult_dist(Permutation *m, Permutation *n) {
+        Permutation *mult_dist(AbstractPermutation *m, AbstractPermutation *n) {
             auto dominance_m = get_dominance_matrix(*m, top_right_summator);
             auto dominance_n = get_dominance_matrix(*n, top_right_summator);
             auto row_size = (m->row_size + 1);
@@ -325,12 +451,6 @@ namespace distance_product {
 
 namespace steady_ant {
 
-
-
-    //TODO maybe use sorting algo for slicing? we now range u..k of keys, we need just sort associated values to place in 0..k-u
-    // TODO really case when parallel will be
-
-
     /**
      * Given squared permutation matrix p_{i} get slice p[,start_inclusive:end_exclusive] and map it to new coordinates
      * to get new squared matrix of size end_exclusive-start_inclusive and mapping of row coordinates (new to old)
@@ -339,11 +459,8 @@ namespace steady_ant {
      * @param col_exclusive exclusive index of end of slice
      * @return mapping of row_{i+1} -> row_{i} and p_{i+1}, mapping of col_{i+1} -> col_{i} implicit via offset start_inclusive
      */
-    std::pair<int *, Permutation *> get_vertical_slice(Permutation *p_i, int col_start_inclusive, int col_exclusive) {
-        auto new_size = col_exclusive - col_start_inclusive;
-
-        auto cur_row_to_prev_row_mapping = new int[new_size];
-        auto succ_pi = new Permutation(new_size, new_size);
+    void get_vertical_slice(AbstractPermutation * p_i, int col_start_inclusive, int col_exclusive,
+                            int *cur_row_to_prev_row_mapping, AbstractPermutation * succ_pi) {
 
         auto ptr = 0;
         for (int row = 0; row < p_i->row_size; ++row) {
@@ -354,8 +471,6 @@ namespace steady_ant {
                 ptr++;
             }
         }
-
-        return std::make_pair(cur_row_to_prev_row_mapping, succ_pi);
     }
 
 
@@ -367,11 +482,8 @@ namespace steady_ant {
     * @param row_exclusive exclusive index of end of slice
     * @return mapping of col_{i+1} -> col_{i} and p_{i+1}, mapping of row_{i+1} -> row_{i} implicit via offset start_inclusive
     */
-    std::pair<int *, Permutation *> get_horizontal_slice(Permutation *q_i, int row_start_inclusive, int row_exclusive) {
-        auto new_size = row_exclusive - row_start_inclusive;
-
-        auto cur_col_to_prev_col_mapping = new int[new_size];
-        auto succ_pi = new Permutation(new_size, new_size);
+    void get_horizontal_slice(AbstractPermutation *q_i, int row_start_inclusive, int row_exclusive,
+                              int *cur_col_to_prev_col_mapping, AbstractPermutation *succ_pi) {
 
         auto ptr = 0;
         for (int col = 0; col < q_i->col_size; ++col) {
@@ -383,8 +495,6 @@ namespace steady_ant {
                 ptr++;
             }
         }
-
-        return std::make_pair(cur_col_to_prev_col_mapping, succ_pi);
     }
 
     /**
@@ -395,7 +505,7 @@ namespace steady_ant {
      * @param flattened
      */
     inline void
-    inverse_mapping(Permutation *shrinked, const int *row_mapper, const int *col_mapper, Permutation *flattened) {
+    inverse_mapping(AbstractPermutation *shrinked, const int *row_mapper, const int *col_mapper, AbstractPermutation *flattened) {
         //could be parallelized
         flattened->unset_all();
 
@@ -408,7 +518,7 @@ namespace steady_ant {
         }
     }
 
-    //TODO if use precalced matrices then what about free and so on?
+
     Permutation *steady_ant(Permutation *p, Permutation *q) {
         auto n = p->col_size;
 
@@ -423,28 +533,40 @@ namespace steady_ant {
         }
 
         int spliter = p->col_size / 2;
-        auto p_lo_tuple = get_vertical_slice(p, 0, spliter);
-        auto p_hi_tuple = get_vertical_slice(p, spliter, p->col_size);
+
+        auto p_lo_row_mapper = new int[spliter];
+        auto p_lo = new Permutation(spliter, spliter);
+
+        get_vertical_slice(p, 0, spliter, p_lo_row_mapper, p_lo);
+
+        auto p_hi_row_mapper = new int[p->col_size - spliter];
+        auto p_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
+
+        get_vertical_slice(p, spliter, p->col_size, p_hi_row_mapper, p_hi);
 
 
-        auto q_lo_tuple = get_horizontal_slice(q, 0, spliter);
+        auto q_lo_col_mapper = new int[spliter];
+        auto q_lo = new Permutation(spliter, spliter);
+        get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, q_lo);
 
         auto r_lo = p; // reuse since we no need to use p further
 
 
-        auto product = steady_ant(p_lo_tuple.second, q_lo_tuple.second);
+        auto product = steady_ant(p_lo, q_lo);
 
 
-        inverse_mapping(product, p_lo_tuple.first, q_lo_tuple.first, r_lo);
+        inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
 //        delete product;
 
 
-        auto q_hi_tuple = get_horizontal_slice(q, spliter, q->row_size);
+        auto q_hi_col_mapper = new int[p->col_size - spliter];
+        auto q_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
+        get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
         auto r_hi = q; // reuse since we no need to use p further
-        product = steady_ant(p_hi_tuple.second, q_hi_tuple.second);
+        product = steady_ant(p_hi, q_hi);
 
 
-        inverse_mapping(product, p_hi_tuple.first, q_hi_tuple.first, r_hi);
+        inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
 //        delete product;
 
         //ant passage
@@ -528,6 +650,296 @@ namespace steady_ant {
 
         return r_hi;
     }
+
+    //memory block point to p zero element
+    // memmory_block + 2*p->size point to zero q or vice versa
+    AbstractPermutation *steady_ant_with_precalc(AbstractPermutation *p,AbstractPermutation *q,int *memory_block,int *free_block_tmp,
+                                         std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map) {
+        auto n = p->row_size;
+
+        if (n <= map.size()) {
+            return new PermutationPreAllocated(n, n, map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
+        }
+
+        int spliter = n / 2;
+
+        auto initial_block = memory_block;
+
+        auto free_block_start = memory_block + 2 * n + 2 * n ;
+
+        auto p_lo_row_mapper = new int[spliter];
+        auto p_lo = PermutationPreAllocated(spliter, spliter, free_block_start, free_block_start + spliter);
+
+        get_vertical_slice(p, 0, spliter, p_lo_row_mapper, &p_lo);
+        free_block_start += 2 * spliter;
+
+        auto p_hi_row_mapper = new int[p->col_size - spliter];
+        auto p_hi = PermutationPreAllocated(p->col_size - spliter, p->col_size - spliter,
+                                            free_block_start,free_block_start +  (n - spliter));
+        get_vertical_slice(p, spliter, p->col_size, p_hi_row_mapper, &p_hi);
+        free_block_start +=  2 * (n - spliter);
+
+        auto p_hi_half = PermutationPreAllocated(spliter,spliter,memory_block,memory_block + spliter);
+        auto p_lo_half = PermutationPreAllocated(n - spliter, n-spliter,memory_block+(2*spliter),
+                                                 memory_block+(2*spliter+(n-spliter)));
+        p->unset_all();//clear all
+        for (int i = 0; i < p_hi.row_size; ++i) {
+            auto col = p_hi.get_col_by_row(i);
+            if(col!=NOPOINT) p_hi.set_point(i,col);
+        }
+
+        for (int i = 0; i < p_lo.row_size; ++i) {
+            auto col = p_lo.get_col_by_row(i);
+            if(col != NOPOINT) p_lo.set_point(i,col);
+
+        }
+
+        free_block_start  = initial_block + 4 * n;// point to free memory
+
+        // process same way second matrix
+
+        auto q_lo_col_mapper = new int[spliter];
+        auto q_lo = PermutationPreAllocated(spliter,spliter, free_block_start, free_block_start+spliter);
+        get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, &q_lo);
+
+        free_block_start+= 2 * n;
+
+        auto q_hi_col_mapper = new int[p->col_size - spliter];
+        auto q_hi = PermutationPreAllocated(p->col_size - spliter, p->col_size - spliter,);
+        get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
+//todo
+
+
+
+        auto shifted_block = memory_block + 4 * spliter_over;shifted_block = memory_block + 2 * (p->col_size - spliter);
+
+        auto r_lo = p;
+
+        auto product = steady_ant_with_precalc(p,q,shifted_block,map);
+
+
+        inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
+        // now free all tha used by left subtree, current r_lo matrix physical in p location
+
+
+        auto r_hi = q; // reuse since we no need to use p further
+        product = steady_ant_with_precalc(p_hi, q_hi, map);
+
+
+        inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
+//        delete product;
+
+        //ant passage
+        auto end_row = -1;
+        auto end_col = r_lo->col_size + 1;
+        auto cur_row = r_hi->row_size;
+        auto cur_col = -1;
+
+        auto rhi = 0;
+        auto rlo = 0;
+
+        std::vector<int> good_row_pos;
+        std::vector<int> good_col_pos;
+//        good_row_pos.reserve(n / 2);
+//        good_col_pos.reserve(n / 2);
+
+        bool is_went_right = false; // went up
+        while (true) {
+
+            if (end_col == cur_col && end_row == cur_row) break;
+
+            if (cur_row == 0) break;
+            //TODO is new
+            if (cur_col == n) break;
+            //
+            auto dominance_row = cur_row - 1;
+            auto dominance_col = cur_col + 1;
+
+            //prev step
+            if (is_went_right) {
+                rhi = dominance_sum_counting::bottom_right_arrow::right_move(dominance_row, dominance_col - 1, rhi,
+                                                                             r_hi);
+                rlo = dominance_sum_counting::top_left_arrow::right_move(dominance_row, dominance_col - 1, rlo, r_lo);
+            } else {
+                rhi = dominance_sum_counting::bottom_right_arrow::up_move(dominance_row + 1, dominance_col, rhi, r_hi);
+                rlo = dominance_sum_counting::top_left_arrow::up_move(dominance_row + 1, dominance_col, rlo, r_lo);
+            }
+
+            if (rhi - rlo < 0) {
+                is_went_right = true;
+                cur_col++;
+            } else if (rhi - rlo == 0) {
+                is_went_right = false;
+                cur_row--;
+            } else {
+                std::cout << "Impissble" << std::endl;
+            }
+
+            if (dominance_col > 0) {
+                auto delta_above_left =
+                        dominance_sum_counting::bottom_right_arrow::left_move(dominance_row, dominance_col, rhi, r_hi) -
+                        dominance_sum_counting::top_left_arrow::left_move(dominance_row, dominance_col, rlo, r_lo);
+                auto delta_below_right =
+                        dominance_sum_counting::bottom_right_arrow::down_move(dominance_row, dominance_col, rhi, r_hi) -
+                        dominance_sum_counting::top_left_arrow::down_move(dominance_row, dominance_col, rlo, r_lo);
+
+                if (delta_above_left < 0 && delta_below_right > 0) {
+                    good_row_pos.push_back(dominance_row);
+                    good_col_pos.push_back(dominance_col - 1);
+
+                }
+            }
+
+
+        }
+        // end ant passage
+
+        // merge r_lo to r_hi
+        for (int i = 0; i < n; ++i) {
+            auto col = r_lo->get_col_by_row(i);
+            if (col == NOPOINT) continue;
+            r_hi->set_point(i, col);
+        }
+
+        // add good points
+        for (int i = 0; i < good_col_pos.size(); ++i) {
+            auto col = good_col_pos[i];
+            auto row = good_row_pos[i];
+            r_hi->set_point(row, col);
+        }
+
+        return r_hi;
+    }
+
+
+    Permutation *steady_ant_with_precalcd(Permutation *p, Permutation *q,
+                                         std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map) {
+        auto n = p->col_size;
+
+        if (n <= map.size()) {
+            return new Permutation(n, n, map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
+        }
+
+        int spliter = p->col_size / 2;
+
+        auto p_lo_row_mapper = new int[spliter];
+        auto p_lo = new Permutation(spliter, spliter);
+
+        get_vertical_slice(p, 0, spliter, p_lo_row_mapper, p_lo);
+
+        auto p_hi_row_mapper = new int[p->col_size - spliter];
+        auto p_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
+
+        get_vertical_slice(p, spliter, p->col_size, p_hi_row_mapper, p_hi);
+
+
+        auto q_lo_col_mapper = new int[spliter];
+        auto q_lo = new Permutation(spliter, spliter);
+        get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, q_lo);
+
+        auto r_lo = p; // reuse since we no need to use p further
+
+
+        auto product = steady_ant_with_precalc(p_lo, q_lo, map);
+
+
+        inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
+//        delete product;
+
+
+        auto q_hi_col_mapper = new int[p->col_size - spliter];
+        auto q_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
+        get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
+        auto r_hi = q; // reuse since we no need to use p further
+        product = steady_ant_with_precalc(p_hi, q_hi, map);
+
+
+        inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
+//        delete product;
+
+        //ant passage
+        auto end_row = -1;
+        auto end_col = r_lo->col_size + 1;
+        auto cur_row = r_hi->row_size;
+        auto cur_col = -1;
+
+        auto rhi = 0;
+        auto rlo = 0;
+
+        std::vector<int> good_row_pos;
+        std::vector<int> good_col_pos;
+//        good_row_pos.reserve(n / 2);
+//        good_col_pos.reserve(n / 2);
+
+        bool is_went_right = false; // went up
+        while (true) {
+
+            if (end_col == cur_col && end_row == cur_row) break;
+
+            if (cur_row == 0) break;
+            //TODO is new
+            if (cur_col == n) break;
+            //
+            auto dominance_row = cur_row - 1;
+            auto dominance_col = cur_col + 1;
+
+            //prev step
+            if (is_went_right) {
+                rhi = dominance_sum_counting::bottom_right_arrow::right_move(dominance_row, dominance_col - 1, rhi,
+                                                                             r_hi);
+                rlo = dominance_sum_counting::top_left_arrow::right_move(dominance_row, dominance_col - 1, rlo, r_lo);
+            } else {
+                rhi = dominance_sum_counting::bottom_right_arrow::up_move(dominance_row + 1, dominance_col, rhi, r_hi);
+                rlo = dominance_sum_counting::top_left_arrow::up_move(dominance_row + 1, dominance_col, rlo, r_lo);
+            }
+
+            if (rhi - rlo < 0) {
+                is_went_right = true;
+                cur_col++;
+            } else if (rhi - rlo == 0) {
+                is_went_right = false;
+                cur_row--;
+            } else {
+                std::cout << "Impissble" << std::endl;
+            }
+
+            if (dominance_col > 0) {
+                auto delta_above_left =
+                        dominance_sum_counting::bottom_right_arrow::left_move(dominance_row, dominance_col, rhi, r_hi) -
+                        dominance_sum_counting::top_left_arrow::left_move(dominance_row, dominance_col, rlo, r_lo);
+                auto delta_below_right =
+                        dominance_sum_counting::bottom_right_arrow::down_move(dominance_row, dominance_col, rhi, r_hi) -
+                        dominance_sum_counting::top_left_arrow::down_move(dominance_row, dominance_col, rlo, r_lo);
+
+                if (delta_above_left < 0 && delta_below_right > 0) {
+                    good_row_pos.push_back(dominance_row);
+                    good_col_pos.push_back(dominance_col - 1);
+
+                }
+            }
+
+
+        }
+        // end ant passage
+
+        // merge r_lo to r_hi
+        for (int i = 0; i < n; ++i) {
+            auto col = r_lo->get_col_by_row(i);
+            if (col == NOPOINT) continue;
+            r_hi->set_point(i, col);
+        }
+
+        // add good points
+        for (int i = 0; i < good_col_pos.size(); ++i) {
+            auto col = good_col_pos[i];
+            auto row = good_row_pos[i];
+            r_hi->set_point(row, col);
+        }
+
+        return r_hi;
+    }
+
+
 }
 
 
