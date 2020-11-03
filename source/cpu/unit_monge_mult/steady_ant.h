@@ -658,10 +658,9 @@ namespace steady_ant {
 
 
 
-    // memory block is    p,q, free, or free,p,q
     void steady_ant_with_precalc_and_memory(
-            AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space,
-            PrecalcMap &map) {
+            AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
+                                                int *memory_block_indices,int *free_space_mappings, PrecalcMap &map) {
         auto n = p->row_size;
 
         if (n <= map.size()) {
@@ -675,35 +674,49 @@ namespace steady_ant {
         int spliter = n / 2;
 
 
-        auto p_lo_row_mapper = new int[spliter];
-        auto p_lo = PermutationPreAllocated(spliter, spliter, free_space, free_space + spliter);
+        auto p_lo_row_mapper = free_space_mappings;
+//        auto p_lo_row_mapper = new int[spliter];
+        auto p_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices, free_space_matrices + spliter);
         get_vertical_slice(p, 0, spliter, p_lo_row_mapper, &p_lo);
 
 
-        auto q_lo_col_mapper = new int[spliter];
-        auto q_lo = PermutationPreAllocated(spliter, spliter, free_space + 2 * spliter, free_space + 3 * spliter);
+        auto q_lo_col_mapper = free_space_mappings + spliter;
+//        auto q_lo_col_mapper = new int[spliter];
+        auto q_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices + 2 * spliter, free_space_matrices + 3 * spliter);
         get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, &q_lo);
 
 
-        auto p_hi_row_mapper = new int[n - spliter];
-        auto p_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space + 4 * spliter,
-                                            free_space + 4 * spliter + (n - spliter));
+        auto p_hi_row_mapper = free_space_mappings + 2*spliter;
+//        auto p_hi_row_mapper = new int[n-spliter];
+        auto p_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space_matrices + 4 * spliter,
+                                            free_space_matrices + 4 * spliter + (n - spliter));
         get_vertical_slice(p, spliter, n, p_hi_row_mapper, &p_hi);
 
-        auto q_hi_col_mapper = new int[n - spliter];
-        auto q_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space + 4 * spliter + 2 * (n - spliter),
-                                            free_space + 4 * spliter + 3 * (n - spliter));
+
+
+        auto q_hi_col_mapper = free_space_mappings + 2*spliter + (n-spliter);
+//        auto q_hi_col_mapper = new int[n-spliter];
+        auto q_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space_matrices + 4 * spliter + 2 * (n - spliter),
+                                            free_space_matrices + 4 * spliter + 3 * (n - spliter));
         get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, &q_hi);
 
         // now we have small matrices in free space, and p,q may be overwrited
+//        free_space_mappings + 2*n
 
+        // 2n space
 
+//2n space is reserverd
         // of size n/2 now  in location p_lo  is product stored
-        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space, memory_block_matrices, map);
+        // 2n, 1/2n 1/2n
+        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
+
+                                           free_space_mappings + 2 * n, memory_block_indices, map);
         // of size n-n/2
         //now  in location p_hi  is product stored
-        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space + 4 * spliter, memory_block_matrices + 4 * spliter,
-                                           map);
+        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
+                                           memory_block_matrices + 4 * spliter,
+                                           free_space_mappings + 2 * n + n,
+                                           memory_block_indices + 2 ,map);
 
         // hack
         auto r_lo = p;

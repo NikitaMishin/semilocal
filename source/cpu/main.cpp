@@ -81,7 +81,7 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
     }
 
     //8n memory
-    steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block, memory_block + 4 * n->row_size, map);
+    steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block, memory_block + 4 * n->row_size,memory_block+8*n->row_size,memory_block+12*n->row_size,map);
 
     return m_new;
 
@@ -90,10 +90,10 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
 
 int main(int argc, char *argv[]) {
 
-    auto m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
+    auto m = distance_product::get_permutation_matrix(111111, 111111, -2);
 //    m->print(std::cout);
-
-    auto n = distance_product::get_permutation_matrix(10000000, 10000000, -2);
+//10mil
+    auto n = distance_product::get_permutation_matrix(111111, 111111, -3);
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
 
@@ -104,13 +104,13 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Precalc for value 5" << std::endl;
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    precalc(map, 5);
+    precalc(map, 1);
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
-    std::cout << "Memory alloc for 8n" << std::endl;
+    std::cout << "Memory alloc for 20n" << std::endl;
     auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto memory_block = new int[n->row_size*8];
+    auto memory_block = new int[n->row_size*10*2];
     auto time4 = std::chrono::high_resolution_clock::now() - begin4;
     std::cout << "Time " << std::chrono::duration<double, std::milli>(time4).count() << std::endl;
 
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
 //    delete res;
 
     std::cout << exp->is_equal_to(*actual);
-    delete memory_block;
+    delete[] memory_block;
     delete n;
     delete m;
 }
