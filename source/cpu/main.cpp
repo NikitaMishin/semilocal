@@ -48,14 +48,13 @@ precalc(std::unordered_map<int, std::unordered_map<long long, std::unordered_map
                 long long hash_p = hash<AbstractPermutation>()(*p);
                 long long hash_q = hash<AbstractPermutation>()(*q);
 
-                Permutation r = *steady_ant::steady_ant(p, q);
-
+                auto r = steady_ant::steady_ant(p, q);
                 auto points = std::vector<std::pair<int, int>>();
                 if (map[size][hash_p].count(hash_q) > 0) {
                     std::cout << " Some error";
                     return;
                 }
-                r.to_points_on_grid(points);
+                r->to_points_on_grid(points);
                 map[size][hash_p][hash_q] = points;
 
             } while (std::next_permutation(q_arr, q_arr + size));
@@ -65,32 +64,63 @@ precalc(std::unordered_map<int, std::unordered_map<long long, std::unordered_map
     }
 }
 
+
+AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *memory_block, PrecalcMap &map) {
+    auto m_new = new PermutationPreAllocated(n->row_size, n->col_size, memory_block, memory_block + n->row_size);
+    auto n_new = PermutationPreAllocated(n->row_size, n->col_size, memory_block + 2 * n->row_size,
+                                         memory_block + 3 * n->row_size);
+
+    for (int i = 0; i < m->row_size; ++i) {
+        auto col  = m->get_col_by_row(i);
+        m_new->set_point(i,col);
+    }
+
+    for (int i = 0; i < n->row_size; ++i) {
+        auto col  = n->get_col_by_row(i);
+        n_new.set_point(i,col);
+    }
+
+    //8n memory
+    steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block, memory_block + 4 * n->row_size, map);
+
+    return m_new;
+
+
+}
+
 int main(int argc, char *argv[]) {
 
-    auto m = distance_product::get_permutation_matrix(1000, 1000, -233);
+    auto m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
 //    m->print(std::cout);
 
-    auto n = distance_product::get_permutation_matrix(1000, 1000, -2);
+    auto n = distance_product::get_permutation_matrix(10000000, 10000000, -2);
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
 
-    auto  expected = distance_product::naive::mult_dist(m,n);
+//    auto expected = distance_product::naive::mult_dist(m, n);
 //
 //    std::cout<<sizeof(n);
 
 
-    std::cout<<"Precalc for value 5"<<std::endl;
+    std::cout << "Precalc for value 5" << std::endl;
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    precalc(map,5);
+    precalc(map, 5);
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout <<"Precalc " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+    std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
-    std::cout<<"Started on 10000000x10000000"<<std::endl;
+    std::cout << "Memory alloc for 8n" << std::endl;
+    auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto memory_block = new int[n->row_size*8];
+    auto time4 = std::chrono::high_resolution_clock::now() - begin4;
+    std::cout << "Time " << std::chrono::duration<double, std::milli>(time4).count() << std::endl;
+
+
+    std::cout << "Started on 10000000x10000000" << std::endl;
     auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto actual = steady_ant::steady_ant_with_precalc(m, n, map);
-    std::cout << std::endl<<"res: "<< actual->get_col_by_row(7) << std::endl;
+    auto actual = run(m,n,memory_block,map);
+    std::cout << std::endl << "res: " << actual->get_col_by_row(7) << std::endl;
     auto time2 = std::chrono::high_resolution_clock::now() - begin2;
-    std::cout <<"with precalc " <<std::chrono::duration<double, std::milli>(time2).count() << std::endl;
+    std::cout << "with precalc and memmory alloc " << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
 //    m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
 ////    m->print(std::cout);
@@ -98,14 +128,16 @@ int main(int argc, char *argv[]) {
 //    n = distance_product::get_permutation_matrix(10000000, 10000000, -2);
 //
 //
-//    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto exp = steady_ant::steady_ant (m,n);
 //    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
-//    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
-//    std::cout <<"without precalc: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
+    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
+    std::cout <<"without precalc: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
 
 //    delete res;
 
-    std::cout<<expected->is_equal_to(*actual);
+    std::cout << exp->is_equal_to(*actual);
+    delete memory_block;
     delete n;
     delete m;
 }

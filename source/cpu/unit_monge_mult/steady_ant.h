@@ -12,6 +12,9 @@
 // less then any value importand
 #define NOPOINT (-1)
 
+typedef std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> PrecalcMap;
+
+
 
 class AbstractPermutation {
 public:
@@ -124,7 +127,7 @@ public:
 
 };
 
-class PermutationPreAllocated: public AbstractPermutation {
+class PermutationPreAllocated : public AbstractPermutation {
 
 public:
 
@@ -154,10 +157,9 @@ public:
     inline int get_col_by_row(int row) const { return row_to_col[row]; }
 
 
-    PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row) : AbstractPermutation(row,col),
+    PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row) : AbstractPermutation(row, col),
                                                                                   row_to_col(row_to_col),
                                                                                   col_to_row(col_to_row) {};
-
 
 
     PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row,
@@ -459,8 +461,8 @@ namespace steady_ant {
      * @param col_exclusive exclusive index of end of slice
      * @return mapping of row_{i+1} -> row_{i} and p_{i+1}, mapping of col_{i+1} -> col_{i} implicit via offset start_inclusive
      */
-    void get_vertical_slice(AbstractPermutation * p_i, int col_start_inclusive, int col_exclusive,
-                            int *cur_row_to_prev_row_mapping, AbstractPermutation * succ_pi) {
+    void get_vertical_slice(AbstractPermutation *p_i, int col_start_inclusive, int col_exclusive,
+                            int *cur_row_to_prev_row_mapping, AbstractPermutation *succ_pi) {
 
         auto ptr = 0;
         for (int row = 0; row < p_i->row_size; ++row) {
@@ -505,7 +507,8 @@ namespace steady_ant {
      * @param flattened
      */
     inline void
-    inverse_mapping(AbstractPermutation *shrinked, const int *row_mapper, const int *col_mapper, AbstractPermutation *flattened) {
+    inverse_mapping(AbstractPermutation *shrinked, const int *row_mapper, const int *col_mapper,
+                    AbstractPermutation *flattened) {
         //could be parallelized
         flattened->unset_all();
 
@@ -519,7 +522,7 @@ namespace steady_ant {
     }
 
 
-    Permutation *steady_ant(Permutation *p, Permutation *q) {
+    AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q) {
         auto n = p->col_size;
 
         if (n == 1) {
@@ -651,83 +654,63 @@ namespace steady_ant {
         return r_hi;
     }
 
-    //memory block point to p zero element
-    // memmory_block + 2*p->size point to zero q or vice versa
-    AbstractPermutation *steady_ant_with_precalc(AbstractPermutation *p,AbstractPermutation *q,int *memory_block,int *free_block_tmp,
-                                         std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map) {
+
+
+
+
+    // memory block is    p,q, free, or free,p,q
+    void steady_ant_with_precalc_and_memory(
+            AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space,
+            PrecalcMap &map) {
         auto n = p->row_size;
 
         if (n <= map.size()) {
-            return new PermutationPreAllocated(n, n, map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
+            //todo  is legal
+            auto precalced = PermutationPreAllocated(n, n, memory_block_matrices, memory_block_matrices + n,
+                                                     map[n][std::hash<AbstractPermutation>()(
+                                                             *p)][std::hash<AbstractPermutation>()(*q)]);
+            return;
         }
 
         int spliter = n / 2;
 
-        auto initial_block = memory_block;
-
-        auto free_block_start = memory_block + 2 * n + 2 * n ;
 
         auto p_lo_row_mapper = new int[spliter];
-        auto p_lo = PermutationPreAllocated(spliter, spliter, free_block_start, free_block_start + spliter);
-
+        auto p_lo = PermutationPreAllocated(spliter, spliter, free_space, free_space + spliter);
         get_vertical_slice(p, 0, spliter, p_lo_row_mapper, &p_lo);
-        free_block_start += 2 * spliter;
 
-        auto p_hi_row_mapper = new int[p->col_size - spliter];
-        auto p_hi = PermutationPreAllocated(p->col_size - spliter, p->col_size - spliter,
-                                            free_block_start,free_block_start +  (n - spliter));
-        get_vertical_slice(p, spliter, p->col_size, p_hi_row_mapper, &p_hi);
-        free_block_start +=  2 * (n - spliter);
-
-        auto p_hi_half = PermutationPreAllocated(spliter,spliter,memory_block,memory_block + spliter);
-        auto p_lo_half = PermutationPreAllocated(n - spliter, n-spliter,memory_block+(2*spliter),
-                                                 memory_block+(2*spliter+(n-spliter)));
-        p->unset_all();//clear all
-        for (int i = 0; i < p_hi.row_size; ++i) {
-            auto col = p_hi.get_col_by_row(i);
-            if(col!=NOPOINT) p_hi.set_point(i,col);
-        }
-
-        for (int i = 0; i < p_lo.row_size; ++i) {
-            auto col = p_lo.get_col_by_row(i);
-            if(col != NOPOINT) p_lo.set_point(i,col);
-
-        }
-
-        free_block_start  = initial_block + 4 * n;// point to free memory
-
-        // process same way second matrix
 
         auto q_lo_col_mapper = new int[spliter];
-        auto q_lo = PermutationPreAllocated(spliter,spliter, free_block_start, free_block_start+spliter);
+        auto q_lo = PermutationPreAllocated(spliter, spliter, free_space + 2 * spliter, free_space + 3 * spliter);
         get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, &q_lo);
 
-        free_block_start+= 2 * n;
 
-        auto q_hi_col_mapper = new int[p->col_size - spliter];
-        auto q_hi = PermutationPreAllocated(p->col_size - spliter, p->col_size - spliter,);
-        get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
-//todo
+        auto p_hi_row_mapper = new int[n - spliter];
+        auto p_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space + 4 * spliter,
+                                            free_space + 4 * spliter + (n - spliter));
+        get_vertical_slice(p, spliter, n, p_hi_row_mapper, &p_hi);
+
+        auto q_hi_col_mapper = new int[n - spliter];
+        auto q_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space + 4 * spliter + 2 * (n - spliter),
+                                            free_space + 4 * spliter + 3 * (n - spliter));
+        get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, &q_hi);
+
+        // now we have small matrices in free space, and p,q may be overwrited
 
 
+        // of size n/2 now  in location p_lo  is product stored
+        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space, memory_block_matrices, map);
+        // of size n-n/2
+        //now  in location p_hi  is product stored
+        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space + 4 * spliter, memory_block_matrices + 4 * spliter,
+                                           map);
 
-        auto shifted_block = memory_block + 4 * spliter_over;shifted_block = memory_block + 2 * (p->col_size - spliter);
-
+        // hack
         auto r_lo = p;
+        auto r_hi = q;
 
-        auto product = steady_ant_with_precalc(p,q,shifted_block,map);
-
-
-        inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
-        // now free all tha used by left subtree, current r_lo matrix physical in p location
-
-
-        auto r_hi = q; // reuse since we no need to use p further
-        product = steady_ant_with_precalc(p_hi, q_hi, map);
-
-
-        inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
-//        delete product;
+        inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
+        inverse_mapping(&p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
 
         //ant passage
         auto end_row = -1;
@@ -794,30 +777,33 @@ namespace steady_ant {
         }
         // end ant passage
 
-        // merge r_lo to r_hi
+        // merge r_hi to r_lo
         for (int i = 0; i < n; ++i) {
-            auto col = r_lo->get_col_by_row(i);
+            auto col = r_hi->get_col_by_row(i);
             if (col == NOPOINT) continue;
-            r_hi->set_point(i, col);
+            r_lo->set_point(i, col);
         }
 
         // add good points
         for (int i = 0; i < good_col_pos.size(); ++i) {
             auto col = good_col_pos[i];
             auto row = good_row_pos[i];
-            r_hi->set_point(row, col);
+            r_lo->set_point(row, col);
         }
 
-        return r_hi;
+        // new matrix in r_lo
+
+        return; //r_lo;
     }
 
 
     Permutation *steady_ant_with_precalcd(Permutation *p, Permutation *q,
-                                         std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map) {
+                                          std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map) {
         auto n = p->col_size;
 
         if (n <= map.size()) {
-            return new Permutation(n, n, map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
+            return new Permutation(n, n,
+                                   map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
         }
 
         int spliter = p->col_size / 2;
@@ -840,7 +826,7 @@ namespace steady_ant {
         auto r_lo = p; // reuse since we no need to use p further
 
 
-        auto product = steady_ant_with_precalc(p_lo, q_lo, map);
+        auto product = steady_ant_with_precalcd(p_lo, q_lo, map);
 
 
         inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
@@ -851,7 +837,7 @@ namespace steady_ant {
         auto q_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
         get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
         auto r_hi = q; // reuse since we no need to use p further
-        product = steady_ant_with_precalc(p_hi, q_hi, map);
+        product = steady_ant_with_precalcd(p_hi, q_hi, map);
 
 
         inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
