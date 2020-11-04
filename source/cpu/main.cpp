@@ -71,17 +71,25 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
                                          memory_block + 3 * n->row_size);
 
     for (int i = 0; i < m->row_size; ++i) {
-        auto col  = m->get_col_by_row(i);
-        m_new->set_point(i,col);
+        auto col = m->get_col_by_row(i);
+        m_new->set_point(i, col);
     }
 
     for (int i = 0; i < n->row_size; ++i) {
-        auto col  = n->get_col_by_row(i);
-        n_new.set_point(i,col);
+        auto col = n->get_col_by_row(i);
+        n_new.set_point(i, col);
     }
 
+    int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
+    int total = int(log2(nearest_2_degree))*nearest_2_degree  ;
+
+
     //8n memory
-    steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block, memory_block + 4 * n->row_size,memory_block+8*n->row_size,memory_block+12*n->row_size,map);
+    steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block,
+                                                   memory_block + 4 * n->row_size,
+                                                   memory_block + 8 * n->row_size, map,total);
+
+
 
     return m_new;
 
@@ -89,11 +97,12 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
 }
 
 int main(int argc, char *argv[]) {
-
-    auto m = distance_product::get_permutation_matrix(111111, 111111, -2);
+    omp_set_max_active_levels(2);
+    std::cout<< omp_get_active_level();
+    auto m = distance_product::get_permutation_matrix(7000000, 7000000, -2);
 //    m->print(std::cout);
 //10mil
-    auto n = distance_product::get_permutation_matrix(111111, 111111, -3);
+    auto n = distance_product::get_permutation_matrix(7000000, 7000000, -3);
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
 
@@ -101,26 +110,33 @@ int main(int argc, char *argv[]) {
 //
 //    std::cout<<sizeof(n);
 
-
+//    omp_set_nested(0);
+    omp_set_num_threads(4);
     std::cout << "Precalc for value 5" << std::endl;
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    precalc(map, 1);
+    precalc(map, 5);
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
     std::cout << "Memory alloc for 20n" << std::endl;
     auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto memory_block = new int[n->row_size*10*2];
+    int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
+    auto memory_block = new int[n->row_size * 8 + int(log2(nearest_2_degree)) * nearest_2_degree];
     auto time4 = std::chrono::high_resolution_clock::now() - begin4;
     std::cout << "Time " << std::chrono::duration<double, std::milli>(time4).count() << std::endl;
-
+///row_to_col
+// col_to_row
+//n/2, n/2
+// n/p
+// 2 ->n
 
     std::cout << "Started on 10000000x10000000" << std::endl;
     auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto actual = run(m,n,memory_block,map);
+    auto actual = run(m, n, memory_block, map);
     std::cout << std::endl << "res: " << actual->get_col_by_row(7) << std::endl;
     auto time2 = std::chrono::high_resolution_clock::now() - begin2;
-    std::cout << "with precalc and memmory alloc " << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
+    std::cout << "with precalc and memmory alloc " << std::chrono::duration<double, std::milli>(time2).count()
+              << std::endl;
 
 //    m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
 ////    m->print(std::cout);
@@ -129,10 +145,11 @@ int main(int argc, char *argv[]) {
 //
 //
     auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto exp = steady_ant::steady_ant (m,n);
+    auto exp = steady_ant::steady_ant(m, n);
 //    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
     auto time0 = std::chrono::high_resolution_clock::now() - begin0;
-    std::cout <<"without precalc: " <<std::chrono::duration<double, std::milli>(time0).count() << std::endl;
+    std::cout << "without precalc and without memory alloc: "
+              << std::chrono::duration<double, std::milli>(time0).count() << std::endl;
 
 //    delete res;
 

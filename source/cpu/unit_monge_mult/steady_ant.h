@@ -15,7 +15,6 @@
 typedef std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> PrecalcMap;
 
 
-
 class AbstractPermutation {
 public:
     int col_size; // rows aka height
@@ -512,6 +511,7 @@ namespace steady_ant {
         //could be parallelized
         flattened->unset_all();
 
+//#pragma omp parallel for
         for (int cur_col = 0; cur_col < shrinked->col_size; ++cur_col) {
             auto old_col = col_mapper[cur_col]; /// consecutive access
 
@@ -524,7 +524,8 @@ namespace steady_ant {
 
     AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q) {
         auto n = p->col_size;
-
+        // 4n ->
+        //
         if (n == 1) {
             //base case when common dimension is one
             auto row = p->get_row_by_col(0);
@@ -655,13 +656,11 @@ namespace steady_ant {
     }
 
 
-
-
-
     void steady_ant_with_precalc_and_memory(
             AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
-                                                int *memory_block_indices,int *free_space_mappings, PrecalcMap &map) {
+            int *memory_block_indices, PrecalcMap &map, int total_memory) {
         auto n = p->row_size;
+//        std::cout<<power<<"enl"<<std::endl;
 
         if (n <= map.size()) {
             //todo  is legal
@@ -674,53 +673,57 @@ namespace steady_ant {
         int spliter = n / 2;
 
 
-        auto p_lo_row_mapper = free_space_mappings;
+        auto p_lo_row_mapper = memory_block_indices;
 //        auto p_lo_row_mapper = new int[spliter];
         auto p_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices, free_space_matrices + spliter);
         get_vertical_slice(p, 0, spliter, p_lo_row_mapper, &p_lo);
 
 
-        auto q_lo_col_mapper = free_space_mappings + spliter;
+        auto q_lo_col_mapper = memory_block_indices + spliter;
 //        auto q_lo_col_mapper = new int[spliter];
-        auto q_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices + 2 * spliter, free_space_matrices + 3 * spliter);
+        auto q_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices + 2 * spliter,
+                                            free_space_matrices + 3 * spliter);
         get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, &q_lo);
 
 
-        auto p_hi_row_mapper = free_space_mappings + 2*spliter;
+        auto p_hi_row_mapper = memory_block_indices + 2 * spliter;
 //        auto p_hi_row_mapper = new int[n-spliter];
         auto p_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space_matrices + 4 * spliter,
                                             free_space_matrices + 4 * spliter + (n - spliter));
         get_vertical_slice(p, spliter, n, p_hi_row_mapper, &p_hi);
 
 
-
-        auto q_hi_col_mapper = free_space_mappings + 2*spliter + (n-spliter);
+        auto q_hi_col_mapper = memory_block_indices + 2 * spliter + (n - spliter);
 //        auto q_hi_col_mapper = new int[n-spliter];
-        auto q_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space_matrices + 4 * spliter + 2 * (n - spliter),
+        auto q_hi = PermutationPreAllocated(n - spliter, n - spliter,
+                                            free_space_matrices + 4 * spliter + 2 * (n - spliter),
                                             free_space_matrices + 4 * spliter + 3 * (n - spliter));
         get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, &q_hi);
 
         // now we have small matrices in free space, and p,q may be overwrited
 //        free_space_mappings + 2*n
 
-        // 2n space
-
-//2n space is reserverd
-        // of size n/2 now  in location p_lo  is product stored
-        // 2n, 1/2n 1/2n
-        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
-
-                                           free_space_mappings + 2 * n, memory_block_indices, map);
-        // of size n-n/2
-        //now  in location p_hi  is product stored
-        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
-                                           memory_block_matrices + 4 * spliter,
-                                           free_space_mappings + 2 * n + n,
-                                           memory_block_indices + 2 ,map);
-
         // hack
         auto r_lo = p;
         auto r_hi = q;
+
+        int on_parts = (total_memory - 2 * n) / 2;
+
+#pragma omp parallel
+        {
+#pragma omp single
+            {
+#pragma omp task
+        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
+                                           memory_block_indices + 2 * n, map,on_parts);
+#pragma omp task
+        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
+                                           memory_block_matrices + 4 * spliter,
+                                           memory_block_indices + 2 * n + on_parts , map,on_parts);
+#pragma omp taskwait
+            }
+        };
+
 
         inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
         inverse_mapping(&p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
@@ -818,6 +821,8 @@ namespace steady_ant {
             return new Permutation(n, n,
                                    map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
         }
+
+        // n/2 , ceil(n/2)
 
         int spliter = p->col_size / 2;
 
