@@ -99,10 +99,12 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
 int main(int argc, char *argv[]) {
     omp_set_max_active_levels(2);
     std::cout<< omp_get_active_level();
-    auto m = distance_product::get_permutation_matrix(7000000, 7000000, -2);
+    auto m = distance_product::get_permutation_matrix(10, 10, -2);
 //    m->print(std::cout);
 //10mil
-    auto n = distance_product::get_permutation_matrix(7000000, 7000000, -3);
+    auto n = distance_product::get_permutation_matrix(10, 10, -3);
+
+
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
 
@@ -130,6 +132,16 @@ int main(int argc, char *argv[]) {
 // n/p
 // 2 ->n
 
+    auto product = Permutation(11,11);
+    steady_ant::staggered_sticky_multiplication(m,n,9,map,&product);
+    m->print(std::cout);
+    std::cout<<std::endl;
+    n->print(std::cout);
+    std::cout<<std::endl;
+    product.print(std::cout);
+    std::cout<<std::endl;
+
+
     std::cout << "Started on 10000000x10000000" << std::endl;
     auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     auto actual = run(m, n, memory_block, map);
@@ -153,7 +165,7 @@ int main(int argc, char *argv[]) {
 
 //    delete res;
 
-    std::cout << exp->is_equal_to(*actual);
+    std::cout << exp->is_equal_to(product);
     delete[] memory_block;
     delete n;
     delete m;

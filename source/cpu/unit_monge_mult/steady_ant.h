@@ -714,12 +714,12 @@ namespace steady_ant {
 #pragma omp single
             {
 #pragma omp task
-        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
-                                           memory_block_indices + 2 * n, map,on_parts);
+                steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
+                                                   memory_block_indices + 2 * n, map, on_parts);
 #pragma omp task
-        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
-                                           memory_block_matrices + 4 * spliter,
-                                           memory_block_indices + 2 * n + on_parts , map,on_parts);
+                steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
+                                                   memory_block_matrices + 4 * spliter,
+                                                   memory_block_indices + 2 * n + on_parts, map, on_parts);
 #pragma omp taskwait
             }
         };
@@ -813,136 +813,103 @@ namespace steady_ant {
     }
 
 
-    Permutation *steady_ant_with_precalcd(Permutation *p, Permutation *q,
-                                          std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> &map) {
-        auto n = p->col_size;
 
-        if (n <= map.size()) {
-            return new Permutation(n, n,
-                                   map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
+//
+//    auto m_new = new PermutationPreAllocated(n->row_size, n->col_size, memory_block, memory_block + n->row_size);
+//    auto n_new = PermutationPreAllocated(n->row_size, n->col_size, memory_block + 2 * n->row_size,
+//                                         memory_block + 3 * n->row_size);
+//
+//    for (int i = 0; i < m->row_size; ++i) {
+//    auto col = m->get_col_by_row(i);
+//    m_new->set_point(i, col);
+//}
+//
+//for (int i = 0; i < n->row_size; ++i) {
+//auto col = n->get_col_by_row(i);
+//n_new.set_point(i, col);
+//}
+//
+//int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
+//int total = int(log2(nearest_2_degree))*nearest_2_degree  ;
+//
+//
+////8n memory
+//steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block,
+//        memory_block + 4 * n->row_size,
+//memory_block + 8 * n->row_size, map,total);
+//
+
+
+
+    void
+    staggered_sticky_multiplication(AbstractPermutation *p, AbstractPermutation *q, int k,
+                                    PrecalcMap &map, AbstractPermutation *product) {
+        if (k == p->col_size && k == q->row_size) {
+            std::cout << "This function should not be called for this case, handled separately";
+//            return;
         }
 
-        // n/2 , ceil(n/2)
-
-        int spliter = p->col_size / 2;
-
-        auto p_lo_row_mapper = new int[spliter];
-        auto p_lo = new Permutation(spliter, spliter);
-
-        get_vertical_slice(p, 0, spliter, p_lo_row_mapper, p_lo);
-
-        auto p_hi_row_mapper = new int[p->col_size - spliter];
-        auto p_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
-
-        get_vertical_slice(p, spliter, p->col_size, p_hi_row_mapper, p_hi);
-
-
-        auto q_lo_col_mapper = new int[spliter];
-        auto q_lo = new Permutation(spliter, spliter);
-        get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, q_lo);
-
-        auto r_lo = p; // reuse since we no need to use p further
-
-
-        auto product = steady_ant_with_precalcd(p_lo, q_lo, map);
-
-
-        inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
-//        delete product;
-
-
-        auto q_hi_col_mapper = new int[p->col_size - spliter];
-        auto q_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
-        get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
-        auto r_hi = q; // reuse since we no need to use p further
-        product = steady_ant_with_precalcd(p_hi, q_hi, map);
-
-
-        inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
-//        delete product;
-
-        //ant passage
-        auto end_row = -1;
-        auto end_col = r_lo->col_size + 1;
-        auto cur_row = r_hi->row_size;
-        auto cur_col = -1;
-
-        auto rhi = 0;
-        auto rlo = 0;
-
-        std::vector<int> good_row_pos;
-        std::vector<int> good_col_pos;
-//        good_row_pos.reserve(n / 2);
-//        good_col_pos.reserve(n / 2);
-
-        bool is_went_right = false; // went up
-        while (true) {
-
-            if (end_col == cur_col && end_row == cur_row) break;
-
-            if (cur_row == 0) break;
-            //TODO is new
-            if (cur_col == n) break;
-            //
-            auto dominance_row = cur_row - 1;
-            auto dominance_col = cur_col + 1;
-
-            //prev step
-            if (is_went_right) {
-                rhi = dominance_sum_counting::bottom_right_arrow::right_move(dominance_row, dominance_col - 1, rhi,
-                                                                             r_hi);
-                rlo = dominance_sum_counting::top_left_arrow::right_move(dominance_row, dominance_col - 1, rlo, r_lo);
-            } else {
-                rhi = dominance_sum_counting::bottom_right_arrow::up_move(dominance_row + 1, dominance_col, rhi, r_hi);
-                rlo = dominance_sum_counting::top_left_arrow::up_move(dominance_row + 1, dominance_col, rlo, r_lo);
+        if (k == 0) {
+            //|q..|
+            //|. p|
+            for (int i = 0; i < p->row_size; ++i) {
+                auto col = p->get_col_by_row(i);
+                if (col != NOPOINT) product->set_point(i + q->row_size, col + q->col_size);
             }
-
-            if (rhi - rlo < 0) {
-                is_went_right = true;
-                cur_col++;
-            } else if (rhi - rlo == 0) {
-                is_went_right = false;
-                cur_row--;
-            } else {
-                std::cout << "Impissble" << std::endl;
+            for (int i = 0; i < q->row_size; ++i) {
+                auto col = q->get_col_by_row(i);
+                if (col != NOPOINT) product->set_point(i, col);
             }
-
-            if (dominance_col > 0) {
-                auto delta_above_left =
-                        dominance_sum_counting::bottom_right_arrow::left_move(dominance_row, dominance_col, rhi, r_hi) -
-                        dominance_sum_counting::top_left_arrow::left_move(dominance_row, dominance_col, rlo, r_lo);
-                auto delta_below_right =
-                        dominance_sum_counting::bottom_right_arrow::down_move(dominance_row, dominance_col, rhi, r_hi) -
-                        dominance_sum_counting::top_left_arrow::down_move(dominance_row, dominance_col, rlo, r_lo);
-
-                if (delta_above_left < 0 && delta_below_right > 0) {
-                    good_row_pos.push_back(dominance_row);
-                    good_col_pos.push_back(dominance_col - 1);
-
-                }
-            }
-
-
-        }
-        // end ant passage
-
-        // merge r_lo to r_hi
-        for (int i = 0; i < n; ++i) {
-            auto col = r_lo->get_col_by_row(i);
-            if (col == NOPOINT) continue;
-            r_hi->set_point(i, col);
+            return;
         }
 
-        // add good points
-        for (int i = 0; i < good_col_pos.size(); ++i) {
-            auto col = good_col_pos[i];
-            auto row = good_row_pos[i];
-            r_hi->set_point(row, col);
+
+
+        int nearest_2_degree = pow(2, int(ceil(log2(2 * k))));
+        int total = int(log2(nearest_2_degree)) * nearest_2_degree;
+
+        auto memory_block = new int[k * 8 + int(log2(nearest_2_degree)) * nearest_2_degree];
+        auto mapping_row = new int[k];
+        auto mapping_col = new int[k];
+
+
+        auto p_red = PermutationPreAllocated(k, k, memory_block, memory_block + k);
+        auto q_red = PermutationPreAllocated(k, k, memory_block + 2 * k, memory_block + 3 * k);
+
+
+        // take first k columns from P and last k rows from Q, multiply and to bottom left corner of extended matrix
+        get_vertical_slice(p, 0, k, mapping_row, &p_red);
+        get_horizontal_slice(q, q->row_size - k, q->row_size, mapping_col, &q_red);
+
+        steady_ant_with_precalc_and_memory(&p_red, &q_red, memory_block, memory_block + 4 * k,
+                                           memory_block + 8 * k, map, total);
+        // res in p_red
+
+
+        for (int i = 0; i < p_red.row_size; i++) {
+            auto old_col = p_red.get_col_by_row(i);
+            auto cur_col = mapping_col[old_col];
+            auto cur_row = mapping_row[i];
+            product->set_point(q->row_size - k + cur_row, cur_col);
         }
 
-        return r_hi;
+        for (int i = 0; i < q->row_size - k; i++) {
+            auto col = q->get_col_by_row(i);
+            if (col != NOPOINT) product->set_point(i, col);
+        }
+
+        for (int j = k; j < p->col_size; j++) {
+            auto row = q->get_row_by_col(j);
+            if (row != NOPOINT) product->set_point(row + q->row_size - k, j + q->col_size - k);
+        }
+
+
+        delete[] memory_block;
+        delete[] mapping_col;
+        delete[] mapping_row;
+
+
     }
-
 
 }
 
