@@ -30,6 +30,13 @@ precalc(std::unordered_map<int, std::unordered_map<long long, std::unordered_map
     int p_arr[max_size];
     int q_arr[max_size];
 
+    // f(p,q) = result//
+
+    //   n x n matrices
+    // calculcate [n/4 x n/4] parallel // O(n^2/4)
+    //
+    // log
+
     for (int size = 1; size < max_size + 1; size++) {
 
 
@@ -64,6 +71,80 @@ precalc(std::unordered_map<int, std::unordered_map<long long, std::unordered_map
     }
 }
 
+int main() {
+    auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
+
+    auto a_size = 50700;
+    auto b_size = 501;
+
+    auto seq_a = gen_vector_seq(a_size,2);
+    auto seq_b = gen_vector_seq(b_size,2);
+    int a[a_size];
+    int b[b_size];
+    for (int i = 0; i < a_size; ++i) {
+        a[i] = seq_a[i];
+    }
+    for (int i = 0; i < b_size; ++i) {
+        b[i] = seq_b[i];
+    }
+
+
+    std::cout << "Precalc for value 5" << std::endl;
+    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    precalc(map, 5);
+    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+    std::cout << "Started on |a|="<<a_size <<", |b|="<<b_size << std::endl;
+
+    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    auto res = sticky_braid_sequential<int,int>(seq_a,seq_b);
+    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+    std::cout << "sticky braid with reducing approach " << std::chrono::duration<double, std::milli>(time2).count()
+              << std::endl;
+
+    auto should = Permutation(a_size+b_size,a_size+b_size);
+    for (int i = 0;  i < a_size+b_size;i++){
+        should.set_point(res[i],i);
+    }
+
+
+    auto a1 = std::vector<int>(seq_a.begin(),seq_a.begin()+a_size/2);
+    auto a2 = std::vector<int>(seq_a.begin()+a_size / 2,seq_a.end());
+    auto l1 = sticky_braid_sequential<int,int>(a1,seq_b);
+    auto l2 = sticky_braid_sequential<int,int>(a2,seq_b);
+
+
+    auto begin3 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    auto actual = semi_local_lcs::get_semi_local_kernel(a,a_size,b,b_size,map);
+    auto left_subtree = new Permutation(a1.size()+b_size,a1.size()+b_size);
+    auto right_subtree = new Permutation(a2.size()+b_size,a2.size()+b_size);
+
+
+
+    for (int i = 0;  i < a1.size() + b_size;i++){
+        left_subtree->set_point(l1[i],i);
+    }
+
+    for (int i = 0;  i < a2.size() + b_size;i++){
+        right_subtree->set_point(l2[i],i);
+    }
+
+    auto product = new Permutation(left_subtree->row_size + right_subtree->row_size - b_size,
+                                   left_subtree->col_size + right_subtree->col_size - b_size);
+    semi_local_lcs::staggered_sticky_multiplication(left_subtree, right_subtree, b_size, map, product);
+
+    auto time3 = std::chrono::high_resolution_clock::now() - begin3;
+    std::cout << "stikcy braid with steady ant approach " << std::chrono::duration<double, std::milli>(time3).count()
+              << std::endl;
+
+
+    std::cout<<should.is_equal_to(*product);
+
+
+
+
+}
 
 AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *memory_block, PrecalcMap &map) {
     auto m_new = new PermutationPreAllocated(n->row_size, n->col_size, memory_block, memory_block + n->row_size);
@@ -80,15 +161,14 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
         n_new.set_point(i, col);
     }
 
-    int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
-    int total = int(log2(nearest_2_degree))*nearest_2_degree  ;
+    int nearest_2_degree = pow(2, int(ceil(log2(2 * n->row_size))));
+    int total = int(log2(nearest_2_degree)) * nearest_2_degree;
 
 
     //8n memory
     steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block,
                                                    memory_block + 4 * n->row_size,
-                                                   memory_block + 8 * n->row_size, map,total);
-
+                                                   memory_block + 8 * n->row_size, map, total);
 
 
     return m_new;
@@ -96,82 +176,82 @@ AbstractPermutation *run(AbstractPermutation *m, AbstractPermutation *n, int *me
 
 }
 
-int main(int argc, char *argv[]) {
-    omp_set_max_active_levels(2);
-    std::cout<< omp_get_active_level();
-    auto m = distance_product::get_permutation_matrix(10, 10, -2);
-//    m->print(std::cout);
-//10mil
-    auto n = distance_product::get_permutation_matrix(10, 10, -3);
-
-
-
-    auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
-
-//    auto expected = distance_product::naive::mult_dist(m, n);
-//
-//    std::cout<<sizeof(n);
-
-//    omp_set_nested(0);
-    omp_set_num_threads(4);
-    std::cout << "Precalc for value 5" << std::endl;
-    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    precalc(map, 5);
-    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
-
-    std::cout << "Memory alloc for 20n" << std::endl;
-    auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
-    auto memory_block = new int[n->row_size * 8 + int(log2(nearest_2_degree)) * nearest_2_degree];
-    auto time4 = std::chrono::high_resolution_clock::now() - begin4;
-    std::cout << "Time " << std::chrono::duration<double, std::milli>(time4).count() << std::endl;
-///row_to_col
-// col_to_row
-//n/2, n/2
-// n/p
-// 2 ->n
-
-    auto product = Permutation(11,11);
-    steady_ant::staggered_sticky_multiplication(m,n,9,map,&product);
-    m->print(std::cout);
-    std::cout<<std::endl;
-    n->print(std::cout);
-    std::cout<<std::endl;
-    product.print(std::cout);
-    std::cout<<std::endl;
-
-
-    std::cout << "Started on 10000000x10000000" << std::endl;
-    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto actual = run(m, n, memory_block, map);
-    std::cout << std::endl << "res: " << actual->get_col_by_row(7) << std::endl;
-    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
-    std::cout << "with precalc and memmory alloc " << std::chrono::duration<double, std::milli>(time2).count()
-              << std::endl;
-
-//    m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
+//int main(int argc, char *argv[]) {
+//    omp_set_max_active_levels(2);
+//    std::cout<< omp_get_active_level();
+//    auto m = distance_product::get_permutation_matrix(10, 10, -2);
 ////    m->print(std::cout);
+////10mil
+//    auto n = distance_product::get_permutation_matrix(10, 10, -3);
 //
-//    n = distance_product::get_permutation_matrix(10000000, 10000000, -2);
 //
 //
-    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto exp = steady_ant::steady_ant(m, n);
-//    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
-    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
-    std::cout << "without precalc and without memory alloc: "
-              << std::chrono::duration<double, std::milli>(time0).count() << std::endl;
+//    auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
+//
+////    auto expected = distance_product::naive::mult_dist(m, n);
+////
+////    std::cout<<sizeof(n);
+//
+////    omp_set_nested(0);
+//    omp_set_num_threads(4);
+//    std::cout << "Precalc for value 5" << std::endl;
+//    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    precalc(map, 5);
+//    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+//    std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+//
+//    std::cout << "Memory alloc for 20n" << std::endl;
+//    auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
+//    auto memory_block = new int[n->row_size * 8 + int(log2(nearest_2_degree)) * nearest_2_degree];
+//    auto time4 = std::chrono::high_resolution_clock::now() - begin4;
+//    std::cout << "Time " << std::chrono::duration<double, std::milli>(time4).count() << std::endl;
+/////row_to_col
+//// col_to_row
+////n/2, n/2
+//// n/p
+//// 2 ->n
+//
+//    auto product = Permutation(11,11);
+//    steady_ant::staggered_sticky_multiplication(m,n,9,map,&product);
+//    m->print(std::cout);
+//    std::cout<<std::endl;
+//    n->print(std::cout);
+//    std::cout<<std::endl;
+//    product.print(std::cout);
+//    std::cout<<std::endl;
+//
+//
+//    std::cout << "Started on 10000000x10000000" << std::endl;
+//    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    auto actual = run(m, n, memory_block, map);
+//    std::cout << std::endl << "res: " << actual->get_col_by_row(7) << std::endl;
+//    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+//    std::cout << "with precalc and memmory alloc " << std::chrono::duration<double, std::milli>(time2).count()
+//              << std::endl;
+//
+////    m = distance_product::get_permutation_matrix(10000000, 10000000, -233);
+//////    m->print(std::cout);
+////
+////    n = distance_product::get_permutation_matrix(10000000, 10000000, -2);
+////
+////
+//    auto begin0 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    auto exp = steady_ant::steady_ant(m, n);
+////    std::cout << std::endl<<"res: "<< steady_ant::steady_ant (m,n)->get_col_by_row(34) << std::endl;
+//    auto time0 = std::chrono::high_resolution_clock::now() - begin0;
+//    std::cout << "without precalc and without memory alloc: "
+//              << std::chrono::duration<double, std::milli>(time0).count() << std::endl;
+//
+////    delete res;
+//
+//    std::cout << exp->is_equal_to(product);
+//    delete[] memory_block;
+//    delete n;
+//    delete m;
+//}
 
-//    delete res;
 
-    std::cout << exp->is_equal_to(product);
-    delete[] memory_block;
-    delete n;
-    delete m;
-}
-
-//
 //
 //int main(int argc, char *argv[]) {
 //

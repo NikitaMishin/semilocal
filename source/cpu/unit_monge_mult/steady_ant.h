@@ -457,16 +457,16 @@ namespace steady_ant {
      * to get new squared matrix of size end_exclusive-start_inclusive and mapping of row coordinates (new to old)
      * @param p_i squared permutation matrix
      * @param col_start_inclusive inclusive index of start of slice
-     * @param col_exclusive exclusive index of end of slice
+     * @param col_end_exclusive exclusive index of end of slice
      * @return mapping of row_{i+1} -> row_{i} and p_{i+1}, mapping of col_{i+1} -> col_{i} implicit via offset start_inclusive
      */
-    void get_vertical_slice(AbstractPermutation *p_i, int col_start_inclusive, int col_exclusive,
+    void get_vertical_slice(AbstractPermutation *p_i, int col_start_inclusive, int col_end_exclusive,
                             int *cur_row_to_prev_row_mapping, AbstractPermutation *succ_pi) {
 
         auto ptr = 0;
         for (int row = 0; row < p_i->row_size; ++row) {
             auto col = p_i->get_col_by_row(row);
-            if (col >= col_start_inclusive & col < col_exclusive) {
+            if (col >= col_start_inclusive & col < col_end_exclusive) {
                 cur_row_to_prev_row_mapping[ptr] = row;
                 succ_pi->set_point(ptr, col - col_start_inclusive);
                 ptr++;
@@ -480,16 +480,16 @@ namespace steady_ant {
     * to get new squared matrix of size end_exclusive-start_inclusive and mapping of col coordinates (new to old)
     * @param q_i squared permutation matrix
     * @param row_start_inclusive inclusive index of start of slice
-    * @param row_exclusive exclusive index of end of slice
+    * @param row_end_exclusive exclusive index of end of slice
     * @return mapping of col_{i+1} -> col_{i} and p_{i+1}, mapping of row_{i+1} -> row_{i} implicit via offset start_inclusive
     */
-    void get_horizontal_slice(AbstractPermutation *q_i, int row_start_inclusive, int row_exclusive,
+    void get_horizontal_slice(AbstractPermutation *q_i, int row_start_inclusive, int row_end_exclusive,
                               int *cur_col_to_prev_col_mapping, AbstractPermutation *succ_pi) {
 
         auto ptr = 0;
         for (int col = 0; col < q_i->col_size; ++col) {
             auto row = q_i->get_row_by_col(col);
-            if (row >= row_start_inclusive & row < row_exclusive) {
+            if (row >= row_start_inclusive & row < row_end_exclusive) {
                 cur_col_to_prev_col_mapping[ptr] = col;
                 succ_pi->set_point(row - row_start_inclusive, ptr);
 
@@ -524,8 +524,7 @@ namespace steady_ant {
 
     AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q) {
         auto n = p->col_size;
-        // 4n ->
-        //
+
         if (n == 1) {
             //base case when common dimension is one
             auto row = p->get_row_by_col(0);
@@ -616,7 +615,7 @@ namespace steady_ant {
                 is_went_right = false;
                 cur_row--;
             } else {
-                std::cout << "Impissble" << std::endl;
+                std::cout << "Impossible" << std::endl;
             }
 
             if (dominance_col > 0) {
@@ -660,10 +659,8 @@ namespace steady_ant {
             AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
             int *memory_block_indices, PrecalcMap &map, int total_memory) {
         auto n = p->row_size;
-//        std::cout<<power<<"enl"<<std::endl;
 
         if (n <= map.size()) {
-            //todo  is legal
             auto precalced = PermutationPreAllocated(n, n, memory_block_matrices, memory_block_matrices + n,
                                                      map[n][std::hash<AbstractPermutation>()(
                                                              *p)][std::hash<AbstractPermutation>()(*q)]);
@@ -700,7 +697,7 @@ namespace steady_ant {
                                             free_space_matrices + 4 * spliter + 3 * (n - spliter));
         get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, &q_hi);
 
-        // now we have small matrices in free space, and p,q may be overwrited
+        // now we have small matrices in free space, and p,q may be overwritten
 //        free_space_mappings + 2*n
 
         // hack
@@ -708,21 +705,26 @@ namespace steady_ant {
         auto r_hi = q;
 
         int on_parts = (total_memory - 2 * n) / 2;
+        //
+        // Permutation:
+        // pairs [(row_1,col_1),....,...(row_n,col_n)]
+        //
 
-#pragma omp parallel
-        {
-#pragma omp single
-            {
-#pragma omp task
-                steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
-                                                   memory_block_indices + 2 * n, map, on_parts);
-#pragma omp task
-                steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
-                                                   memory_block_matrices + 4 * spliter,
-                                                   memory_block_indices + 2 * n + on_parts, map, on_parts);
-#pragma omp taskwait
-            }
-        };
+
+//#pragma omp parallel
+//        {
+//#pragma omp single
+//            {
+//#pragma omp task
+        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
+                                           memory_block_indices + 2 * n, map, on_parts);
+//#pragma omp task
+        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
+                                           memory_block_matrices + 4 * spliter,
+                                           memory_block_indices + 2 * n + on_parts, map, on_parts);
+//#pragma omp taskwait
+//            }
+//        };
 
 
         inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
@@ -813,34 +815,6 @@ namespace steady_ant {
     }
 
 
-
-//
-//    auto m_new = new PermutationPreAllocated(n->row_size, n->col_size, memory_block, memory_block + n->row_size);
-//    auto n_new = PermutationPreAllocated(n->row_size, n->col_size, memory_block + 2 * n->row_size,
-//                                         memory_block + 3 * n->row_size);
-//
-//    for (int i = 0; i < m->row_size; ++i) {
-//    auto col = m->get_col_by_row(i);
-//    m_new->set_point(i, col);
-//}
-//
-//for (int i = 0; i < n->row_size; ++i) {
-//auto col = n->get_col_by_row(i);
-//n_new.set_point(i, col);
-//}
-//
-//int nearest_2_degree = pow(2,int(ceil(log2(2*n->row_size))));
-//int total = int(log2(nearest_2_degree))*nearest_2_degree  ;
-//
-//
-////8n memory
-//steady_ant::steady_ant_with_precalc_and_memory(m_new, &n_new, memory_block,
-//        memory_block + 4 * n->row_size,
-//memory_block + 8 * n->row_size, map,total);
-//
-
-
-
     void
     staggered_sticky_multiplication(AbstractPermutation *p, AbstractPermutation *q, int k,
                                     PrecalcMap &map, AbstractPermutation *product) {
@@ -864,7 +838,6 @@ namespace steady_ant {
         }
 
 
-
         int nearest_2_degree = pow(2, int(ceil(log2(2 * k))));
         int total = int(log2(nearest_2_degree)) * nearest_2_degree;
 
@@ -883,9 +856,9 @@ namespace steady_ant {
 
         steady_ant_with_precalc_and_memory(&p_red, &q_red, memory_block, memory_block + 4 * k,
                                            memory_block + 8 * k, map, total);
+
+
         // res in p_red
-
-
         for (int i = 0; i < p_red.row_size; i++) {
             auto old_col = p_red.get_col_by_row(i);
             auto cur_col = mapping_col[old_col];
@@ -898,8 +871,9 @@ namespace steady_ant {
             if (col != NOPOINT) product->set_point(i, col);
         }
 
+
         for (int j = k; j < p->col_size; j++) {
-            auto row = q->get_row_by_col(j);
+            auto row = p->get_row_by_col(j);
             if (row != NOPOINT) product->set_point(row + q->row_size - k, j + q->col_size - k);
         }
 
@@ -912,6 +886,74 @@ namespace steady_ant {
     }
 
 }
+
+
+namespace semi_local_lcs {
+    using namespace steady_ant;
+
+    /**
+    * see theorem 5.21
+     * Allows get P_{a,b} when you have P_{b,a}
+    */
+    void fill_permutation_ba(AbstractPermutation *ab, AbstractPermutation *ba, int m, int n) {
+        ba->unset_all();
+        for (int i = 0; i < ab->row_size; ++i) {
+            auto col = ab->get_col_by_row(i);
+            if (col != NOPOINT) ba->set_point(n + m - 1 - i, m + n - 1 - col);
+        }
+    }
+
+    AbstractPermutation *get_semi_local_kernel(int *a, int m, int *b, int n, PrecalcMap &map) {
+        if (m == 1 && n == 1) {
+            auto p = new Permutation(2, 2);
+            if (a[0] == b[0]) {
+                p->set_point(0, 0);
+                p->set_point(1, 1);
+            } else {
+                p->set_point(0, 1);
+                p->set_point(1, 0);
+            }
+            return p;
+
+        }
+
+        if (n > m) {
+            auto n1 = n / 2;
+            auto b1 = b;
+            auto b2 = b + n1;
+
+            auto subtree_l = get_semi_local_kernel(b1, n1,a, m,  map);
+            auto subtree_r = get_semi_local_kernel(b2, n - n1,a, m,  map);
+            auto product = new Permutation(subtree_l->row_size + subtree_r->row_size - m,
+                                           subtree_l->col_size + subtree_r->col_size - m);
+
+            auto product_t = new Permutation(subtree_l->col_size + subtree_r->col_size - m,
+                                             subtree_l->row_size + subtree_r->row_size - m);
+
+
+            staggered_sticky_multiplication(subtree_l, subtree_r, m, map, product);
+            fill_permutation_ba(product, product_t, m, n);
+            return product_t;
+        } else {
+            auto m1 = m / 2;
+            auto a1 = a;
+            auto a2 = a + m1;
+
+            auto subtree_l = get_semi_local_kernel(a1, m1, b, n, map);
+            auto subtree_r = get_semi_local_kernel(a2, m - m1, b, n, map);
+            auto product = new Permutation(subtree_l->row_size + subtree_r->row_size - n,
+                                           subtree_l->col_size + subtree_r->col_size - n);
+            staggered_sticky_multiplication(subtree_l, subtree_r, n, map, product);
+
+            return product;
+
+
+        }
+
+    }
+
+
+};
 
 
 #endif //CPU_STEADY_ANT_H
