@@ -3,7 +3,6 @@
 //
 //
 #include "semi_local.h"
-#include "transposition_network_approach/transposition_network_binary_alphabet.h"
 #include "transposition_network_approach/encoders_and_decoders.h"
 #include "sequence_generators.h"
 #include "fasta_parser.h"
@@ -74,11 +73,11 @@ precalc(std::unordered_map<int, std::unordered_map<long long, std::unordered_map
 int main() {
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
 
-    auto a_size = 50700;
-    auto b_size = 501;
+    auto a_size = 100;
+    auto b_size = 100;
 
-    auto seq_a = gen_vector_seq(a_size,2);
-    auto seq_b = gen_vector_seq(b_size,2);
+    auto seq_a = gen_vector_seq(a_size,25);
+    auto seq_b = gen_vector_seq(b_size,25);
     int a[a_size];
     int b[b_size];
     for (int i = 0; i < a_size; ++i) {
@@ -87,6 +86,10 @@ int main() {
     for (int i = 0; i < b_size; ++i) {
         b[i] = seq_b[i];
     }
+
+    //
+    // |\ /|
+
 
 
     std::cout << "Precalc for value 5" << std::endl;
@@ -108,38 +111,25 @@ int main() {
         should.set_point(res[i],i);
     }
 
-
     auto a1 = std::vector<int>(seq_a.begin(),seq_a.begin()+a_size/2);
     auto a2 = std::vector<int>(seq_a.begin()+a_size / 2,seq_a.end());
     auto l1 = sticky_braid_sequential<int,int>(a1,seq_b);
-    auto l2 = sticky_braid_sequential<int,int>(a2,seq_b);
+
+
 
 
     auto begin3 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-//    auto actual = semi_local_lcs::get_semi_local_kernel(a,a_size,b,b_size,map);
-    auto left_subtree = new Permutation(a1.size()+b_size,a1.size()+b_size);
-    auto right_subtree = new Permutation(a2.size()+b_size,a2.size()+b_size);
 
 
+    auto actual = semi_local_lcs::get_semi_local_kernel(a,a_size,b,b_size,map);
 
-    for (int i = 0;  i < a1.size() + b_size;i++){
-        left_subtree->set_point(l1[i],i);
-    }
-
-    for (int i = 0;  i < a2.size() + b_size;i++){
-        right_subtree->set_point(l2[i],i);
-    }
-
-    auto product = new Permutation(left_subtree->row_size + right_subtree->row_size - b_size,
-                                   left_subtree->col_size + right_subtree->col_size - b_size);
-    semi_local_lcs::staggered_sticky_multiplication(left_subtree, right_subtree, b_size, map, product);
 
     auto time3 = std::chrono::high_resolution_clock::now() - begin3;
     std::cout << "stikcy braid with steady ant approach " << std::chrono::duration<double, std::milli>(time3).count()
               << std::endl;
 
 
-    std::cout<<should.is_equal_to(*product);
+    std::cout<<should.is_equal_to(*actual);
 
 
 
