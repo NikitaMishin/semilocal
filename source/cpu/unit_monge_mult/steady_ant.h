@@ -13,8 +13,6 @@
 #include "permutations_encoding.h"
 #include "dominance_sum_queries.h"
 
-typedef std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> PrecalcMap;
-
 
 namespace distance_unit_monge_product {
 
@@ -49,8 +47,6 @@ namespace distance_unit_monge_product {
                 }
             }
 
-
-            auto c = new Permutation(row_size - 1, col_size - 1);
             for (int i = 0; i < m->row_size; ++i) {
                 for (int j = 0; j < n->col_size; ++j) {
                     auto cross_diff =
@@ -65,6 +61,8 @@ namespace distance_unit_monge_product {
         }
     };
 
+
+
     /**
      * Contains sophisticated implementations of unit Monge distance product.
      * It uses recent successes over unit monge distance multiplication.
@@ -72,6 +70,13 @@ namespace distance_unit_monge_product {
      * multiplication of two permutation matrices.
      */
     namespace steady_ant {
+
+        /**
+         * Data structure that contains pre calced product for pair of matrices i.e
+         * For matrices p,q of size n it contains its product
+         */
+        typedef std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> PrecalcMap;
+
 
         /**
          * Given squared permutation matrix p_{i} get slice p[,start_inclusive:end_exclusive] and map it to new coordinates
@@ -145,17 +150,21 @@ namespace distance_unit_monge_product {
 
 
         /*
-         * Non optimized version of steady ant algorithm that allocated new memory on each recursion node and
+         * Non optimized version of steady ant algorithm that allocated new memory on each recursion step and
          * uses no precomputed values.
          */
         AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q) {
             auto n = p->col_size;
+
 
             if (n == 1) {
                 //base case when common dimension is one
                 auto row = p->get_row_by_col(0);
                 auto col = q->get_col_by_row(0);
                 auto matrix = new Permutation(p->row_size, q->col_size);
+
+                delete p;
+                delete q;
 
                 if (row != NOPOINT && col != NOPOINT) matrix->set_point(row, col);
                 return matrix;
@@ -185,8 +194,7 @@ namespace distance_unit_monge_product {
 
 
             inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
-//        delete product;
-
+            delete product;
 
             auto q_hi_col_mapper = new int[p->col_size - spliter];
             auto q_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
@@ -196,7 +204,13 @@ namespace distance_unit_monge_product {
 
 
             inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
-//        delete product;
+
+            delete product;
+            delete[] p_lo_row_mapper;
+            delete[] q_lo_col_mapper;
+            delete[] p_hi_row_mapper;
+            delete[] q_hi_col_mapper;
+
 
             //ant passage
             auto end_row = -1;
@@ -218,9 +232,8 @@ namespace distance_unit_monge_product {
                 if (end_col == cur_col && end_row == cur_row) break;
 
                 if (cur_row == 0) break;
-                //TODO is new
                 if (cur_col == n) break;
-                //
+
                 auto dominance_row = cur_row - 1;
                 auto dominance_col = cur_col + 1;
 
@@ -281,10 +294,21 @@ namespace distance_unit_monge_product {
                 r_hi->set_point(row, col);
             }
 
+            delete r_lo;
+
             return r_hi;
         }
 
 
+        /*
+        * Optimized version of steady ant algorithm that that uses preallocated memory blocks for mapping and
+        * matrices itself. Also it uses precomputed values via PrecalcMap.
+        * Exactly 8n memory required for stroring matrices.
+        * 2nlog(2n) memory is required for parallel version for memory mapping.
+        * Memory optimization is handled as follows:
+        *   TODO
+        *
+        */
         void steady_ant_with_precalc_and_memory(
                 AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
                 int *memory_block_indices, PrecalcMap &map, int total_memory) {
@@ -460,7 +484,7 @@ namespace distance_unit_monge_product {
          * @param product
          */
         void staggered_sticky_multiplication(AbstractPermutation *p, AbstractPermutation *q, int k,
-                                        PrecalcMap &map, AbstractPermutation *product) {
+                                             PrecalcMap &map, AbstractPermutation *product) {
             if (k == p->col_size && k == q->row_size) {
                 std::cout << "This function should not be called for this case, handled separately";
 //            return;
@@ -526,6 +550,58 @@ namespace distance_unit_monge_product {
             delete[] mapping_row;
 
 
+        }
+
+
+        /**
+         * For each size n (1,2,3...max_size) function compute
+         * for all possible permutations p of size n  (n!) and all possible permutations of size n (n!)
+         * it computes its distance product.
+         * For example, map[3][hash_p][hash_q] will store product of permutation matrices p and q of size 3x3
+         * @param map
+         * @param max_size
+         */
+        void precalc(PrecalcMap &map, int max_size) {
+            using namespace std;
+            int p_arr[max_size];
+            int q_arr[max_size];
+
+            for (int size = 1; size < max_size + 1; size++) {
+
+
+                for (int i = 0; i < size; ++i) p_arr[i] = i;
+
+
+                do {
+                    for (int i = 0; i < size; ++i) q_arr[i] = i;
+
+                    do {
+                        auto p = new Permutation(size, size);
+                        for (int i = 0; i < size; ++i) p->set_point(i, p_arr[i]);
+
+                        auto q = new Permutation(size, size);
+                        for (int i = 0; i < size; ++i) q->set_point(i, q_arr[i]);
+                        long long hash_p = hash<AbstractPermutation>()(*p);
+                        long long hash_q = hash<AbstractPermutation>()(*q);
+
+                        auto r = distance_unit_monge_product::steady_ant::steady_ant(p, q);
+                        auto points = std::vector<std::pair<int, int>>();
+                        if (map[size][hash_p].count(hash_q) > 0) {
+                            std::cout << " Some error";
+                            return;
+                        }
+
+                        r->to_points_on_grid(points);
+                        map[size][hash_p][hash_q] = points;
+
+
+                        delete r;
+
+                    } while (std::next_permutation(q_arr, q_arr + size));
+
+
+                } while (std::next_permutation(p_arr, p_arr + size));
+            }
         }
 
     }

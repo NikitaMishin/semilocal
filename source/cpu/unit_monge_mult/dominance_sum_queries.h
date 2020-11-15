@@ -1,5 +1,7 @@
 //
-// Created by garrancha on 13.11.2020.
+// File contains implementation of dominance sum incremental counting queries.
+// Given permutation matrix with position with value at some position in associated monge matrix (dominance sum)
+// functions calculate value in adjacent cells in O(1) time.
 //
 
 #include "matrices.h"

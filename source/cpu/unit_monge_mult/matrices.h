@@ -335,7 +335,7 @@ void fill_permutation_matrix(AbstractPermutation *m, int row_size, int col_size,
  * @param output_dominance_matrix
  */
 template<typename Lambda>
-void get_dominance_matrix(AbstractPermutation &m, Lambda &&func, Matrix* output_dominance_matrix) {
+void get_dominance_matrix(AbstractPermutation &m, Lambda &&func, Matrix *output_dominance_matrix) {
     auto row_size = m.row_size + 1;
     auto col_size = m.col_size + 1;
 
@@ -346,7 +346,8 @@ void get_dominance_matrix(AbstractPermutation &m, Lambda &&func, Matrix* output_
                 auto col_pos_point = m.get_col_by_row(row_pos_point);
                 if (col_pos_point == NOPOINT) continue;
                 if (func(row_pos_point, col_pos_point, row, col) == true)
-                    output_dominance_matrix->set_element_at(row, col, output_dominance_matrix->get_element_at(row, col) + 1);
+                    output_dominance_matrix->set_element_at(row, col,
+                                                            output_dominance_matrix->get_element_at(row, col) + 1);
             }
         }
     }
