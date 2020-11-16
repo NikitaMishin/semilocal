@@ -9,6 +9,7 @@
 #include <vector>
 #include <iostream>
 #include <climits>
+#include <omp.h>
 #include "matrices.h"
 #include "permutations_encoding.h"
 #include "dominance_sum_queries.h"
@@ -148,6 +149,86 @@ namespace distance_unit_monge_product {
             }
         }
 
+        inline void
+        ant_passage(AbstractPermutation *r_lo, AbstractPermutation *r_hi, int n, std::vector<int> &good_row_pos,
+                    std::vector<int> &good_col_pos) {
+
+            //ant passage
+            auto end_row = -1;
+            auto end_col = r_lo->col_size + 1;
+            auto cur_row = r_hi->row_size;
+            auto cur_col = -1;
+
+            auto rhi = 0;
+            auto rlo = 0;
+
+            bool is_went_right = false; // went up
+            while (true) {
+
+                if (end_col == cur_col && end_row == cur_row) break;
+
+                if (cur_row == 0) break;
+                //TODO is new
+                if (cur_col == n) break;
+                //
+                auto dominance_row = cur_row - 1;
+                auto dominance_col = cur_col + 1;
+
+                //prev step
+                if (is_went_right) {
+                    rhi = dominance_sum_counting::bottom_right_arrow::right_move(dominance_row,
+                                                                                 dominance_col - 1, rhi,
+                                                                                 r_hi);
+                    rlo = dominance_sum_counting::top_left_arrow::right_move(dominance_row,
+                                                                             dominance_col - 1, rlo,
+                                                                             r_lo);
+                } else {
+                    rhi = dominance_sum_counting::bottom_right_arrow::up_move(dominance_row + 1,
+                                                                              dominance_col, rhi,
+                                                                              r_hi);
+                    rlo = dominance_sum_counting::top_left_arrow::up_move(dominance_row + 1,
+                                                                          dominance_col,
+                                                                          rlo, r_lo);
+                }
+
+                if (rhi - rlo < 0) {
+                    is_went_right = true;
+                    cur_col++;
+                } else if (rhi - rlo == 0) {
+                    is_went_right = false;
+                    cur_row--;
+                } else {
+                    std::cout << "Impissble" << std::endl;
+                }
+
+                if (dominance_col > 0) {
+                    auto delta_above_left =
+                            dominance_sum_counting::bottom_right_arrow::left_move(dominance_row,
+                                                                                  dominance_col, rhi,
+                                                                                  r_hi) -
+                            dominance_sum_counting::top_left_arrow::left_move(dominance_row,
+                                                                              dominance_col,
+                                                                              rlo, r_lo);
+                    auto delta_below_right =
+                            dominance_sum_counting::bottom_right_arrow::down_move(dominance_row,
+                                                                                  dominance_col, rhi,
+                                                                                  r_hi) -
+                            dominance_sum_counting::top_left_arrow::down_move(dominance_row,
+                                                                              dominance_col,
+                                                                              rlo, r_lo);
+
+                    if (delta_above_left < 0 && delta_below_right > 0) {
+                        good_row_pos.push_back(dominance_row);
+                        good_col_pos.push_back(dominance_col - 1);
+
+                    }
+                }
+
+
+            }
+            // end ant passage
+
+        }
 
         /*
          * Non optimized version of steady ant algorithm that allocated new memory on each recursion step and
@@ -211,74 +292,9 @@ namespace distance_unit_monge_product {
             delete[] p_hi_row_mapper;
             delete[] q_hi_col_mapper;
 
-
-            //ant passage
-            auto end_row = -1;
-            auto end_col = r_lo->col_size + 1;
-            auto cur_row = r_hi->row_size;
-            auto cur_col = -1;
-
-            auto rhi = 0;
-            auto rlo = 0;
-
             std::vector<int> good_row_pos;
             std::vector<int> good_col_pos;
-//        good_row_pos.reserve(n / 2);
-//        good_col_pos.reserve(n / 2);
-
-            bool is_went_right = false; // went up
-            while (true) {
-
-                if (end_col == cur_col && end_row == cur_row) break;
-
-                if (cur_row == 0) break;
-                if (cur_col == n) break;
-
-                auto dominance_row = cur_row - 1;
-                auto dominance_col = cur_col + 1;
-
-                //prev step
-                if (is_went_right) {
-                    rhi = dominance_sum_counting::bottom_right_arrow::right_move(dominance_row, dominance_col - 1, rhi,
-                                                                                 r_hi);
-                    rlo = dominance_sum_counting::top_left_arrow::right_move(dominance_row, dominance_col - 1, rlo,
-                                                                             r_lo);
-                } else {
-                    rhi = dominance_sum_counting::bottom_right_arrow::up_move(dominance_row + 1, dominance_col, rhi,
-                                                                              r_hi);
-                    rlo = dominance_sum_counting::top_left_arrow::up_move(dominance_row + 1, dominance_col, rlo, r_lo);
-                }
-
-                if (rhi - rlo < 0) {
-                    is_went_right = true;
-                    cur_col++;
-                } else if (rhi - rlo == 0) {
-                    is_went_right = false;
-                    cur_row--;
-                } else {
-                    std::cout << "Impossible" << std::endl;
-                }
-
-                if (dominance_col > 0) {
-                    auto delta_above_left =
-                            dominance_sum_counting::bottom_right_arrow::left_move(dominance_row, dominance_col, rhi,
-                                                                                  r_hi) -
-                            dominance_sum_counting::top_left_arrow::left_move(dominance_row, dominance_col, rlo, r_lo);
-                    auto delta_below_right =
-                            dominance_sum_counting::bottom_right_arrow::down_move(dominance_row, dominance_col, rhi,
-                                                                                  r_hi) -
-                            dominance_sum_counting::top_left_arrow::down_move(dominance_row, dominance_col, rlo, r_lo);
-
-                    if (delta_above_left < 0 && delta_below_right > 0) {
-                        good_row_pos.push_back(dominance_row);
-                        good_col_pos.push_back(dominance_col - 1);
-
-                    }
-                }
-
-
-            }
-            // end ant passage
+            ant_passage(r_lo, r_hi, n, good_row_pos, good_col_pos);
 
             // merge r_lo to r_hi
             for (int i = 0; i < n; ++i) {
@@ -311,7 +327,7 @@ namespace distance_unit_monge_product {
         */
         void steady_ant_with_precalc_and_memory(
                 AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
-                int *memory_block_indices, PrecalcMap &map, int total_memory) {
+                int *memory_block_indices, PrecalcMap &map, int total_memory, int nested_parall_regions = 2) {
             auto n = p->row_size;
 
             if (n <= map.size()) {
@@ -365,113 +381,92 @@ namespace distance_unit_monge_product {
             //
 
 
-//#pragma omp parallel
-//        {
-//#pragma omp single
-//            {
-//#pragma omp task
-            steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
-                                               memory_block_indices + 2 * n, map, on_parts);
-//#pragma omp task
-            steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
-                                               memory_block_matrices + 4 * spliter,
-                                               memory_block_indices + 2 * n + on_parts, map, on_parts);
-//#pragma omp taskwait
-//            }
-//        };
+
+            if (nested_parall_regions>0) {
+
+#pragma omp parallel num_threads(2)
+                {
+#pragma omp single nowait
+                    {
+
+#pragma omp task depend(in: on_parts)
+                        steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
+                                                           memory_block_indices + 2 * n, map, on_parts,
+                                                           nested_parall_regions-1);
+#pragma omp task depend(in: on_parts)
+                        steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
+                                                           memory_block_matrices + 4 * spliter,
+                                                           memory_block_indices + 2 * n + on_parts, map, on_parts,
+                                                           nested_parall_regions-1);
+
+#pragma omp task depend(out: on_parts)
+                        {
+
+                            inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
+                            inverse_mapping(&p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
+
+                            std::vector<int> good_row_pos;
+                            std::vector<int> good_col_pos;
+                            ant_passage(r_lo, r_hi, n, good_row_pos, good_col_pos);
 
 
-            inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
-            inverse_mapping(&p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
+                            // merge r_hi to r_lo
+                            for (int i = 0; i < n; ++i) {
+                                auto col = r_hi->get_col_by_row(i);
+                                if (col == NOPOINT) continue;
+                                r_lo->set_point(i, col);
+                            }
 
-            //ant passage
-            auto end_row = -1;
-            auto end_col = r_lo->col_size + 1;
-            auto cur_row = r_hi->row_size;
-            auto cur_col = -1;
+                            // add good points
+                            for (int i = 0; i < good_col_pos.size(); ++i) {
+                                auto col = good_col_pos[i];
+                                auto row = good_row_pos[i];
+                                r_lo->set_point(row, col);
+                            }
 
-            auto rhi = 0;
-            auto rlo = 0;
 
-            std::vector<int> good_row_pos;
-            std::vector<int> good_col_pos;
-//        good_row_pos.reserve(n / 2);
-//        good_col_pos.reserve(n / 2);
+                        }
 
-            bool is_went_right = false; // went up
-            while (true) {
+                    };
 
-                if (end_col == cur_col && end_row == cur_row) break;
+#pragma omp taskwait
 
-                if (cur_row == 0) break;
-                //TODO is new
-                if (cur_col == n) break;
-                //
-                auto dominance_row = cur_row - 1;
-                auto dominance_col = cur_col + 1;
+                    // new matrix in r_lo
 
-                //prev step
-                if (is_went_right) {
-                    rhi = dominance_sum_counting::bottom_right_arrow::right_move(dominance_row, dominance_col - 1, rhi,
-                                                                                 r_hi);
-                    rlo = dominance_sum_counting::top_left_arrow::right_move(dominance_row, dominance_col - 1, rlo,
-                                                                             r_lo);
-                } else {
-                    rhi = dominance_sum_counting::bottom_right_arrow::up_move(dominance_row + 1, dominance_col, rhi,
-                                                                              r_hi);
-                    rlo = dominance_sum_counting::top_left_arrow::up_move(dominance_row + 1, dominance_col, rlo, r_lo);
                 }
 
-                if (rhi - rlo < 0) {
-                    is_went_right = true;
-                    cur_col++;
-                } else if (rhi - rlo == 0) {
-                    is_went_right = false;
-                    cur_row--;
-                } else {
-                    std::cout << "Impissble" << std::endl;
+            } else {
+                steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
+                                                   memory_block_indices + 2 * n, map, on_parts, nested_parall_regions);
+                steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
+                                                   memory_block_matrices + 4 * spliter,
+                                                   memory_block_indices + 2 * n + on_parts, map, on_parts,
+                                                   nested_parall_regions);
+
+                inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
+                inverse_mapping(&p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
+
+                std::vector<int> good_row_pos;
+                std::vector<int> good_col_pos;
+                ant_passage(r_lo, r_hi, n, good_row_pos, good_col_pos);
+
+                // merge r_hi to r_lo
+                for (int i = 0; i < n; ++i) {
+                    auto col = r_hi->get_col_by_row(i);
+                    if (col == NOPOINT) continue;
+                    r_lo->set_point(i, col);
                 }
 
-                if (dominance_col > 0) {
-                    auto delta_above_left =
-                            dominance_sum_counting::bottom_right_arrow::left_move(dominance_row, dominance_col, rhi,
-                                                                                  r_hi) -
-                            dominance_sum_counting::top_left_arrow::left_move(dominance_row, dominance_col, rlo, r_lo);
-                    auto delta_below_right =
-                            dominance_sum_counting::bottom_right_arrow::down_move(dominance_row, dominance_col, rhi,
-                                                                                  r_hi) -
-                            dominance_sum_counting::top_left_arrow::down_move(dominance_row, dominance_col, rlo, r_lo);
-
-                    if (delta_above_left < 0 && delta_below_right > 0) {
-                        good_row_pos.push_back(dominance_row);
-                        good_col_pos.push_back(dominance_col - 1);
-
-                    }
+                // add good points
+                for (int i = 0; i < good_col_pos.size(); ++i) {
+                    auto col = good_col_pos[i];
+                    auto row = good_row_pos[i];
+                    r_lo->set_point(row, col);
                 }
 
 
             }
-            // end ant passage
-
-            // merge r_hi to r_lo
-            for (int i = 0; i < n; ++i) {
-                auto col = r_hi->get_col_by_row(i);
-                if (col == NOPOINT) continue;
-                r_lo->set_point(i, col);
-            }
-
-            // add good points
-            for (int i = 0; i < good_col_pos.size(); ++i) {
-                auto col = good_col_pos[i];
-                auto row = good_row_pos[i];
-                r_lo->set_point(row, col);
-            }
-
-            // new matrix in r_lo
-
-            return; //r_lo;
         }
-
 
         /**
          * An implementation of staggered sticky multiplication aka glues two sticky braids to the new one  when
@@ -611,68 +606,6 @@ namespace distance_unit_monge_product {
 
 
 namespace semi_local_lcs {
-    using namespace distance_unit_monge_product::steady_ant;
-
-    /**
-    * see theorem 5.21
-     * Allows get P_{a,b} when you have P_{b,a}
-    */
-    void fill_permutation_ba(AbstractPermutation *ab, AbstractPermutation *ba, int m, int n) {
-        ba->unset_all();
-        for (int i = 0; i < ab->row_size; ++i) {
-            auto col = ab->get_col_by_row(i);
-            if (col != NOPOINT) ba->set_point(n + m - 1 - i, m + n - 1 - col);
-        }
-    }
-
-    AbstractPermutation *get_semi_local_kernel(int *a, int m, int *b, int n, PrecalcMap &map) {
-        if (m == 1 && n == 1) {
-            auto p = new Permutation(2, 2);
-            if (a[0] == b[0]) {
-                p->set_point(0, 0);
-                p->set_point(1, 1);
-            } else {
-                p->set_point(0, 1);
-                p->set_point(1, 0);
-            }
-            return p;
-
-        }
-
-        if (n > m) {
-            auto n1 = n / 2;
-            auto b1 = b;
-            auto b2 = b + n1;
-
-            auto subtree_l = get_semi_local_kernel(b1, n1, a, m, map);
-            auto subtree_r = get_semi_local_kernel(b2, n - n1, a, m, map);
-            auto product = new Permutation(subtree_l->row_size + subtree_r->row_size - m,
-                                           subtree_l->col_size + subtree_r->col_size - m);
-
-            auto product_t = new Permutation(subtree_l->col_size + subtree_r->col_size - m,
-                                             subtree_l->row_size + subtree_r->row_size - m);
-
-
-            staggered_sticky_multiplication(subtree_l, subtree_r, m, map, product);
-            fill_permutation_ba(product, product_t, m, n);
-            return product_t;
-        } else {
-            auto m1 = m / 2;
-            auto a1 = a;
-            auto a2 = a + m1;
-
-            auto subtree_l = get_semi_local_kernel(a1, m1, b, n, map);
-            auto subtree_r = get_semi_local_kernel(a2, m - m1, b, n, map);
-            auto product = new Permutation(subtree_l->row_size + subtree_r->row_size - n,
-                                           subtree_l->col_size + subtree_r->col_size - n);
-            staggered_sticky_multiplication(subtree_l, subtree_r, n, map, product);
-
-            return product;
-
-
-        }
-
-    }
 
 
 };
