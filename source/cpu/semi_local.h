@@ -12,6 +12,33 @@
 #include "transposition_network_approach/transposition_network_4symbol_alphabet_bit.h"
 #include "unit_monge_mult/steady_ant.h"
 #include  <cstdlib>
+#include <chrono>
+
+
+void steady_ant_wrapper(AbstractPermutation &p, AbstractPermutation &q, AbstractPermutation &product,
+                        distance_unit_monge_product::steady_ant::PrecalcMap &map, int nested_lvls = 3) {
+
+
+    int nearest_2_degree = pow(2, int(ceil(log2(2 * p.row_size))));
+    int total = int(log2(nearest_2_degree)) * nearest_2_degree;
+    auto memory_block = new int[p.row_size * 8 + total];
+    auto m_new = PermutationPreAllocated(p.row_size, p.col_size, memory_block, memory_block + p.row_size);
+    auto n_new = PermutationPreAllocated(p.row_size, p.col_size, memory_block + 2 * p.row_size,
+                                         memory_block + 3 * p.row_size);
+
+    copy(p, m_new);
+    copy(q, n_new);
+
+
+    distance_unit_monge_product::steady_ant::steady_ant_with_precalc_and_memory(&m_new, &n_new, memory_block,
+                                                                                memory_block + 4 * p.row_size,
+                                                                                memory_block + 8 * p.row_size,
+                                                                                map, total, nested_lvls);
+    copy(m_new, product);
+
+    delete[] memory_block;
+
+}
 
 
 namespace semi_local {
@@ -219,7 +246,7 @@ namespace semi_local {
 
         /**
         * see theorem 5.21
-         * Allows get P_{a,b} when you have P_{b,a}
+         * Allows get P_{b,a} when you have P_{a,b}
         */
         void fill_permutation_ba(AbstractPermutation *ab, AbstractPermutation *ba, int m, int n) {
             ba->unset_all();
@@ -269,7 +296,7 @@ namespace semi_local {
                 auto subtree_r = get_semi_local_kernel(a2, m - m1, b, n, map);
                 auto product = new Permutation(subtree_l->row_size + subtree_r->row_size - n,
                                                subtree_l->col_size + subtree_r->col_size - n);
-                staggered_sticky_multiplication(subtree_l, subtree_r, n, map, product);
+                staggered_sticky_multiplication(subtree_l, subtree_r, n, map, product, 0);
 
                 return product;
 
@@ -285,16 +312,213 @@ namespace semi_local {
      *
      */
     namespace hybrid_approach {
+        using namespace distance_unit_monge_product::steady_ant;
 
-        
+        void hybrid(const int *a, int m, const int *b, int n, steady_ant_approach::PrecalcMap &map,
+                    AbstractPermutation &perm, int size_bound,
+                    int thds_per_combing_algo, int nested_parallel = 0) {
 
 
+            if (n + m < size_bound) {
+                strand_combing_approach::sticky_braid_mpi(perm, a, m, b, n, thds_per_combing_algo);
+                return;
+            }
+
+
+            if (n > m) {
+                auto n1 = n / 2;
+                auto b1 = b;
+                auto b2 = b + n1;
+
+                auto subtree_l = Permutation(n1 + m, n1 + m);
+                auto subtree_r = Permutation(n - n1 + m, n - n1 + m);
+
+                hybrid(b1, n1, a, m, map, subtree_l, size_bound, thds_per_combing_algo, nested_parallel);
+                hybrid(b2, n - n1, a, m, map, subtree_r, size_bound, thds_per_combing_algo, nested_parallel);
+
+                auto product = Permutation(perm.row_size, perm.col_size);
+
+                staggered_sticky_multiplication(&subtree_l, &subtree_r, m, map, &product, 0);
+                steady_ant_approach::fill_permutation_ba(&product, &perm, m, n);
+            } else {
+
+                auto m1 = m / 2;
+                auto a1 = a;
+                auto a2 = a + m1;
+
+                auto subtree_l = Permutation(m1 + n, m1 + n);
+                auto subtree_r = Permutation(m - m1 + n, m - m1 + n);
+
+
+                if (nested_parallel > 0) {
+#pragma omp parallel num_threads(2)
+                    {
+#pragma omp single nowait
+                        {
+#pragma omp task
+                            hybrid(a1, m1, b, n, map, subtree_l, size_bound, thds_per_combing_algo,
+                                   nested_parallel - 1);
+#pragma omp task
+                            hybrid(a2, m - m1, b, n, map, subtree_r, size_bound, thds_per_combing_algo,
+                                   nested_parallel - 1);
+                        }
+
+                    }
+#pragma omp taskwait
+                } else {
+                    hybrid(a1, m1, b, n, map, subtree_l, size_bound, thds_per_combing_algo, nested_parallel);
+                    hybrid(a2, m - m1, b, n, map, subtree_r, size_bound, thds_per_combing_algo, nested_parallel);
+                }
+
+                staggered_sticky_multiplication(&subtree_l, &subtree_r, n, map, &perm, 0);
+            }
+
+
+        }
+
+
+        /**
+         * Todo not working, check theory
+         * @param a
+         * @param a_size
+         * @param b
+         * @param b_size
+         * @param permutation
+         * @param map
+         * @param threads_num
+         */
+        void first_and_third_phase_merged(const int *a, int a_size, const int *b, int b_size,
+                                          AbstractPermutation &permutation,
+                                          steady_ant_approach::PrecalcMap &map,
+                                          int nested_parall_regions,int threads_num = 1) {
+            if (a_size > b_size) {
+                return first_and_third_phase_merged(b, b_size, a, a_size, permutation, map, nested_parall_regions,threads_num);
+            }
+
+            //assume |a|<=|b|
+
+            auto m = a_size;
+            auto n = b_size;
+
+
+            auto size = m + n;
+            int *strand_map = new int[size + 2 * (m - 1)];
+            auto third_phase_map_size = m * 2 - 2;
+            auto third_phase_map = strand_map + size;
+
+            auto p = Permutation(m + n, m + n);
+            auto q = Permutation(third_phase_map_size, third_phase_map_size);
+
+            auto offset = n - (m - 1);
+
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, size, m, n, permutation, p, q, offset, third_phase_map, third_phase_map_size)
+            {
+                int in_third_phase = m - 1;
+
+                //    init phase
+#pragma omp for simd schedule(static) nowait
+                for (int k = 0; k < (m + n); ++k) {
+                    strand_map[k] = k;
+                }
+
+                #pragma omp for simd schedule(static) nowait
+                for (int k = 0; k < third_phase_map_size; ++k) {
+                    if (k < m - 1) {
+                        third_phase_map[k] = 2 * k;
+                    } else {
+                        third_phase_map[k] = (k - (m - 1)) * 2 + 1;
+                    }
+                }
+#pragma omp barrier
+
+                // parallel first and third phase
+                for (int diag_number = 0; diag_number < m - 1; ++diag_number) {
+                    #pragma omp for simd schedule(static) nowait
+                    for (int pos_in_diag = 0; pos_in_diag < m; ++pos_in_diag) {
+
+                        if (pos_in_diag < in_third_phase) {
+                            auto top_edge = diag_number + pos_in_diag;
+                            auto left_strand = strand_map[pos_in_diag+ m+n];
+                            auto top_strand = strand_map[m - 1 + top_edge+m+n];
+                            bool r = a[m - 1 - pos_in_diag] == b[offset + top_edge] || (left_strand > top_strand);
+                            if (r) std::swap(strand_map[pos_in_diag+m+n], strand_map[m - 1 + top_edge+m+n]);
+
+                        } else {
+                            auto top_edge = diag_number + pos_in_diag + 1 - m;
+                            auto left_strand = strand_map[pos_in_diag];
+                            auto top_strand = strand_map[m + top_edge];
+                            bool r = a[m - 1 - pos_in_diag] == b[top_edge] || (left_strand > top_strand);
+                            if (r) std::swap(strand_map[pos_in_diag], strand_map[m + top_edge]);
+                        }
+                    }
+
+                    in_third_phase--;
+                    #pragma omp barrier
+                }
+
+
+
+                // second phase
+                for (int j = 0; j < offset; ++j) {
+                    auto top_edge = m + j;
+                    auto i = m - 1;
+#pragma omp for simd schedule(static)
+                    for (int k = 0; k < m; ++k) {
+                        auto left_strand = strand_map[k];
+                        auto right_strand = strand_map[top_edge + k];
+                        bool r = a[i - k] == b[j + k] || (left_strand > right_strand);
+                        if (r) std::swap(strand_map[top_edge + k], strand_map[k]);
+                    }
+                }
+
+
+#pragma omp for simd schedule(static) nowait
+                for (int l = 0; l < m; l++) {
+                    if (l == m - 1) {
+                        p.set_point(strand_map[l], n + l);
+                    } else {
+                        p.set_point(strand_map[l], l * 2 + offset);
+                    }
+                }
+
+
+#pragma omp for simd schedule(static) nowait
+                for (int r = m; r < m + n; r++) {
+                    if ((r - m) < offset) {
+                        p.set_point(strand_map[r], r - m);
+                    } else {
+                        p.set_point(strand_map[r], (r - m - offset + 1) * 2 + offset - 1);
+                    }
+                }
+
+#pragma omp for simd schedule(static) nowait
+                for (int l = 0; l < m - 1; l++) {
+                    q.set_point(third_phase_map[l], m - 1 + l);
+                }
+
+
+#pragma omp for simd schedule(static) nowait
+                for (int r = m - 1; r < m + m - 2; r++) {
+                    q.set_point(third_phase_map[r], r - (m - 1));
+                }
+
+#pragma omp barrier
+            }
+
+//            auto begin3 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+            glueing_part_to_whole(&p, &q, map, offset, 1, &permutation,nested_parall_regions);
+//            auto time3 = std::chrono::high_resolution_clock::now() - begin3;
+//            std::cout << "glue " << std::chrono::duration<double, std::milli>(time3).count()
+//                      << std::endl;
+
+
+            delete[] strand_map;
+
+
+        }
 
 
     }
-
-
 }
-
 
 #endif //CPU_SEMI_LOCAL_H

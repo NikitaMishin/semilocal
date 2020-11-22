@@ -13,6 +13,7 @@
 #include "matrices.h"
 #include "permutations_encoding.h"
 #include "dominance_sum_queries.h"
+#include "../semi_local.h"
 
 
 namespace distance_unit_monge_product {
@@ -79,6 +80,8 @@ namespace distance_unit_monge_product {
         typedef std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> PrecalcMap;
 
 
+
+
         /**
          * Given squared permutation matrix p_{i} get slice p[,start_inclusive:end_exclusive] and map it to new coordinates
          * to get new squared matrix of size end_exclusive-start_inclusive and mapping of row coordinates (new to old)
@@ -138,6 +141,29 @@ namespace distance_unit_monge_product {
                         AbstractPermutation *flattened) {
             //could be parallelized
             flattened->unset_all();
+
+            //#pragma omp parallel for
+            for (int cur_col = 0; cur_col < shrinked->col_size; ++cur_col) {
+                auto old_col = col_mapper[cur_col]; /// consecutive access
+
+                auto cur_row = shrinked->get_row_by_col(cur_col); // consecutive access
+                auto old_row = row_mapper[cur_row]; // non consecutive access
+                flattened->set_point(old_row, old_col);
+            }
+        }
+
+        /**
+         * Maps non-zero entries of shrinked n/2Xn/2 permutation matrix to nXn matrix. Aka maps positions of non-zero
+         * elements of matrix shrinked to flattened matrix  according to row_mapper and col_mapper
+         * @param shrinked
+         * @param row_mapper
+         * @param col_mapper
+         * @param flattened
+         */
+        inline void
+        inverse_mapping_without_pre_clearing(AbstractPermutation *shrinked, const int *row_mapper,
+                                             const int *col_mapper,
+                                             AbstractPermutation *flattened) {
 
             //#pragma omp parallel for
             for (int cur_col = 0; cur_col < shrinked->col_size; ++cur_col) {
@@ -341,27 +367,23 @@ namespace distance_unit_monge_product {
 
 
             auto p_lo_row_mapper = memory_block_indices;
-//        auto p_lo_row_mapper = new int[spliter];
             auto p_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices, free_space_matrices + spliter);
             get_vertical_slice(p, 0, spliter, p_lo_row_mapper, &p_lo);
 
 
             auto q_lo_col_mapper = memory_block_indices + spliter;
-//        auto q_lo_col_mapper = new int[spliter];
             auto q_lo = PermutationPreAllocated(spliter, spliter, free_space_matrices + 2 * spliter,
                                                 free_space_matrices + 3 * spliter);
             get_horizontal_slice(q, 0, spliter, q_lo_col_mapper, &q_lo);
 
 
             auto p_hi_row_mapper = memory_block_indices + 2 * spliter;
-//        auto p_hi_row_mapper = new int[n-spliter];
             auto p_hi = PermutationPreAllocated(n - spliter, n - spliter, free_space_matrices + 4 * spliter,
                                                 free_space_matrices + 4 * spliter + (n - spliter));
             get_vertical_slice(p, spliter, n, p_hi_row_mapper, &p_hi);
 
 
             auto q_hi_col_mapper = memory_block_indices + 2 * spliter + (n - spliter);
-//        auto q_hi_col_mapper = new int[n-spliter];
             auto q_hi = PermutationPreAllocated(n - spliter, n - spliter,
                                                 free_space_matrices + 4 * spliter + 2 * (n - spliter),
                                                 free_space_matrices + 4 * spliter + 3 * (n - spliter));
@@ -382,7 +404,7 @@ namespace distance_unit_monge_product {
 
 
 
-            if (nested_parall_regions>0) {
+            if (nested_parall_regions > 0) {
 
 #pragma omp parallel num_threads(2)
                 {
@@ -392,12 +414,12 @@ namespace distance_unit_monge_product {
 #pragma omp task depend(in: on_parts)
                         steady_ant_with_precalc_and_memory(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
                                                            memory_block_indices + 2 * n, map, on_parts,
-                                                           nested_parall_regions-1);
+                                                           nested_parall_regions - 1);
 #pragma omp task depend(in: on_parts)
                         steady_ant_with_precalc_and_memory(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
                                                            memory_block_matrices + 4 * spliter,
                                                            memory_block_indices + 2 * n + on_parts, map, on_parts,
-                                                           nested_parall_regions-1);
+                                                           nested_parall_regions - 1);
 
 #pragma omp task depend(out: on_parts)
                         {
@@ -426,10 +448,10 @@ namespace distance_unit_monge_product {
 
 
                         }
-
+//#pragma omp taskwait
                     };
 
-#pragma omp taskwait
+
 
                     // new matrix in r_lo
 
@@ -479,7 +501,8 @@ namespace distance_unit_monge_product {
          * @param product
          */
         void staggered_sticky_multiplication(AbstractPermutation *p, AbstractPermutation *q, int k,
-                                             PrecalcMap &map, AbstractPermutation *product) {
+                                             PrecalcMap &map, AbstractPermutation *product,
+                                             int nested_parall_regions = 0) {
             if (k == p->col_size && k == q->row_size) {
                 std::cout << "This function should not be called for this case, handled separately";
 //            return;
@@ -512,12 +535,13 @@ namespace distance_unit_monge_product {
             auto q_red = PermutationPreAllocated(k, k, memory_block + 2 * k, memory_block + 3 * k);
 
 
+
             // take first k columns from P and last k rows from Q, multiply and to bottom left corner of extended matrix
             get_vertical_slice(p, 0, k, mapping_row, &p_red);
             get_horizontal_slice(q, q->row_size - k, q->row_size, mapping_col, &q_red);
 
             steady_ant_with_precalc_and_memory(&p_red, &q_red, memory_block, memory_block + 4 * k,
-                                               memory_block + 8 * k, map, total);
+                                               memory_block + 8 * k, map, total, nested_parall_regions);
 
 
             // res in p_red
@@ -545,6 +569,69 @@ namespace distance_unit_monge_product {
             delete[] mapping_row;
 
 
+        }
+
+
+
+
+        /**
+         * An implementation of staggered sticky multiplication aka glues two sticky braids to the new one  when
+         * both have k common strands. Logic is as follows. We need to perform sticky multiplication on k common strands, while.
+         * other parts should be untouched and remains the same. See details in the  book.
+         * @param p
+         * @param q
+         * @param k
+         * @param map
+        * @param product
+        */
+        void glueing_part_to_whole(AbstractPermutation *whole, AbstractPermutation *part, PrecalcMap &map, int offset_l,
+                                   int offset_r, AbstractPermutation *product, int nested_parall_regions = 0) {
+            if (part->row_size  != (whole->row_size - offset_l-offset_r)){
+                throw std::runtime_error("Dimensions not match");
+            }
+
+            auto k = whole->row_size  - offset_r - offset_l;
+
+            // first offset_l strands goes inact
+            for (int col = 0; col < offset_l; ++col) {
+                auto row = whole->get_row_by_col(col);
+                product->set_point(row, col);
+            }
+
+            // last offset_r strands goes inact
+            for (int col = whole->row_size - offset_r; col < whole->row_size; ++col) {
+                auto row = whole->get_row_by_col(col);
+                product->set_point(row, col);
+            }
+
+
+            int nearest_2_degree = pow(2, int(ceil(log2(2 * k))));
+            int total = int(log2(nearest_2_degree)) * nearest_2_degree;
+            auto memory_block = new int[k * 8 + int(log2(nearest_2_degree)) * nearest_2_degree];
+            auto mapping_row = new int[k];
+
+            auto whole_red = PermutationPreAllocated(k, k, memory_block, memory_block + k);
+            auto part_copy = PermutationPreAllocated(k, k, memory_block+2*k, memory_block + 3*k);
+            whole_red.unset_all();
+            part_copy.unset_all();
+
+            copy(*part, part_copy);
+            // get strands that insersects  with part braid  (its strands that hit border with part braid)
+            get_vertical_slice(whole, offset_l, k+offset_l, mapping_row, &whole_red);
+
+
+            steady_ant_with_precalc_and_memory(&whole_red, &part_copy, memory_block, memory_block + 4 * k,
+                                               memory_block + 8 * k, map, total, nested_parall_regions);
+
+            for (int i = 0; i < whole_red.row_size; i++) {
+                auto old_col = whole_red.get_col_by_row(i);
+                auto cur_col = old_col;
+                auto cur_row = mapping_row[i];
+                product->set_point(cur_row, cur_col + offset_l);
+            }
+
+            delete[] memory_block;
+            delete[] mapping_row;
         }
 
 
@@ -600,12 +687,6 @@ namespace distance_unit_monge_product {
         }
 
     }
-
-
-};
-
-
-namespace semi_local_lcs {
 
 
 };

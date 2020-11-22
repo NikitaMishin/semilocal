@@ -354,4 +354,18 @@ void get_dominance_matrix(AbstractPermutation &m, Lambda &&func, Matrix *output_
 }
 
 
+/**
+ * Todo
+ * @param from
+ * @param to
+ */
+inline void copy(AbstractPermutation &from, AbstractPermutation &to) {
+    for (int i = 0; i < from.row_size; ++i) {
+        auto col = from.get_col_by_row(i);
+        to.set_point(i, col);
+    }
+}
+
+
+
 #endif //CPU_MATRICES_H
