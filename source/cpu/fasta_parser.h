@@ -15,34 +15,46 @@
 #include <sstream>
 #include <unordered_map>
 #include <vector>
+#include "semi_local.h"
 
 std::pair<int,std::pair<std::string,std::string>> parse_input_file(const std::string&  filename){
     std::ifstream file(filename);
     std::string name;
     std::string sequence;
+    std::string length;
     std::getline(file, name);
+    std::getline(file,length);
     std::getline(file, sequence);
-    return std::make_pair(0,std::make_pair(name,sequence));
-
+    return std::make_pair(stoi(length), std::make_pair(name,sequence));
 };
 
+const long long R = 4294967279;
+const long long M = 4294967291;
 
-
-std::vector<int> transform_to_int_vector(std::string & sequence){
-    std::unordered_map<char,int> acgt_to_int( {{'a',0},{'c',1},{'g',2},{'t',3}});
-    std::unordered_map<char,int> int_to_acgt( {{0,'a'},{1,'c'},{2,'g'},{3,'t'}});
-
-    std::for_each(sequence.begin(), sequence.end(), [](char & c){
-        c = ::tolower(c);
-    });
-
-    auto vector = new std::vector<int>();
-    for (char & i : sequence) {
-        vector->push_back(acgt_to_int.count(i)==0 ? 0 : acgt_to_int[i]);
+//static const int length = 1024*8;
+long long hash(Permutation &arr, int size) {
+    long long hash = 0;
+    for (int i =0; i<size;i++){
+        hash = (R * hash + arr.get_row_by_col(i)) % M;
     }
+    return hash;
+}
 
-    return *vector;
-};
+int * split(std::string str, const std::string& token, int arr_length){
+    int *result =  new int[arr_length];
+    int i=0;
+    while(str.size()){
+        int index = str.find(token);
+        if(index!=std::string::npos){
+            result[i] = stoi(str.substr(0,index));
+            i++;
+            str = str.substr(index+token.size());
+        }else{
+            str = "";
+        }
+    }
+    return result;
+}
 
 
 

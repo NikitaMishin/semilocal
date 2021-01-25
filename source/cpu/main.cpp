@@ -28,12 +28,11 @@ int main() {
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
     omp_set_nested(true);
-    auto a_size = 25000/2;
-    auto b_size = 25000*4;
+    auto a_size = 10*3;
+    auto b_size = 35*2;
 
-    auto seq_a = gen_vector_seq(a_size,40);
-    auto seq_b = gen_vector_seq(b_size,40);
-
+    auto seq_a = gen_vector_seq(a_size,6);
+    auto seq_b = gen_vector_seq(b_size,5);
     int a[a_size];
     int b[b_size];
     for (int i = 0; i < a_size; ++i) {
@@ -44,50 +43,70 @@ int main() {
         b[i] = seq_b[i];
 //        std::cout<<b[i]<<" ";
     }
-    std::cout<<std::endl;
 
-    //
-    // |\ /|
-
-
-
-    std::cout << "Precalc for value 5" << std::endl;
-    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    distance_unit_monge_product::steady_ant::precalc(map, 5);
-    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
-
-    std::cout << "Started on |a|="<<a_size <<", |b|="<<b_size << std::endl;
-
-
-
-
-
-    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
 
     auto should = Permutation(a_size+b_size,a_size+b_size);
+    auto actual = Permutation(a_size+b_size,a_size+b_size);
+    semi_local::strand_combing_approach::sticky_braid_mpi(actual,a,a_size,b,b_size);
+    semi_local::strand_combing_approach::sticky_braid_sequential(should,a,a_size,b,b_size);
 
-
-
-
-    semi_local::hybrid_approach::first_and_third_phase_merged(a, a_size, b, b_size, should, map, 2,32);
-    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
-    std::cout << "merged " << std::chrono::duration<double, std::milli>(time2).count()
-              << std::endl;
-
-
-    auto begin3 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-
-    auto actual = new  Permutation(a_size+b_size,a_size+b_size);
-    semi_local::strand_combing_approach::sticky_braid_mpi(*actual,a,a_size,b,b_size,32);
-
-//    semi_local::hybrid_approach::hybrid(a,a_size,b,b_size,map,*actual,80000*2,3,2);
-//       auto     actual =   semi_local::steady_ant_approach::get_semi_local_kernel(a,a_size,b,b_size,map);
-
-
-    auto time3 = std::chrono::high_resolution_clock::now() - begin3;
-    std::cout << "stikcy braid with steady ant approach " << std::chrono::duration<double, std::milli>(time3).count()
-              << std::endl;
+    std::cout<<should.is_equal_to(actual);
+//    int a[a_size];
+//    int b[b_size];
+//    for (int i = 0; i < a_size; ++i) {
+//        a[i] = seq_a[i];
+////        std::cout<<a[i]<<" ";
+//    }
+//    for (int i = 0; i < b_size; ++i) {
+//        b[i] = seq_b[i];
+////        std::cout<<b[i]<<" ";
+//    }
+//    std::cout<<std::endl;
+//
+//    //
+//    // |\ /|
+//
+//
+//
+//    std::cout << "Precalc for value 5" << std::endl;
+//    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    distance_unit_monge_product::steady_ant::precalc(map, 5);
+//    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+//    std::cout << "Precalc " << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+//
+//    std::cout << "Started on |a|="<<a_size <<", |b|="<<b_size << std::endl;
+//
+//
+//
+//
+//
+//    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//
+//    auto should = Permutation(a_size+b_size,a_size+b_size);
+//
+//
+//
+//
+//    semi_local::hybrid_approach::first_and_third_phase_merged(a, a_size, b, b_size, should, map, 2,32);
+//    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+//    std::cout << "merged " << std::chrono::duration<double, std::milli>(time2).count()
+//              << std::endl;
+//
+//
+//    auto begin3 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//
+//    auto actual = new  Permutation(a_size+b_size,a_size+b_size);
+//    semi_local::strand_combing_approach::sticky_braid_mpi(*actual,a,a_size,b,b_size,32);
+//
+////    semi_local::hybrid_approach::hybrid(a,a_size,b,b_size,map,*actual,80000*2,3,2);
+////       auto     actual =   semi_local::steady_ant_approach::get_semi_local_kernel(a,a_size,b,b_size,map);
+//
+//
+//    auto time3 = std::chrono::high_resolution_clock::now() - begin3;
+//    std::cout << "stikcy braid with steady ant approach " << std::chrono::duration<double, std::milli>(time3).count()
+//              << std::endl;
+//
+//    actual->print(std::cout);
 
 
 //
@@ -101,7 +120,7 @@ int main() {
 
 
 
-    std::cout<<should.is_equal_to(*actual);
+//    std::cout<<should.is_equal_to(*actual);
 
 //std::cout<<std::endl;
 
