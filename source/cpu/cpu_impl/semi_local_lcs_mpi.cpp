@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     auto seq_a = transform_to_int_vector(name_content_a.second.second);
     auto seq_b = transform_to_int_vector(name_content_b.second.second);
     auto beg = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    auto res = semi_local::strand_combing_approach::<int, int>(seq_a, seq_b,thds);
+    auto res = semi_local::strand_cmbing_approach::<int, int>(seq_a, seq_b,thds);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
 

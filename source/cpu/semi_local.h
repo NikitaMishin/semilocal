@@ -628,12 +628,11 @@ namespace semi_local {
 
 
 
-        void hybrid(const int *a, int m, const int *b, int n, steady_ant_approach::PrecalcMap &map,
-                    AbstractPermutation &perm, int size_bound,
-                    int thds_per_combing_algo, int nested_parallel = 0) {
+        void hybrid(AbstractPermutation &perm,const int *a, int m, const int *b, int n, steady_ant_approach::PrecalcMap &map,
+                     int depth, int thds_per_combing_algo, int nested_parallel = 0) {
 
 
-            if (n + m < size_bound) {
+            if (depth <= 0) {
                 strand_combing_approach::sticky_braid_mpi(perm, a, m, b, n, thds_per_combing_algo);
                 return;
             }
@@ -647,8 +646,8 @@ namespace semi_local {
                 auto subtree_l = Permutation(n1 + m, n1 + m);
                 auto subtree_r = Permutation(n - n1 + m, n - n1 + m);
 
-                hybrid(b1, n1, a, m, map, subtree_l, size_bound, thds_per_combing_algo, nested_parallel);
-                hybrid(b2, n - n1, a, m, map, subtree_r, size_bound, thds_per_combing_algo, nested_parallel);
+                hybrid(subtree_l,b1, n1, a, m, map, depth-1, thds_per_combing_algo, nested_parallel);
+                hybrid(subtree_r,b2, n - n1, a, m, map, depth-1, thds_per_combing_algo, nested_parallel);
 
                 auto product = Permutation(perm.row_size, perm.col_size);
 
@@ -670,18 +669,18 @@ namespace semi_local {
 #pragma omp single nowait
                         {
 #pragma omp task
-                            hybrid(a1, m1, b, n, map, subtree_l, size_bound, thds_per_combing_algo,
+                            hybrid(subtree_l,a1, m1, b, n, map, depth-1, thds_per_combing_algo,
                                    nested_parallel - 1);
 #pragma omp task
-                            hybrid(a2, m - m1, b, n, map, subtree_r, size_bound, thds_per_combing_algo,
+                            hybrid(subtree_r, a2, m - m1, b, n, map, depth-1, thds_per_combing_algo,
                                    nested_parallel - 1);
                         }
 
                     }
 #pragma omp taskwait
                 } else {
-                    hybrid(a1, m1, b, n, map, subtree_l, size_bound, thds_per_combing_algo, nested_parallel);
-                    hybrid(a2, m - m1, b, n, map, subtree_r, size_bound, thds_per_combing_algo, nested_parallel);
+                    hybrid(subtree_l, a1, m1, b, n, map, depth-1, thds_per_combing_algo, nested_parallel);
+                    hybrid(subtree_r,a2, m - m1, b, n, map, depth-1, thds_per_combing_algo, nested_parallel);
                 }
 
                 staggered_sticky_multiplication(&subtree_l, &subtree_r, n, map, &perm, 0);

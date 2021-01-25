@@ -54,7 +54,21 @@ add_executable(semi_local_parallel_inversea_iterative cpu_impl/semi_local_parall
 
 
 #
-add_executable(semi_local_paralell_1and3_combined_iterative cpu_impl/semi_local_paralell_1and3_combined_iterative.cpp)
+add_executable(semi_local_parallel_1and3_combined_iterative cpu_impl/semi_local_paralell_1and3_combined_iterative.cpp)
+
+#
+add_executable(semi_local_naive_rec cpu_impl/semi_local_naive_rec.cpp)
+
+
+#
+add_executable(braid_multiplication_parallel cpu_impl/braid_multiplication_parallel.cpp)
+
+#
+add_executable(braid_multiplication_sequntial_non_optimized cpu_impl/braid_multiplication_sequntial_non_optimized.cpp)
+
+
+#
+add_executable(semi_local_parallel_hybrid cpu_impl/semi_local_parallel_hybrid.cpp)
 
 
 #add_executable(semi_local_lcs_sequential cpu_impl/semi_local_lcs_sequential.cpp )
