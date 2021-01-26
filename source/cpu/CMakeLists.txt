@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 11)
 #set(CMAKE_CXX_COMPILER /usr/bin/g++-10)
 #library_correctnesses_tests.h
 add_library(cpu semi_local.h transposition_network_approach/transposition_network_4symbol_alphabet_bit.h fasta_parser.h semi_local.cpp transposition_network_approach/encoders_and_decoders.h sequence_generators.h transposition_network_approach/transposition_network_binary_alphabet.h transposition_network_approach/transposition_network_unbounded_alphabet.h transposition_network_approach/2symbol_new.h   transposition_network_approach/4symbol_new.h transposition_network_approach/2symbol_new_2.h unit_monge_mult/steady_ant.h unit_monge_mult/matrices.h unit_monge_mult/permutations_encoding.h unit_monge_mult/dominance_sum_queries.h)
-add_subdirectory(Google_tests)
+#add_subdirectory(Google_tests)
 
 #/usr/bin/clang++-10
 #/usr/bin/g++-10
@@ -54,7 +54,7 @@ add_executable(semi_local_parallel_inversea_iterative cpu_impl/semi_local_parall
 
 
 #
-add_executable(semi_local_parallel_1and3_combined_iterative cpu_impl/semi_local_paralell_1and3_combined_iterative.cpp)
+add_executable(semi_local_parallel_1and3_combined_iterative cpu_impl/semi_local_parallel_1and3_combined_iterative.cpp)
 
 #
 add_executable(semi_local_naive_rec cpu_impl/semi_local_naive_rec.cpp)
@@ -64,7 +64,7 @@ add_executable(semi_local_naive_rec cpu_impl/semi_local_naive_rec.cpp)
 add_executable(braid_multiplication_parallel cpu_impl/braid_multiplication_parallel.cpp)
 
 #
-add_executable(braid_multiplication_sequntial_non_optimized cpu_impl/braid_multiplication_sequntial_non_optimized.cpp)
+add_executable(braid_multiplication_sequential_non_optimized cpu_impl/braid_multiplication_sequential_non_optimized.cpp)
 
 
 #

@@ -39,11 +39,14 @@ int main(int argc, char *argv[]) {
     semi_local::strand_combing_approach::sticky_braid_mpi_withoutif(perm, a, a_size, b, b_size, thds);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
-    std::cout << 0 <<  "ms"  << std::endl; // some preprocess
-    std::cout << elapsed_time << "ms" << std::endl; // algo time
+    std::cout << 0   << std::endl; // some preprocess
+    std::cout << elapsed_time  << std::endl; // algo time
     std::cout << hash(perm, perm.row_size) << std::endl;
+    std::cout<< a_size<<std::endl;
+    std::cout<< b_size<<std::endl;
     std::cout<< a_name<<std::endl;
-    std::cout<< b_name<<std::endl;
+    std::cout<< b_name;
+
 
     delete[] a;
     delete[] b;

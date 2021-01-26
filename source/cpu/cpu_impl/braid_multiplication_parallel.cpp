@@ -43,10 +43,10 @@ int main(int argc, char *argv[]) {
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
 
 
-    std::cout << precalc_elapsed_time <<  "ms"  << std::endl; // some preprocess
-    std::cout << elapsed_time << "ms" << std::endl; // algo time
+    std::cout << precalc_elapsed_time << std::endl; // some preprocess
+    std::cout << elapsed_time << std::endl; // algo time
     std::cout << hash(product, product.row_size) << std::endl;
     std::cout<< n<<std::endl;
-    std::cout<< seed<<std::endl;
+    std::cout<< seed;
 
 }
