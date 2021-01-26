@@ -23,7 +23,7 @@ SOLUTIONS_FOLDER = 'braid_mults_solutions'  # where we put our ready to run impl
 
 CSV_FILE = 'braid_mul.csv'
 
-REPEATS = 2
+REPEATS = 10
 default_logger = Logger('log.txt')
 build_logger = Logger('build_log.txt')
 
