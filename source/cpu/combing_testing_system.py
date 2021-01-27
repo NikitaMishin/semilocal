@@ -15,8 +15,9 @@ CXX_COMPILER_PATH = '/usr/bin/g++-10'
 
 SINGLE_THREADED_SOLUTIONS = [
     'prefix_lcs',
-    'semi_local_naive_iterative'
+
 ]
+
 MULTI_THREADED_SOLUTIONS = [
     'semi_local_parallel_iterative',
     'semi_local_parallel_hybrid',
@@ -24,15 +25,13 @@ MULTI_THREADED_SOLUTIONS = [
     'semi_local_parallel_inversea_iterative',
     'semi_local_parallel_withoutif_iterative',
     'semi_local_parallel_iterative',
-
-
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
-CSV_FILE = 'combing.csv'
+CSV_FILE = 'results.csv'
 
-REPEATS = 3
+REPEATS = 10
 default_logger = Logger('log.txt')
 build_logger = Logger('build_log.txt')
 
@@ -149,7 +148,7 @@ def run_tests(runners: List[CombingRunner], tests: List[CombingTest], repeats: i
 # class CTestingSystem()
 if __name__ == '__main__':
     arg_parser = ArgumentParser()
-    arg_parser.add_argument('max_thds', type=int, help='Depth for level paralellism')
+    arg_parser.add_argument('max_thds', type=int, help='Threads')
     arg_parser.add_argument('tests', type=str, help='Path to dataset with *.fna files, our specific format')
     args = arg_parser.parse_args()
 
@@ -161,6 +160,6 @@ if __name__ == '__main__':
             _, size = f.readline(), int(f.readline())
             test_cases.append((size, os.path.join(args.tests, name)))
 
-    tests = [CombingTest(x[1], y[1]) for x in test_cases for y in test_cases if x[1] != y[1] and x[0] == y[0]]
+    tests = [CombingTest(x[1], y[1]) for x in test_cases for y in test_cases if x[1] != y[1] and x[0] == y[0] and x[0]]
 
     run_tests(runners, tests, REPEATS)
