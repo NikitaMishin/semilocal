@@ -24,18 +24,19 @@ int main(int argc, char *argv[]) {
     fill_permutation_matrix(p,n,n,seed);
     fill_permutation_matrix(q,n,n,-seed);
 
-
-
-
-    auto empty_map = distance_unit_monge_product::steady_ant::PrecalcMap();
+    auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
+    auto beg_precalc = std::chrono::high_resolution_clock::now();
+    distance_unit_monge_product::steady_ant::precalc(map,5);
+    auto delta = std::chrono::high_resolution_clock::now() - beg_precalc;
+    auto precalc_elapsed_time = long(std::chrono::duration<double, std::milli>(delta).count());
 
     auto beg = std::chrono::high_resolution_clock::now();
-    auto product = distance_unit_monge_product::steady_ant::steady_ant(p,q,empty_map);
+    auto product = distance_unit_monge_product::steady_ant::steady_ant(p,q,map);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
 
 
-    std::cout << 0 <<  std::endl; // some preprocess
+    std::cout << precalc_elapsed_time <<  std::endl; // some preprocess
     std::cout << elapsed_time << std::endl; // algo time
     std::cout << hash(*product, product->row_size) << std::endl;
     std::cout<< n<<std::endl;

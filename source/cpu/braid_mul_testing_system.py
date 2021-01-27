@@ -14,6 +14,8 @@ CXX_COMPILER_PATH = '/usr/bin/g++-10'
 
 SINGLE_THREADED_SOLUTIONS = [
     'braid_multiplication_sequential_non_optimized',
+    'braid_multiplication_sequential_memory',
+    'braid_multiplication_sequential_precompute'
 ]
 MULTI_THREADED_SOLUTIONS = [
     'braid_multiplication_parallel',
@@ -47,7 +49,9 @@ def build_braid_mul_algorithms(sequential_algos, parallel_algos, max_depth, fold
     print(f'Runners  C++ to execute: {", ".join(map(lambda x: x.name, runners))}')
     return runners
 
-def compile_programs(specified_solutions_single_threaded, specified_solutions_multi_threaded, max_depth) -> List[Runner]:
+
+def compile_programs(specified_solutions_single_threaded, specified_solutions_multi_threaded, max_depth) -> List[
+    Runner]:
     from utils.compile import construct_compile_commands
 
     print('Building programs...')
@@ -57,7 +61,8 @@ def compile_programs(specified_solutions_single_threaded, specified_solutions_mu
         if comp_proc.returncode != 0:
             exit(0)
 
-    return build_braid_mul_algorithms(specified_solutions_single_threaded,specified_solutions_multi_threaded,max_depth, SOLUTIONS_FOLDER)
+    return build_braid_mul_algorithms(specified_solutions_single_threaded, specified_solutions_multi_threaded,
+                                      max_depth, SOLUTIONS_FOLDER)
 
 
 def update_csv(runners: List[BraidMulRunner], results: Dict[str, Dict[str, List[BraidResult]]]):
@@ -73,7 +78,8 @@ def update_csv(runners: List[BraidMulRunner], results: Dict[str, Dict[str, List[
             n = seed = '-'
             for runner in runners:
                 if len(measures[runner.name]) > 0:
-                    elapsed_time_preprocess = list(map(lambda res: int(res.elapsed_time_preprocess), measures[runner.name]))
+                    elapsed_time_preprocess = list(
+                        map(lambda res: int(res.elapsed_time_preprocess), measures[runner.name]))
                     elapsed_time_algo = list(map(lambda res: int(res.elapsed_time_algo), measures[runner.name]))
 
                     mean_algo = mean(elapsed_time_algo)
@@ -86,7 +92,7 @@ def update_csv(runners: List[BraidMulRunner], results: Dict[str, Dict[str, List[
                     std_preprocessed = stdev(elapsed_time_preprocess) if len(elapsed_time_preprocess) >= 2 else '-'
                     hash = measures[runner.name][0].hash
                 else:
-                    mean_algo = std_algo = mean_preprocessed = std_preprocessed = hash  = '-'
+                    mean_algo = std_algo = mean_preprocessed = std_preprocessed = hash = '-'
                 line += f',{mean_preprocessed},{std_preprocessed},{mean_algo},{std_algo},{hash}'
             f.write(test + f',{n},{seed}' + line + '\n')
 
@@ -115,15 +121,14 @@ def run_tests(runners: List[BraidMulRunner], tests: List[BraidMulTest], repeats:
             default_logger.write(f'Skip test {test.name} for {runner.name}  due to previous failure')
             continue
 
-
         default_logger.write(f'{runner.name} work on {test.name} test')
 
         try:
 
-            result = runner.run(test.n,test.seed)
+            result = runner.run(test.n, test.seed)
             results[test.name][runner.name].append(result)
             default_logger.write(
-                    f'{runner.name} complete {test.name} in {result.elapsed_time_algo + result.elapsed_time_preprocess} ms')
+                f'{runner.name} complete {test.name} in {result.elapsed_time_algo + result.elapsed_time_preprocess} ms')
 
         except Exception as e:
             default_logger.write(f'{runner.name} failed on test {test.name} because of {e}')
@@ -132,18 +137,17 @@ def run_tests(runners: List[BraidMulRunner], tests: List[BraidMulTest], repeats:
     update_csv(runners, results)
 
 
-
-
 # class CTestingSystem()
 if __name__ == '__main__':
     arg_parser = ArgumentParser()
     arg_parser.add_argument('depth', type=int, help='Depth for level paralellism')
     args = arg_parser.parse_args()
-    runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS,args.depth)
+    runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, args.depth)
 
-    tests = [BraidMulTest(str(x),'42') for x in [100,200,500,1000,2000,5000,10000,20000,50000,100000,200000,500000,1000000,2000000,5000000,10000000] ]
+    tests = [BraidMulTest(str(x), '42') for x in
+             [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000,
+              10000000]]
+
     run_tests(runners, tests, REPEATS)
     # build_logger.close()
     # default_logger.close()
-
-

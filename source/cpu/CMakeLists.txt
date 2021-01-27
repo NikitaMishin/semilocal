@@ -68,6 +68,14 @@ add_executable(braid_multiplication_sequential_non_optimized cpu_impl/braid_mult
 
 
 #
+add_executable(braid_multiplication_sequential_memory cpu_impl/braid_multiplication_sequential_memory.cpp)
+
+#
+add_executable(braid_multiplication_sequential_precompute cpu_impl/braid_multiplication_sequential_precompute.cpp)
+
+
+
+#
 add_executable(semi_local_parallel_hybrid cpu_impl/semi_local_parallel_hybrid.cpp)
 
 

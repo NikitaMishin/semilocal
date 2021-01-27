@@ -258,11 +258,16 @@ namespace distance_unit_monge_product {
 
         /*
          * Non optimized version of steady ant algorithm that allocated new memory on each recursion step and
-         * uses no precomputed values.
+         * uses  precomputed if had.
          */
-        AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q) {
+        AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q, PrecalcMap & map) {
             auto n = p->col_size;
 
+
+            if (n <= map.size()) {
+                auto precalced = new Permutation(n,n,map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
+                return precalced;
+            }
 
             if (n == 1) {
                 //base case when common dimension is one
@@ -276,6 +281,7 @@ namespace distance_unit_monge_product {
                 if (row != NOPOINT && col != NOPOINT) matrix->set_point(row, col);
                 return matrix;
             }
+
 
             int spliter = p->col_size / 2;
 
@@ -297,7 +303,7 @@ namespace distance_unit_monge_product {
             auto r_lo = p; // reuse since we no need to use p further
 
 
-            auto product = steady_ant(p_lo, q_lo);
+            auto product = steady_ant(p_lo, q_lo,map);
 
 
             inverse_mapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
@@ -307,7 +313,7 @@ namespace distance_unit_monge_product {
             auto q_hi = new Permutation(p->col_size - spliter, p->col_size - spliter);
             get_horizontal_slice(q, spliter, q->row_size, q_hi_col_mapper, q_hi);
             auto r_hi = q; // reuse since we no need to use p further
-            product = steady_ant(p_hi, q_hi);
+            product = steady_ant(p_hi, q_hi,map);
 
 
             inverse_mapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
@@ -647,6 +653,7 @@ namespace distance_unit_monge_product {
             using namespace std;
             int p_arr[max_size];
             int q_arr[max_size];
+            auto empty_map = PrecalcMap();
 
             for (int size = 1; size < max_size + 1; size++) {
 
@@ -666,7 +673,7 @@ namespace distance_unit_monge_product {
                         long long hash_p = hash<AbstractPermutation>()(*p);
                         long long hash_q = hash<AbstractPermutation>()(*q);
 
-                        auto r = distance_unit_monge_product::steady_ant::steady_ant(p, q);
+                        auto r = distance_unit_monge_product::steady_ant::steady_ant(p, q, empty_map);
                         auto points = std::vector<std::pair<int, int>>();
                         if (map[size][hash_p].count(hash_q) > 0) {
                             std::cout << " Some error";
