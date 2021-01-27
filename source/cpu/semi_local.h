@@ -89,9 +89,11 @@ namespace semi_local {
                 auto product_t = new Permutation(subtree_l->col_size + subtree_r->col_size - m,
                                                  subtree_l->row_size + subtree_r->row_size - m);
 
-
                 staggered_sticky_multiplication(subtree_l, subtree_r, m, map, product);
                 fill_permutation_ba(product, product_t, m, n);
+                delete subtree_l;
+                delete subtree_r;
+                delete product;
                 return product_t;
             } else {
                 auto m1 = m / 2;
@@ -104,6 +106,8 @@ namespace semi_local {
                                                subtree_l->col_size + subtree_r->col_size - n);
                 staggered_sticky_multiplication(subtree_l, subtree_r, n, map, product, 0);
 
+                delete subtree_l;
+                delete subtree_r;
                 return product;
 
 
