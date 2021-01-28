@@ -496,7 +496,6 @@ namespace semi_local {
 
 
         /**
-         * Todo not working, check theory
          * @param a
          * @param a_size
          * @param b
