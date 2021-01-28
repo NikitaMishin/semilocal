@@ -14,8 +14,7 @@ from utils.tests import RunStrategy, CombingTest
 CXX_COMPILER_PATH = '/usr/bin/g++-10'
 
 SINGLE_THREADED_SOLUTIONS = [
-    'prefix_lcs',
-
+    # 'prefix_lcs',
 ]
 
 MULTI_THREADED_SOLUTIONS = [
@@ -31,7 +30,7 @@ SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implemen
 
 CSV_FILE = 'results.csv'
 
-REPEATS = 10
+REPEATS = 6
 default_logger = Logger('log.txt')
 build_logger = Logger('build_log.txt')
 
@@ -92,8 +91,8 @@ def update_csv(runners: List[CombingRunner], results: Dict[str, Dict[str, List[C
                     mean_algo = mean(elapsed_time_algo)
                     mean_preprocessed = mean(elapsed_time_preprocess)
 
-                    name_a = measures[runner.name][0].name_a
-                    name_b = measures[runner.name][0].name_b
+                    a_name = measures[runner.name][0].name_a
+                    b_name = measures[runner.name][0].name_b
                     size_a, size_b = measures[runner.name][0].size_a, measures[runner.name][0].size_b
 
                     std_algo = stdev(elapsed_time_algo) if len(elapsed_time_algo) >= 2 else '-'
@@ -160,6 +159,16 @@ if __name__ == '__main__':
             _, size = f.readline(), int(f.readline())
             test_cases.append((size, os.path.join(args.tests, name)))
 
-    tests = [CombingTest(x[1], y[1]) for x in test_cases for y in test_cases if x[1] != y[1] and x[0] == y[0] and x[0]]
 
+
+    tests = []
+    for i in range(len(test_cases)):
+        for j in range(i+1,len(test_cases)):
+            x,y = test_cases[i], test_cases[j]
+            if x[1] != y[1] and x[0] == y[0]:
+                tests.append( (x[0], CombingTest(x[1],y[1]) ) )
+
+    tests.sort(key=lambda  x: x[0])
+    _, tests = zip(*tests)
+    tests = list(tests)
     run_tests(runners, tests, REPEATS)

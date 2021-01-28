@@ -17,6 +17,7 @@ class CombingTest(Test):
         return self.sequence_id_1 + self.DELIM + self.sequence_id_2
 
 
+
 class BraidMulTest(Test):
 
     def __init__(self, n, seed):

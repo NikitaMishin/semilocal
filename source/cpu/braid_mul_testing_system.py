@@ -144,9 +144,9 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
     runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, args.depth)
 
-    tests = [BraidMulTest(str(x), '42') for x in
-             [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000, 2000000, 5000000,
-              10000000]]
+    n = [1000, 2000, 4000, 5000, 6000, 8000, 10000, 12000, 14000, 5000, 16000, 18000, 20000, 25000, 30000, 35000, 40000,
+     45000, 50000, 55000, 60000, 65000, 70000, 75000, 80000, 85000, 90000, 95000, 100000]
+    tests = [BraidMulTest(str(x), '42') for x in n]
 
     run_tests(runners, tests, REPEATS)
     # build_logger.close()
