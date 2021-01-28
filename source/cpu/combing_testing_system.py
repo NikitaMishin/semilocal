@@ -14,23 +14,24 @@ from utils.tests import RunStrategy, CombingTest
 CXX_COMPILER_PATH = '/usr/bin/g++-10'
 
 SINGLE_THREADED_SOLUTIONS = [
-    # 'prefix_lcs',
+    'prefix_lcs',
 ]
 
 MULTI_THREADED_SOLUTIONS = [
-    'semi_local_parallel_iterative',
-    'semi_local_parallel_hybrid',
-    'semi_local_parallel_1and3_combined_iterative',
-    'semi_local_parallel_inversea_iterative',
-    'semi_local_parallel_withoutif_iterative',
-    'semi_local_parallel_iterative',
+    'semi_local_parallel_iterative'
+    # 'semi_local_parallel_iterative',
+    # 'semi_local_parallel_hybrid',
+    # 'semi_local_parallel_1and3_combined_iterative',
+    # 'semi_local_parallel_inversea_iterative',
+    # 'semi_local_parallel_withoutif_iterative',
+    # 'semi_local_parallel_iterative',
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
 CSV_FILE = 'results.csv'
 
-REPEATS = 6
+REPEATS = 8
 default_logger = Logger('log.txt')
 build_logger = Logger('build_log.txt')
 

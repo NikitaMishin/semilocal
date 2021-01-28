@@ -13,9 +13,9 @@ from utils.tests import RunStrategy, BraidMulTest
 CXX_COMPILER_PATH = '/usr/bin/g++-10'
 
 SINGLE_THREADED_SOLUTIONS = [
-    'braid_multiplication_sequential_non_optimized',
-    'braid_multiplication_sequential_memory',
-    'braid_multiplication_sequential_precompute'
+    # 'braid_multiplication_sequential_non_optimized',
+    # 'braid_multiplication_sequential_memory',
+    # 'braid_multiplication_sequential_precompute'
 ]
 MULTI_THREADED_SOLUTIONS = [
     'braid_multiplication_parallel',
@@ -25,7 +25,7 @@ SOLUTIONS_FOLDER = 'braid_mults_solutions'  # where we put our ready to run impl
 
 CSV_FILE = 'braid_mul.csv'
 
-REPEATS = 20
+REPEATS = 10
 default_logger = Logger('log.txt')
 build_logger = Logger('build_log.txt')
 
