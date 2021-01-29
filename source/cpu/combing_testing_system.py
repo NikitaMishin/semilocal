@@ -15,7 +15,7 @@ CXX_COMPILER_PATH = '/usr/bin/g++-10'
 
 SINGLE_THREADED_SOLUTIONS = [
     # 'semi_local_naive_iterative'
-    'prefix_lcs'
+    'prefix_lcs',
     'semi_local_naive_rec'
 ]
 

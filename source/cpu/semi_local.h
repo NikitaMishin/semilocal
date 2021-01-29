@@ -9,7 +9,6 @@
 #include <cstring>
 #include <map>
 #include <unordered_map>
-//#include "transposition_network_approach/transposition_network_4symbol_alphabet_bit.h"
 #include "unit_monge_mult/steady_ant.h"
 #include  <cstdlib>
 #include <chrono>
@@ -120,11 +119,118 @@ namespace semi_local {
 
 
 
+
+
     /**
      *
      */
     namespace strand_combing_approach {
         using namespace distance_unit_monge_product::steady_ant;
+
+
+        inline void anti_diagonal_computation(int *strand_map, const int *a, const int *b, int upper_bound,
+                                              int left_edge, int top_edge, int offset_a,int offset_b){
+
+            #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
+            for (int k = 0; k < upper_bound ; ++k) {
+                auto left_strand = strand_map[left_edge + k];
+                auto right_strand = strand_map[top_edge + k];
+
+                auto r = a[offset_a - k] == b[offset_b + k] || (left_strand > right_strand);
+
+                if (r) {
+                    std::swap(strand_map[top_edge + k],strand_map[left_edge + k]);
+                }
+            }
+        }
+
+        inline void anti_diagonal_computation_rev(int *strand_map, const int* a, const int *b,int  upper_bound,
+                                                  int left_edge, int top_edge, int offset_a,int offset_b){
+
+            #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
+            for (int k = 0; k < upper_bound ; ++k) {
+                auto left_strand = strand_map[left_edge + k];
+                auto right_strand = strand_map[top_edge + k];
+
+                bool r = a[offset_a + k] == b[offset_b + k] || (left_strand > right_strand);
+
+                if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
+            }
+        }
+
+        inline void anti_diagonal_computation_rev_branchless(int *strand_map, const int* a, const int *b,int  upper_bound,
+                                                  int left_edge, int top_edge, int offset_a,int offset_b){
+
+            #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
+            for (int k = 0; k < upper_bound ; ++k) {
+                auto left_strand = strand_map[left_edge + k];
+                auto right_strand = strand_map[top_edge + k];
+
+                bool r = a[offset_a + k] == b[offset_b + k] || (left_strand > right_strand);
+
+                //                        strand_map[left_edge + k] = strand_map[left_edge + k] * (1-r) + r *  strand_map[top_edge + k];
+//                        strand_map[top_edge + k]  = strand_map[top_edge + k] * (1 - r) + r * strand_map[left_edge + k];
+                strand_map[left_edge + k] = (left_strand & (r - 1))  | ((-r) &  right_strand);
+                strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) & left_strand );
+            }
+        }
+
+        inline void anti_diagonal_computation_branchless(int *strand_map, const int* a, const int *b,int  upper_bound,
+                                                             int left_edge, int top_edge, int offset_a,int offset_b){
+
+#pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
+            for (int k = 0; k < upper_bound ; ++k) {
+                auto left_strand = strand_map[left_edge + k];
+                auto right_strand = strand_map[top_edge + k];
+
+                auto r = a[offset_a - k] == b[offset_b + k] || (left_strand > right_strand);
+
+                strand_map[left_edge + k] = (left_strand & (r - 1))  | ((-r) &  right_strand);
+                strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) & left_strand );
+            }
+        }
+
+
+
+        inline void initialization(int *strand_map,int m, int n){
+            #pragma omp for simd schedule(static)
+            for (int k = 0; k < m; ++k) {
+                strand_map[k] = k;
+            }
+
+            #pragma omp for simd schedule(static)
+            for (int l = 0; l < n; ++l) {
+                strand_map[l + m] = l + m;
+            }
+
+        }
+
+        inline void construct_permutation(AbstractPermutation &matrix, int *strand_map, bool is_reverse, int m, int n){
+            if (!is_reverse) {
+                #pragma omp for simd schedule(static)
+                for (int r = m; r < m + n; r++) {
+                    matrix.set_point(strand_map[r], r - m);
+                }
+                #pragma omp for simd schedule(static)
+                for (int l = 0; l < m; l++) {
+                    matrix.set_point(strand_map[l], n + l);
+                }
+
+
+            } else {
+
+#pragma omp for simd schedule(static)
+                for (int r = m; r < m + n; r++) {
+                    matrix.set_point(n + m - 1 - strand_map[r], n + m - 1 - (r - m));
+                }
+#pragma omp for simd schedule(static)
+                for (int l = 0; l < m; l++) {
+                    matrix.set_point(n + m - 1 - strand_map[l], n + m - 1 - (n + l));
+                }
+
+            }
+
+        }
 
         void
         sticky_braid_sequential(AbstractPermutation &permutation, const int *a, int a_size, const int *b, int b_size) {
@@ -166,9 +272,9 @@ namespace semi_local {
 
                 return;
             }
-
             auto m = a_size;
             auto n = b_size;
+
 
             auto size = m + n;
             int *strand_map = new int[size];
@@ -181,87 +287,35 @@ namespace semi_local {
             {
                 int left_edge, top_edge;
                 //    init phase
-#pragma omp for simd schedule(static)
-                for (int k = 0; k < m; ++k) {
-                    strand_map[k] = k;
-                }
-
-#pragma omp for simd schedule(static)
-                for (int l = 0; l < n; ++l) {
-                    strand_map[l + m] = l + m;
-                }
-
+                initialization(strand_map,m,n);
                 //    phase one
+                top_edge = m;
+                left_edge = m - 1;
                 for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                    left_edge = m - 1 - cur_diag_len;
-                    top_edge = m;
-#pragma omp for simd schedule(static)
-                    for (int j = 0; j < cur_diag_len + 1; ++j) {
-                        auto left_strand = strand_map[left_edge + j];
-                        auto right_strand = strand_map[top_edge + j];
-                        bool r = a[cur_diag_len - j] == b[j] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
-                    }
+                    anti_diagonal_computation(strand_map,a,b,cur_diag_len+1,left_edge,top_edge,cur_diag_len,0);
+                    left_edge--;
                 }
 
-
+                //phase 2
+                auto i = m - 1;
+                top_edge = m;
                 for (int j = 0; j < total_same_length_diag; ++j) {
-                    left_edge = 0;
-                    top_edge = m + j;
-                    auto i = m - 1;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < m; ++k) {
-                        auto left_strand = strand_map[left_edge + k];
-                        auto right_strand = strand_map[top_edge + k];
-                        bool r = a[i - k] == b[left_edge + j + k] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
-                    }
+                    anti_diagonal_computation(strand_map,a,b,m,0,top_edge,i,j);
+                    top_edge++;
                 }
 
-////    phase 3
+                //// phase 3
+                i = m - 1;
                 auto start_j = total_same_length_diag;
+                top_edge = start_j + m;
+
                 for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-                    left_edge = 0;
-                    top_edge = start_j + m;
-                    auto i = m - 1;
-                    auto j = start_j;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < diag_len + 1; ++k) {
-                        auto right_strand = strand_map[top_edge + k];
-                        auto left_strand = strand_map[left_edge + k];
-
-                        bool r = a[i - k] == b[j + k] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
-                    }
+                    anti_diagonal_computation(strand_map, a, b, diag_len+1, 0, top_edge, i, start_j);
+                    top_edge++;
                 }
 
-                if (!is_reverse) {
-#pragma omp for simd schedule(static)
-                    for (int r = m; r < m + n; r++) {
-                        matrix.set_point(strand_map[r], r - m);
-                    }
-#pragma omp for simd schedule(static)
-                    for (int l = 0; l < m; l++) {
-                        matrix.set_point(strand_map[l], n + l);
-                    }
-
-
-                } else {
-
-#pragma omp for simd schedule(static)
-                    for (int r = m; r < m + n; r++) {
-                        matrix.set_point(n + m - 1 - strand_map[r], n + m - 1 - (r - m));
-                    }
-#pragma omp for simd schedule(static)
-                    for (int l = 0; l < m; l++) {
-                        matrix.set_point(n + m - 1 - strand_map[l], n + m - 1 - (n + l));
-                    }
-
-                }
-
-
+                construct_permutation(matrix,strand_map,is_reverse, m, n);
             }
-
             delete[] strand_map;
         }
 
@@ -270,7 +324,6 @@ namespace semi_local {
 
             if (a_size > b_size) {
                 sticky_braid_mpi(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
-
                 return;
             }
 
@@ -284,89 +337,37 @@ namespace semi_local {
             auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
 
 
-#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
+            #pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
             {
                 int left_edge, top_edge;
                 //    init phase
-#pragma omp for simd schedule(static)
-                for (int k = 0; k < m; ++k) {
-                    strand_map[k] = k;
-                }
+                initialization(strand_map,m,n);
 
-#pragma omp for simd schedule(static)
-                for (int l = 0; l < n; ++l) {
-                    strand_map[l + m] = l + m;
-                }
 
                 //    phase one
+                top_edge = m;
+                left_edge = m - 1;
                 for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                    left_edge = m - 1 - cur_diag_len;
-                    top_edge = m;
-#pragma omp for simd schedule(static)
-                    for (int j = 0; j < cur_diag_len + 1; ++j) {
-                        auto left_strand = strand_map[left_edge + j];
-                        auto right_strand = strand_map[top_edge + j];
-                        bool r = a[left_edge + j] == b[j] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + j], strand_map[left_edge + j]);
-                    }
+                    anti_diagonal_computation_rev(strand_map, a, b, cur_diag_len + 1, left_edge, top_edge, left_edge, 0);
+                    left_edge--;
                 }
 
-
+                top_edge = m;
                 for (int j = 0; j < total_same_length_diag; ++j) {
-                    left_edge = 0;
-                    top_edge = m + j;
-                    auto i = m - 1;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < m; ++k) {
-                        auto left_strand = strand_map[left_edge + k];
-                        auto right_strand = strand_map[top_edge + k];
-                        bool r = a[left_edge + k] == b[left_edge + j + k] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
-                    }
+                    anti_diagonal_computation_rev(strand_map, a, b, m, 0, top_edge, 0, j);
+                    top_edge++;
                 }
 
-////    phase 3
+                ////    phase 3
                 auto start_j = total_same_length_diag;
-                for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-                    left_edge = 0;
+
+                for (int diag_len = m - 2; diag_len >= 0; --diag_len) {
                     top_edge = start_j + m;
-                    auto i = m - 1;
-                    auto j = start_j;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < diag_len + 1; ++k) {
-                        auto right_strand = strand_map[top_edge + k];
-                        auto left_strand = strand_map[left_edge + k];
-
-                        bool r = a[left_edge + k] == b[j + k] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
-                    }
+                    anti_diagonal_computation_rev(strand_map,a,b, diag_len + 1, 0, top_edge, 0, start_j);
+                    start_j++;
                 }
 
-                if (!is_reverse) {
-#pragma omp for simd schedule(static)
-                    for (int r = m; r < m + n; r++) {
-                        matrix.set_point(strand_map[r], r - m);
-                    }
-#pragma omp for simd schedule(static)
-                    for (int l = 0; l < m; l++) {
-                        matrix.set_point(strand_map[l], n + l);
-                    }
-
-
-                } else {
-
-#pragma omp for simd schedule(static)
-                    for (int r = m; r < m + n; r++) {
-                        matrix.set_point(n + m - 1 - strand_map[r], n + m - 1 - (r - m));
-                    }
-#pragma omp for simd schedule(static)
-                    for (int l = 0; l < m; l++) {
-                        matrix.set_point(n + m - 1 - strand_map[l], n + m - 1 - (n + l));
-                    }
-
-                }
-
-
+                construct_permutation(matrix,strand_map,is_reverse, m, n);
             }
 
             delete[] strand_map;
@@ -377,13 +378,13 @@ namespace semi_local {
                               int threads_num = 1, bool is_reverse = false) {
 
             if (a_size > b_size) {
-                sticky_braid_mpi(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
+                sticky_braid_mpi_withoutif(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
 
                 return;
             }
-
             auto m = a_size;
             auto n = b_size;
+
 
             auto size = m + n;
             int *strand_map = new int[size];
@@ -396,114 +397,39 @@ namespace semi_local {
             {
                 int left_edge, top_edge;
                 //    init phase
-#pragma omp for simd schedule(static)
-                for (int k = 0; k < m; ++k) {
-                    strand_map[k] = k;
-                }
-
-#pragma omp for simd schedule(static)
-                for (int l = 0; l < n; ++l) {
-                    strand_map[l + m] = l + m;
-                }
-
+                initialization(strand_map,m,n);
                 //    phase one
+                top_edge = m;
+                left_edge = m - 1;
                 for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                    left_edge = m - 1 - cur_diag_len;
-                    top_edge = m;
-#pragma omp for simd schedule(static)
-                    for (int j = 0; j < cur_diag_len + 1; ++j) {
-                        auto left_strand = strand_map[left_edge + j];
-                        auto right_strand = strand_map[top_edge + j];
-
-                        auto r = (a[cur_diag_len - j] == b[j]) | (left_strand > right_strand);
-                        strand_map[left_edge + j] = (left_strand & (r - 1))  | ((-r) &  right_strand);
-                        strand_map[top_edge + j]  = (right_strand & (r - 1)) | ((-r) & left_strand ) ;
-//                        strand_map[left_edge + j] = left_strand * (1 - r) + r *  right_strand;
-//                        strand_map[top_edge + j]  = right_strand  * (1 - r) + r *  left_strand;
-                    }
+                    anti_diagonal_computation_branchless(strand_map,a,b,cur_diag_len+1,left_edge,top_edge,cur_diag_len,0);
+                    left_edge--;
                 }
 
-
+                //phase 2
+                auto i = m - 1;
+                top_edge = m;
                 for (int j = 0; j < total_same_length_diag; ++j) {
-                    left_edge = 0;
-                    top_edge = m + j;
-                    auto i = m - 1;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < m; ++k) {
-                        auto left_strand = strand_map[left_edge + k];
-                        auto right_strand = strand_map[top_edge + k];
-
-                        auto r = a[i - k] == b[left_edge + j + k] || (left_strand > right_strand);
-//                        if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
-                        strand_map[left_edge + k] = (left_strand & (r - 1))  | ((-r) &  right_strand);
-                        strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) & left_strand ) ;
-//                        strand_map[left_edge + k] = strand_map[left_edge + k] * (1 - r) + r *  strand_map[top_edge + k];
-//                        strand_map[top_edge + k]  = strand_map[top_edge + k] * (1 - r) + r * strand_map[left_edge + k];
-                    }
+                    anti_diagonal_computation_branchless(strand_map,a,b,m,0,top_edge,i,j);
+                    top_edge++;
                 }
 
-////    phase 3
+                //// phase 3
+                i = m - 1;
                 auto start_j = total_same_length_diag;
+                top_edge = start_j + m;
+
                 for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-                    left_edge = 0;
-                    top_edge = start_j + m;
-                    auto i = m - 1;
-                    auto j = start_j;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < diag_len + 1; ++k) {
-                        auto right_strand = strand_map[top_edge + k];
-                        auto left_strand = strand_map[left_edge + k];
-
-                        auto r = a[i - k] == b[j + k] || (left_strand > right_strand);
-//                        if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
-                        strand_map[left_edge + k] = (left_strand & (r - 1))  | ((-r) &  right_strand);
-                        strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) &  left_strand ) ;
-//                        strand_map[left_edge + k] = strand_map[left_edge + k] * (1-r) + r *  strand_map[top_edge + k];
-//                        strand_map[top_edge + k]  = strand_map[top_edge + k] * (1 - r) + r * strand_map[left_edge + k];
-                    }
+                    anti_diagonal_computation_branchless(strand_map, a, b, diag_len+1, 0, top_edge, i, start_j);
+                    top_edge++;
                 }
 
-                if (!is_reverse) {
-#pragma omp for simd schedule(static)
-                    for (int r = m; r < m + n; r++) {
-                        matrix.set_point(strand_map[r], r - m);
-                    }
-#pragma omp for simd schedule(static)
-                    for (int l = 0; l < m; l++) {
-                        matrix.set_point(strand_map[l], n + l);
-                    }
-
-
-                } else {
-
-#pragma omp for simd schedule(static)
-                    for (int r = m; r < m + n; r++) {
-                        matrix.set_point(n + m - 1 - strand_map[r], n + m - 1 - (r - m));
-                    }
-#pragma omp for simd schedule(static)
-                    for (int l = 0; l < m; l++) {
-                        matrix.set_point(n + m - 1 - strand_map[l], n + m - 1 - (n + l));
-                    }
-
-                }
-
-
+                construct_permutation(matrix,strand_map,is_reverse, m, n);
             }
-
             delete[] strand_map;
         }
 
 
-
-        /**
-         * @param a
-         * @param a_size
-         * @param b
-         * @param b_size
-         * @param permutation
-         * @param map
-         * @param threads_num
-         */
         void first_and_third_phase_merged(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
                                           steady_ant_approach::PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
             if (a_size > b_size) {
@@ -530,12 +456,12 @@ namespace semi_local {
                 int in_third_phase = m - 1;
 
                 //    init phase
-#pragma omp for simd schedule(static) nowait
+                #pragma omp for simd schedule(static) nowait
                 for (int k = 0; k < (m + n); ++k) {
                     strand_map[k] = k;
                 }
 
-#pragma omp for simd schedule(static) nowait
+                #pragma omp for simd schedule(static) nowait
                 for (int k = 0; k < third_phase_map_size; ++k) {
                     if (k < m - 1) {
                         third_phase_map[k] = 2 * k;
@@ -543,47 +469,46 @@ namespace semi_local {
                         third_phase_map[k] = (k - (m - 1)) * 2 + 1;
                     }
                 }
-#pragma omp barrier
+                #pragma omp barrier
 
-
-// new
 
                 for (int diag_number = 0; diag_number < m - 1; ++diag_number) {
-#pragma omp for simd schedule(auto) nowait
+
+
+                    #pragma omp for simd schedule(static) nowait
                     for (int pos_in_diag = 0; pos_in_diag < in_third_phase; ++pos_in_diag) {
+
                         auto top_edge = diag_number + pos_in_diag;
-                        auto left_strand = strand_map[pos_in_diag+ m+n];
-                        auto top_strand = strand_map[m - 1 + top_edge+m+n];
+                        auto left_strand = third_phase_map[pos_in_diag];
+                        auto top_strand = third_phase_map[m - 1 + top_edge];
                         bool r = a[m - 1 - pos_in_diag] == b[offset + top_edge] || (left_strand > top_strand);
-                        if (r) std::swap(strand_map[pos_in_diag+m+n], strand_map[m - 1 + top_edge+m+n]);
+
+                        third_phase_map[pos_in_diag] = (left_strand & (r - 1))  | ((-r) &  top_strand);
+                        third_phase_map[m - 1 + top_edge]  = (top_strand & (r - 1)) | ((-r) & left_strand );
                     }
-#pragma omp for simd schedule(auto)
+
+                    #pragma omp for simd schedule(static)
                     for (int pos_in_diag = in_third_phase; pos_in_diag < m; ++pos_in_diag) {
                         auto top_edge = diag_number + pos_in_diag + 1 - m;
                         auto left_strand = strand_map[pos_in_diag];
                         auto top_strand = strand_map[m + top_edge];
                         bool r = a[m - 1 - pos_in_diag] == b[top_edge] || (left_strand > top_strand);
-                        if (r) std::swap(strand_map[pos_in_diag], strand_map[m + top_edge]);
 
+                        strand_map[pos_in_diag] = (left_strand & (r - 1))  | ((-r) &  top_strand);
+                        strand_map[m + top_edge]  = (top_strand & (r - 1)) | ((-r) & left_strand );
                     }
                     in_third_phase--;
                 }
 
-                // second phase
+                //phase 2
+                auto i = m - 1;
+                auto top_edge = m;
                 for (int j = 0; j < offset; ++j) {
-                    auto top_edge = m + j;
-                    auto i = m - 1;
-#pragma omp for simd schedule(static)
-                    for (int k = 0; k < m; ++k) {
-                        auto left_strand = strand_map[k];
-                        auto right_strand = strand_map[top_edge + k];
-                        bool r = a[i - k] == b[j + k] || (left_strand > right_strand);
-                        if (r) std::swap(strand_map[top_edge + k], strand_map[k]);
-                    }
+                    anti_diagonal_computation_branchless(strand_map,a,b,m,0,top_edge,i,j);
+                    top_edge++;
                 }
 
-
-#pragma omp for simd schedule(static) nowait
+                #pragma omp for simd schedule(static) nowait
                 for (int l = 0; l < m; l++) {
                     if (l == m - 1) {
                         p.set_point(strand_map[l], n + l);
@@ -593,7 +518,7 @@ namespace semi_local {
                 }
 
 
-#pragma omp for simd schedule(static) nowait
+                #pragma omp for simd schedule(static) nowait
                 for (int r = m; r < m + n; r++) {
                     if ((r - m) < offset) {
                         p.set_point(strand_map[r], r - m);
@@ -602,18 +527,18 @@ namespace semi_local {
                     }
                 }
 
-#pragma omp for simd schedule(static) nowait
+                #pragma omp for simd schedule(static) nowait
                 for (int l = 0; l < m - 1; l++) {
                     q.set_point(third_phase_map[l], m - 1 + l);
                 }
 
 
-#pragma omp for simd schedule(static) nowait
+                #pragma omp for simd schedule(static) nowait
                 for (int r = m - 1; r < m + m - 2; r++) {
                     q.set_point(third_phase_map[r], r - (m - 1));
                 }
 
-#pragma omp barrier
+                #pragma omp barrier
             }
 
             glueing_part_to_whole(&p, &q, map, offset, 1, &matrix, nested_parall_regions);

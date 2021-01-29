@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     auto perm = Permutation(a_size+b_size,a_size+b_size);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    semi_local::strand_combing_approach::first_and_third_phase_merged(perm, a, a_size, b, b_size,map,0, thds);
+    semi_local::strand_combing_approach::first_and_third_phase_merged(perm, a, a_size, b, b_size,map,2, thds);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
     std::cout << precalc_elapsed_time <<   std::endl; // some preprocess
