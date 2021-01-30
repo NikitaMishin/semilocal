@@ -26,7 +26,7 @@ SOLUTIONS_FOLDER = 'braid_mults_solutions'  # where we put our ready to run impl
 
 CSV_FILE = 'braid_mul.csv'
 
-REPEATS = 30
+REPEATS = 20
 default_logger = Logger('log.txt')
 build_logger = Logger('build_log.txt')
 
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     args = arg_parser.parse_args()
     runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, args.depth)
 
-    n = [1000, 10000, 20000, 40000, 80000, 160000, 320000,500000, 640000,1000000,2000000,4000000,5000000,7500000,10000000]
+    n = [1000, 10000, 20000,30000, 40000, 50000,60000,70000,80000,90000,100000, 160000, 320000,500000, 640000,1000000,2000000,4000000,5000000,7500000,10000000]
     tests = [BraidMulTest(str(x), '42') for x in n]
 
     run_tests(runners, tests, REPEATS)
