@@ -10,7 +10,8 @@ from utils.results import BraidResult
 from utils.runners import BraidMulRunner, Runner
 from utils.tests import RunStrategy, BraidMulTest
 
-CXX_COMPILER_PATH = '/usr/bin/g++-10'
+# /usr/bin/g++-10
+CXX_COMPILER_PATH = '/usr/bin/g++'
 
 SINGLE_THREADED_SOLUTIONS = [
     'braid_multiplication_sequential_non_optimized',

@@ -38,7 +38,8 @@ int main(int argc, char *argv[]) {
     auto perm = Permutation(a_size+b_size,a_size+b_size);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    semi_local::hybrid_approach::hybrid(perm, a, a_size, b, b_size,map,1,0,6,0, true);
+    int depth =  ceil(log(thds));
+    semi_local::hybrid_approach::hybrid(perm, a, a_size, b, b_size,map, thds,3,depth,depth, true);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
     std::cout << precalc_elapsed_time   << std::endl; // some preprocess

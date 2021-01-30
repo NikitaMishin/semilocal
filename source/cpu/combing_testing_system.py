@@ -11,29 +11,30 @@ from utils.results import CombingResult
 from utils.runners import Runner, CombingRunner
 from utils.tests import RunStrategy, CombingTest
 
-CXX_COMPILER_PATH = '/usr/bin/g++-10'
+# /usr/bin/g++-10
+CXX_COMPILER_PATH = '/usr/bin/g++'
+
 
 SINGLE_THREADED_SOLUTIONS = [
-    # 'semi_local_naive_iterative'
+    'semi_local_naive_iterative',
     'prefix_lcs',
-    'semi_local_naive_rec'
+    # 'semi_local_naive_rec'
 ]
 
 MULTI_THREADED_SOLUTIONS = [
-    # 'semi_local_parallel_iterative'
-    # 'semi_local_parallel_hybrid',
-    # 'semi_local_parallel_1and3_combined_iterative',
-    # 'semi_local_parallel_inversea_iterative',
-    # 'semi_local_parallel_withoutif_iterative',
+    'semi_local_parallel_iterative',
+    'semi_local_parallel_hybrid',
+    'semi_local_parallel_1and3_combined_iterative',
+    'semi_local_parallel_withoutif_iterative',
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
-CSV_FILE = 'results.csv'
+CSV_FILE = 'results_combing.csv'
 
-REPEATS = 3
-default_logger = Logger('log.txt')
-build_logger = Logger('build_log.txt')
+REPEATS = 15
+default_logger = Logger('log2.txt')
+build_logger = Logger('build_log2.txt')
 
 
 def build_combing_algorithms(sequential_algos, parallel_algos, max_thds, folder_with_impls):
@@ -166,7 +167,7 @@ if __name__ == '__main__':
     for i in range(len(test_cases)):
         for j in range(i+1,len(test_cases)):
             x,y = test_cases[i], test_cases[j]
-            if x[1] != y[1] and x[0] == y[0] and x[0]<=50000:
+            if x[1] != y[1] and x[0] == y[0]:
                 tests.append( (x[0], CombingTest(x[1],y[1]) ) )
 
     tests.sort(key=lambda  x: x[0])

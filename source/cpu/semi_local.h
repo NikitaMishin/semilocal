@@ -615,11 +615,12 @@ namespace semi_local {
 
             //base case
             if (depth <= 0) {
-                if(branchless_mode) {
-                    strand_combing_approach::first_and_third_phase_merged_branchless( perm, a, m, b, n, map,braid_mul_parall_depth,thds_per_combing_algo);
-                    } else {
-                         strand_combing_approach::first_and_third_phase_merged(perm, a, m, b, n, map, braid_mul_parall_depth, thds_per_combing_algo);
-                    }
+                strand_combing_approach::sticky_braid_mpi(perm, a, m, b, n,thds_per_combing_algo);
+//                if(branchless_mode) {
+//                    strand_combing_approach::first_and_third_phase_merged_branchless( perm, a, m, b, n, map,braid_mul_parall_depth,thds_per_combing_algo);
+//                    } else {
+//                         strand_combing_approach::first_and_third_phase_merged(perm, a, m, b, n, map, braid_mul_parall_depth, thds_per_combing_algo);
+//                    }
                 return;
             }
 
