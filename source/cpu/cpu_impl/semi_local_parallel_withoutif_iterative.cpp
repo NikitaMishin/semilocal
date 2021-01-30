@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     auto perm = Permutation(a_size+b_size,a_size+b_size);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    semi_local::strand_combing_approach::sticky_braid_mpi_withoutif(perm, a, a_size, b, b_size, thds);
+    semi_local::strand_combing_approach::sticky_braid_mpi_branchless(perm, a, a_size, b, b_size, thds);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
     std::cout << 0   << std::endl; // some preprocess

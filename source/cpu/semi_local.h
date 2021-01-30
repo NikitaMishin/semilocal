@@ -128,22 +128,6 @@ namespace semi_local {
         using namespace distance_unit_monge_product::steady_ant;
 
 
-        inline void anti_diagonal_computation(int *strand_map, const int *a, const int *b, int upper_bound,
-                                              int left_edge, int top_edge, int offset_a,int offset_b){
-
-            #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
-            for (int k = 0; k < upper_bound ; ++k) {
-                auto left_strand = strand_map[left_edge + k];
-                auto right_strand = strand_map[top_edge + k];
-
-                auto r = a[offset_a - k] == b[offset_b + k] || (left_strand > right_strand);
-
-                if (r) {
-                    std::swap(strand_map[top_edge + k],strand_map[left_edge + k]);
-                }
-            }
-        }
-
         inline void anti_diagonal_computation_rev(int *strand_map, const int* a, const int *b,int  upper_bound,
                                                   int left_edge, int top_edge, int offset_a,int offset_b){
 
@@ -168,8 +152,6 @@ namespace semi_local {
 
                 bool r = a[offset_a + k] == b[offset_b + k] || (left_strand > right_strand);
 
-                //                        strand_map[left_edge + k] = strand_map[left_edge + k] * (1-r) + r *  strand_map[top_edge + k];
-//                        strand_map[top_edge + k]  = strand_map[top_edge + k] * (1 - r) + r * strand_map[left_edge + k];
                 strand_map[left_edge + k] = (left_strand & (r - 1))  | ((-r) &  right_strand);
                 strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) & left_strand );
             }
@@ -178,7 +160,7 @@ namespace semi_local {
         inline void anti_diagonal_computation_branchless(int *strand_map, const int* a, const int *b,int  upper_bound,
                                                              int left_edge, int top_edge, int offset_a,int offset_b){
 
-#pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
+            #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
             for (int k = 0; k < upper_bound ; ++k) {
                 auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
@@ -232,6 +214,13 @@ namespace semi_local {
 
         }
 
+        inline void fill_a_reverse(const int*a, int * a_reverse, int m){
+            #pragma omp  for simd schedule(static)
+            for (int i = 0; i < m; ++i) {
+                a_reverse[i] = a[m - 1 - i];
+            }
+        }
+
         void
         sticky_braid_sequential(AbstractPermutation &permutation, const int *a, int a_size, const int *b, int b_size) {
             auto m = a_size;
@@ -269,7 +258,6 @@ namespace semi_local {
 
             if (a_size > b_size) {
                 sticky_braid_mpi(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
-
                 return;
             }
             auto m = a_size;
@@ -281,18 +269,21 @@ namespace semi_local {
 
             auto num_diag = m + n - 1;
             auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
+            int *a_reverse = new int[m];
 
 
-#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
+            #pragma omp parallel num_threads(threads_num)  default(none) shared(a_reverse,a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
             {
                 int left_edge, top_edge;
                 //    init phase
                 initialization(strand_map,m,n);
+                fill_a_reverse(a, a_reverse, m);
+
                 //    phase one
                 top_edge = m;
                 left_edge = m - 1;
                 for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                    anti_diagonal_computation(strand_map,a,b,cur_diag_len+1,left_edge,top_edge,cur_diag_len,0);
+                    anti_diagonal_computation_rev(strand_map, a_reverse, b, cur_diag_len + 1, left_edge, top_edge, left_edge, 0);
                     left_edge--;
                 }
 
@@ -300,7 +291,7 @@ namespace semi_local {
                 auto i = m - 1;
                 top_edge = m;
                 for (int j = 0; j < total_same_length_diag; ++j) {
-                    anti_diagonal_computation(strand_map,a,b,m,0,top_edge,i,j);
+                    anti_diagonal_computation_rev(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
                     top_edge++;
                 }
 
@@ -310,25 +301,28 @@ namespace semi_local {
                 top_edge = start_j + m;
 
                 for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-                    anti_diagonal_computation(strand_map, a, b, diag_len+1, 0, top_edge, i, start_j);
+                    anti_diagonal_computation_rev(strand_map,a_reverse,b, diag_len + 1, 0, top_edge, 0, start_j);
                     top_edge++;
                 }
 
                 construct_permutation(matrix,strand_map,is_reverse, m, n);
             }
+
+            delete[] a_reverse;
             delete[] strand_map;
         }
 
-        void sticky_braid_mpi_reversea(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
-                              int threads_num = 1, bool is_reverse = false) {
+        void sticky_braid_mpi_branchless(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
+                                         int threads_num = 1, bool is_reverse = false) {
 
             if (a_size > b_size) {
-                sticky_braid_mpi(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
+                sticky_braid_mpi_branchless(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
                 return;
             }
-
             auto m = a_size;
             auto n = b_size;
+
+            int *a_reverse = new int[a_size];
 
             auto size = m + n;
             int *strand_map = new int[size];
@@ -337,64 +331,10 @@ namespace semi_local {
             auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
 
 
-            #pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a_reverse,a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
             {
-                int left_edge, top_edge;
-                //    init phase
-                initialization(strand_map,m,n);
 
-
-                //    phase one
-                top_edge = m;
-                left_edge = m - 1;
-                for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                    anti_diagonal_computation_rev(strand_map, a, b, cur_diag_len + 1, left_edge, top_edge, left_edge, 0);
-                    left_edge--;
-                }
-
-                top_edge = m;
-                for (int j = 0; j < total_same_length_diag; ++j) {
-                    anti_diagonal_computation_rev(strand_map, a, b, m, 0, top_edge, 0, j);
-                    top_edge++;
-                }
-
-                ////    phase 3
-                auto start_j = total_same_length_diag;
-
-                for (int diag_len = m - 2; diag_len >= 0; --diag_len) {
-                    top_edge = start_j + m;
-                    anti_diagonal_computation_rev(strand_map,a,b, diag_len + 1, 0, top_edge, 0, start_j);
-                    start_j++;
-                }
-
-                construct_permutation(matrix,strand_map,is_reverse, m, n);
-            }
-
-            delete[] strand_map;
-        }
-
-
-        void sticky_braid_mpi_withoutif(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
-                              int threads_num = 1, bool is_reverse = false) {
-
-            if (a_size > b_size) {
-                sticky_braid_mpi_withoutif(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
-
-                return;
-            }
-            auto m = a_size;
-            auto n = b_size;
-
-
-            auto size = m + n;
-            int *strand_map = new int[size];
-
-            auto num_diag = m + n - 1;
-            auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
-
-
-#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
-            {
+                fill_a_reverse(a,a_reverse,m);
                 int left_edge, top_edge;
                 //    init phase
                 initialization(strand_map,m,n);
@@ -402,7 +342,7 @@ namespace semi_local {
                 top_edge = m;
                 left_edge = m - 1;
                 for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                    anti_diagonal_computation_branchless(strand_map,a,b,cur_diag_len+1,left_edge,top_edge,cur_diag_len,0);
+                    anti_diagonal_computation_rev_branchless(strand_map, a_reverse, b, cur_diag_len + 1, left_edge, top_edge, left_edge, 0);
                     left_edge--;
                 }
 
@@ -410,7 +350,7 @@ namespace semi_local {
                 auto i = m - 1;
                 top_edge = m;
                 for (int j = 0; j < total_same_length_diag; ++j) {
-                    anti_diagonal_computation_branchless(strand_map,a,b,m,0,top_edge,i,j);
+                    anti_diagonal_computation_rev_branchless(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
                     top_edge++;
                 }
 
@@ -420,20 +360,21 @@ namespace semi_local {
                 top_edge = start_j + m;
 
                 for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-                    anti_diagonal_computation_branchless(strand_map, a, b, diag_len+1, 0, top_edge, i, start_j);
+                    anti_diagonal_computation_rev_branchless(strand_map,a_reverse,b, diag_len + 1, 0, top_edge, 0, start_j);
                     top_edge++;
                 }
 
                 construct_permutation(matrix,strand_map,is_reverse, m, n);
             }
             delete[] strand_map;
+            delete[] a_reverse;
         }
 
-
-        void first_and_third_phase_merged(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
+//3299139415
+        void first_and_third_phase_merged_branchless(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
                                           steady_ant_approach::PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
             if (a_size > b_size) {
-                return first_and_third_phase_merged(matrix, b, b_size, a, a_size,  map, nested_parall_regions,threads_num);
+                return first_and_third_phase_merged_branchless(matrix, b, b_size, a, a_size,  map, nested_parall_regions,threads_num);
             }
 
             //assume |a|<=|b|
@@ -450,11 +391,13 @@ namespace semi_local {
             auto q = Permutation(third_phase_map_size, third_phase_map_size);
 
             auto offset = n - (m - 1);
+            int *a_reverse = new int[m];
 
-#pragma omp parallel num_threads(threads_num)  default(none) shared(a, b, strand_map, size, m, n, matrix, p, q, offset, third_phase_map, third_phase_map_size)
+            #pragma omp parallel num_threads(threads_num)  default(none) shared(a, a_reverse, b, strand_map, size, m, n, matrix, p, q, offset, third_phase_map, third_phase_map_size)
             {
-                int in_third_phase = m - 1;
 
+                fill_a_reverse(a,a_reverse,m);
+                int in_third_phase = m - 1;
                 //    init phase
                 #pragma omp for simd schedule(static) nowait
                 for (int k = 0; k < (m + n); ++k) {
@@ -481,7 +424,7 @@ namespace semi_local {
                         auto top_edge = diag_number + pos_in_diag;
                         auto left_strand = third_phase_map[pos_in_diag];
                         auto top_strand = third_phase_map[m - 1 + top_edge];
-                        bool r = a[m - 1 - pos_in_diag] == b[offset + top_edge] || (left_strand > top_strand);
+                        bool r = a_reverse[pos_in_diag] == b[offset + top_edge] || (left_strand > top_strand);
 
                         third_phase_map[pos_in_diag] = (left_strand & (r - 1))  | ((-r) &  top_strand);
                         third_phase_map[m - 1 + top_edge]  = (top_strand & (r - 1)) | ((-r) & left_strand );
@@ -492,7 +435,7 @@ namespace semi_local {
                         auto top_edge = diag_number + pos_in_diag + 1 - m;
                         auto left_strand = strand_map[pos_in_diag];
                         auto top_strand = strand_map[m + top_edge];
-                        bool r = a[m - 1 - pos_in_diag] == b[top_edge] || (left_strand > top_strand);
+                        bool r = a_reverse[pos_in_diag] == b[top_edge] || (left_strand > top_strand);
 
                         strand_map[pos_in_diag] = (left_strand & (r - 1))  | ((-r) &  top_strand);
                         strand_map[m + top_edge]  = (top_strand & (r - 1)) | ((-r) & left_strand );
@@ -504,7 +447,7 @@ namespace semi_local {
                 auto i = m - 1;
                 auto top_edge = m;
                 for (int j = 0; j < offset; ++j) {
-                    anti_diagonal_computation_branchless(strand_map,a,b,m,0,top_edge,i,j);
+                    anti_diagonal_computation_branchless(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
                     top_edge++;
                 }
 
@@ -544,6 +487,120 @@ namespace semi_local {
             glueing_part_to_whole(&p, &q, map, offset, 1, &matrix, nested_parall_regions);
 
             delete[] strand_map;
+            delete[] a_reverse;
+        }
+
+        void first_and_third_phase_merged(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
+                                                     steady_ant_approach::PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
+            if (a_size > b_size) {
+                return first_and_third_phase_merged(matrix, b, b_size, a, a_size,  map, nested_parall_regions,threads_num);
+            }
+
+            auto m = a_size;
+            auto n = b_size;
+
+            auto size = m + n;
+            int *strand_map = new int[size + 2 * (m - 1)];
+            auto third_phase_map_size = m * 2 - 2;
+            auto third_phase_map = strand_map + size;
+
+            auto p = Permutation(m + n, m + n);
+            auto q = Permutation(third_phase_map_size, third_phase_map_size);
+
+            auto offset = n - (m - 1);
+            int *a_reverse = new int[m];
+
+#pragma omp parallel num_threads(threads_num)  default(none) shared(a, a_reverse, b, strand_map, size, m, n, matrix, p, q, offset, third_phase_map, third_phase_map_size)
+            {
+
+                fill_a_reverse(a,a_reverse,m);
+                int in_third_phase = m - 1;
+                //    init phase
+#pragma omp for simd schedule(static) nowait
+                for (int k = 0; k < (m + n); ++k) {
+                    strand_map[k] = k;
+                }
+
+#pragma omp for simd schedule(static) nowait
+                for (int k = 0; k < third_phase_map_size; ++k) {
+                    if (k < m - 1) {
+                        third_phase_map[k] = 2 * k;
+                    } else {
+                        third_phase_map[k] = (k - (m - 1)) * 2 + 1;
+                    }
+                }
+#pragma omp barrier
+
+
+                for (int diag_number = 0; diag_number < m - 1; ++diag_number) {
+
+
+#pragma omp for simd schedule(static) nowait
+                    for (int pos_in_diag = 0; pos_in_diag < in_third_phase; ++pos_in_diag) {
+
+                        auto top_edge = diag_number + pos_in_diag;
+                        auto left_strand = third_phase_map[pos_in_diag];
+                        auto top_strand = third_phase_map[m - 1 + top_edge];
+                        bool r = a_reverse[pos_in_diag] == b[offset + top_edge] || (left_strand > top_strand);
+                        if(r) std::swap(third_phase_map[pos_in_diag],third_phase_map[m - 1 + top_edge]);
+                    }
+
+#pragma omp for simd schedule(static)
+                    for (int pos_in_diag = in_third_phase; pos_in_diag < m; ++pos_in_diag) {
+                        auto top_edge = diag_number + pos_in_diag + 1 - m;
+                        auto left_strand = strand_map[pos_in_diag];
+                        auto top_strand = strand_map[m + top_edge];
+                        bool r = a_reverse[pos_in_diag] == b[top_edge] || (left_strand > top_strand);
+                        if(r) std::swap(strand_map[pos_in_diag],strand_map[m + top_edge]);
+                    }
+                    in_third_phase--;
+                }
+
+                //phase 2
+                auto i = m - 1;
+                auto top_edge = m;
+                for (int j = 0; j < offset; ++j) {
+                    anti_diagonal_computation_rev(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
+                    top_edge++;
+                }
+
+#pragma omp for simd schedule(static) nowait
+                for (int l = 0; l < m; l++) {
+                    if (l == m - 1) {
+                        p.set_point(strand_map[l], n + l);
+                    } else {
+                        p.set_point(strand_map[l], l * 2 + offset);
+                    }
+                }
+
+
+#pragma omp for simd schedule(static) nowait
+                for (int r = m; r < m + n; r++) {
+                    if ((r - m) < offset) {
+                        p.set_point(strand_map[r], r - m);
+                    } else {
+                        p.set_point(strand_map[r], (r - m - offset + 1) * 2 + offset - 1);
+                    }
+                }
+
+#pragma omp for simd schedule(static) nowait
+                for (int l = 0; l < m - 1; l++) {
+                    q.set_point(third_phase_map[l], m - 1 + l);
+                }
+
+
+#pragma omp for simd schedule(static) nowait
+                for (int r = m - 1; r < m + m - 2; r++) {
+                    q.set_point(third_phase_map[r], r - (m - 1));
+                }
+
+#pragma omp barrier
+            }
+
+            glueing_part_to_whole(&p, &q, map, offset, 1, &matrix, nested_parall_regions);
+
+            delete[] strand_map;
+            delete[] a_reverse;
         }
     }
 
@@ -556,12 +613,28 @@ namespace semi_local {
 
 
 
-        void hybrid(AbstractPermutation &perm,const int *a, int m, const int *b, int n, steady_ant_approach::PrecalcMap &map,
-                     int depth, int thds_per_combing_algo, int nested_parallel = 0) {
+        void hybrid(
+                AbstractPermutation &perm,const int *a, int m, const int *b, int n,
+                steady_ant_approach::PrecalcMap &map,  int thds_per_combing_algo,
+                int braid_mul_parall_depth, int depth,int parallel_depth = 1,bool branchless_mode = false) {
 
-
+            //base case
             if (depth <= 0) {
-                strand_combing_approach::sticky_braid_mpi(perm, a, m, b, n, thds_per_combing_algo);
+                if (m>n){
+                    auto p = Permutation(m+n, m+n);
+                    if(branchless_mode) {
+                        strand_combing_approach::first_and_third_phase_merged_branchless(p, a, m, b, n, map,
+                                                                              braid_mul_parall_depth,
+                                                                              thds_per_combing_algo);
+                    }else {
+                         strand_combing_approach::first_and_third_phase_merged(p, a, m, b, n, map,
+                                                                               braid_mul_parall_depth,
+                                                                               thds_per_combing_algo);
+                    }
+                    steady_ant_approach::fill_permutation_ba(&p, &perm, m, n);
+                } else {
+                    strand_combing_approach::first_and_third_phase_merged(perm, a, m, b, n,map, braid_mul_parall_depth,thds_per_combing_algo);
+                }
                 return;
             }
 
@@ -574,12 +647,28 @@ namespace semi_local {
                 auto subtree_l = Permutation(n1 + m, n1 + m);
                 auto subtree_r = Permutation(n - n1 + m, n - n1 + m);
 
-                hybrid(subtree_l,b1, n1, a, m, map, depth-1, thds_per_combing_algo, nested_parallel);
-                hybrid(subtree_r,b2, n - n1, a, m, map, depth-1, thds_per_combing_algo, nested_parallel);
+                if (parallel_depth > 0) {
+                #pragma omp parallel num_threads(2)
+                    {
+                #pragma omp single nowait
+                        {
+                #pragma omp task
+                            hybrid(subtree_l,b1, n1, a, m, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1, parallel_depth-1,branchless_mode);
+
+                #pragma omp task
+                            hybrid(subtree_r,b2, n - n1, a, m, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1, parallel_depth-1,branchless_mode);
+                        }
+
+                    }
+                #pragma omp taskwait
+                } else {
+                    hybrid(subtree_l,b1, n1, a, m, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1,parallel_depth-1,branchless_mode);
+                    hybrid(subtree_r,b2, n - n1, a, m, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1, parallel_depth-1,branchless_mode);
+                }
 
                 auto product = Permutation(perm.row_size, perm.col_size);
 
-                staggered_sticky_multiplication(&subtree_l, &subtree_r, m, map, &product, 0);
+                staggered_sticky_multiplication(&subtree_l, &subtree_r, m, map, &product, braid_mul_parall_depth);
                 steady_ant_approach::fill_permutation_ba(&product, &perm, m, n);
             } else {
 
@@ -591,27 +680,24 @@ namespace semi_local {
                 auto subtree_r = Permutation(m - m1 + n, m - m1 + n);
 
 
-                if (nested_parallel > 0) {
-#pragma omp parallel num_threads(2)
+                if (parallel_depth > 0) {
+                    #pragma omp parallel num_threads(2)
                     {
-#pragma omp single nowait
+                        #pragma omp single nowait
                         {
-#pragma omp task
-                            hybrid(subtree_l,a1, m1, b, n, map, depth-1, thds_per_combing_algo,
-                                   nested_parallel - 1);
-#pragma omp task
-                            hybrid(subtree_r, a2, m - m1, b, n, map, depth-1, thds_per_combing_algo,
-                                   nested_parallel - 1);
+                            #pragma omp task
+                            hybrid(subtree_l,a1, m1, b, n, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1,parallel_depth-1,branchless_mode);
+                            #pragma omp task
+                            hybrid(subtree_r, a2, m - m1, b, n, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1,parallel_depth-1,branchless_mode);
                         }
-
                     }
-#pragma omp taskwait
+                    #pragma omp taskwait
                 } else {
-                    hybrid(subtree_l, a1, m1, b, n, map, depth-1, thds_per_combing_algo, nested_parallel);
-                    hybrid(subtree_r,a2, m - m1, b, n, map, depth-1, thds_per_combing_algo, nested_parallel);
+                    hybrid(subtree_l, a1, m1, b, n, map, thds_per_combing_algo, braid_mul_parall_depth,depth-1,parallel_depth-1,branchless_mode);
+                    hybrid(subtree_r,a2, m - m1, b, n, map, thds_per_combing_algo,braid_mul_parall_depth,depth-1,parallel_depth-1,branchless_mode);
                 }
 
-                staggered_sticky_multiplication(&subtree_l, &subtree_r, n, map, &perm, 0);
+                staggered_sticky_multiplication(&subtree_l, &subtree_r, n, map, &perm, braid_mul_parall_depth);
             }
 
 
