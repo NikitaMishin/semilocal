@@ -87,7 +87,6 @@ int prefix_lcs_sequential(std::vector<Input> a, std::vector<Input> b) {
     }
 
     return prev_row[n - 1];
-
 }
 
 

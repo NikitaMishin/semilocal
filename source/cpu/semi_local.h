@@ -128,17 +128,20 @@ namespace semi_local {
         using namespace distance_unit_monge_product::steady_ant;
 
 
-        inline void anti_diagonal_computation_rev(int *strand_map, const int* a, const int *b,int  upper_bound,
+         inline void anti_diagonal_computation_rev(int *strand_map, const int* a, const int *b,int  upper_bound,
                                                   int left_edge, int top_edge, int offset_a,int offset_b){
 
             #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
             for (int k = 0; k < upper_bound ; ++k) {
-                auto left_strand = strand_map[left_edge + k];
-                auto right_strand = strand_map[top_edge + k];
+                int left_strand = strand_map[left_edge + k];
+                int right_strand = strand_map[top_edge + k];
 
                 bool r = a[offset_a + k] == b[offset_b + k] || (left_strand > right_strand);
 
-                if (r) std::swap(strand_map[top_edge + k], strand_map[left_edge + k]);
+                if (r){
+                    strand_map[top_edge + k] = left_strand;
+                    strand_map[left_edge + k] = right_strand;
+                }
             }
         }
 
@@ -156,22 +159,6 @@ namespace semi_local {
                 strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) & left_strand );
             }
         }
-
-        inline void anti_diagonal_computation_branchless(int *strand_map, const int* a, const int *b,int  upper_bound,
-                                                             int left_edge, int top_edge, int offset_a,int offset_b){
-
-            #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
-            for (int k = 0; k < upper_bound ; ++k) {
-                auto left_strand = strand_map[left_edge + k];
-                auto right_strand = strand_map[top_edge + k];
-
-                auto r = a[offset_a - k] == b[offset_b + k] || (left_strand > right_strand);
-
-                strand_map[left_edge + k] = (left_strand & (r - 1))  | ((-r) &  right_strand);
-                strand_map[top_edge + k]  = (right_strand & (r - 1)) | ((-r) & left_strand );
-            }
-        }
-
 
 
         inline void initialization(int *strand_map,int m, int n){
@@ -235,13 +222,13 @@ namespace semi_local {
 
             // braid combing phase
             for (int i = 0; i < m; ++i) {
+                auto top_edge = m;
+                auto left_edge = m - 1 - i;
                 for (int j = 0; j < n; ++j) {
-                    auto left_edge = m - 1 - i;
-                    auto top_edge = m + j;
                     auto left_strand = strand_map[left_edge];
                     auto right_strand = strand_map[top_edge];
-
                     if (a[i] == b[j] || (left_strand > right_strand)) std::swap(strand_map[top_edge], strand_map[left_edge]);
+                    top_edge++;
                 }
             }
 
@@ -271,9 +258,11 @@ namespace semi_local {
             auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
             int *a_reverse = new int[m];
 
-
+            long long s;
             #pragma omp parallel num_threads(threads_num)  default(none) shared(a_reverse,a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
             {
+
+
                 int left_edge, top_edge;
                 //    init phase
                 initialization(strand_map,m,n);
@@ -374,7 +363,10 @@ namespace semi_local {
         void first_and_third_phase_merged_branchless(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
                                           steady_ant_approach::PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
             if (a_size > b_size) {
-                return first_and_third_phase_merged_branchless(matrix, b, b_size, a, a_size,  map, nested_parall_regions,threads_num);
+                auto p = Permutation(a_size+b_size,a_size+b_size);
+                first_and_third_phase_merged_branchless(p, b, b_size, a, a_size,  map, nested_parall_regions, threads_num);
+                steady_ant_approach::fill_permutation_ba(&p, &matrix, a_size, b_size);
+                return ;
             }
 
             //assume |a|<=|b|
@@ -447,7 +439,7 @@ namespace semi_local {
                 auto i = m - 1;
                 auto top_edge = m;
                 for (int j = 0; j < offset; ++j) {
-                    anti_diagonal_computation_branchless(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
+                    anti_diagonal_computation_rev_branchless(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
                     top_edge++;
                 }
 
@@ -493,7 +485,10 @@ namespace semi_local {
         void first_and_third_phase_merged(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
                                                      steady_ant_approach::PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
             if (a_size > b_size) {
-                return first_and_third_phase_merged(matrix, b, b_size, a, a_size,  map, nested_parall_regions,threads_num);
+                auto p = Permutation(a_size+b_size,a_size+b_size);
+                first_and_third_phase_merged(p, b, b_size, a, a_size,  map, nested_parall_regions,threads_num);
+                steady_ant_approach::fill_permutation_ba(&p, &matrix, a_size, b_size);
+                return;
             }
 
             auto m = a_size;
@@ -620,21 +615,11 @@ namespace semi_local {
 
             //base case
             if (depth <= 0) {
-                if (m>n){
-                    auto p = Permutation(m+n, m+n);
-                    if(branchless_mode) {
-                        strand_combing_approach::first_and_third_phase_merged_branchless(p, a, m, b, n, map,
-                                                                              braid_mul_parall_depth,
-                                                                              thds_per_combing_algo);
-                    }else {
-                         strand_combing_approach::first_and_third_phase_merged(p, a, m, b, n, map,
-                                                                               braid_mul_parall_depth,
-                                                                               thds_per_combing_algo);
+                if(branchless_mode) {
+                    strand_combing_approach::first_and_third_phase_merged_branchless( perm, a, m, b, n, map,braid_mul_parall_depth,thds_per_combing_algo);
+                    } else {
+                         strand_combing_approach::first_and_third_phase_merged(perm, a, m, b, n, map, braid_mul_parall_depth, thds_per_combing_algo);
                     }
-                    steady_ant_approach::fill_permutation_ba(&p, &perm, m, n);
-                } else {
-                    strand_combing_approach::first_and_third_phase_merged(perm, a, m, b, n,map, braid_mul_parall_depth,thds_per_combing_algo);
-                }
                 return;
             }
 

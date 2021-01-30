@@ -10,15 +10,9 @@
 #include <chrono>
 #include "../semi_local.h"
 #include "../fasta_parser.h"
+#include "../sequence_generators.h"
 
-/**
- * Solves semi-local problem for strings a and b.
- * Parallel  combing version.
- *  Use simd parallelism with antidiagonal pattern and thread-level parallism
- * @param argc
- * @param argv
- * @return
- */
+
 int main(int argc, char *argv[]) {
     int thds = strtol(argv[1], NULL, 10);
     std::string a_filepath = std::string(argv[2]);
