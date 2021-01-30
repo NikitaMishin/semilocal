@@ -73,8 +73,8 @@ def compile_programs(specified_solutions_single_threaded, specified_solutions_mu
                                     SOLUTIONS_FOLDER)
 
 
-def update_csv(runners: List[CombingRunner], results: Dict[str, Dict[str, List[CombingResult]]]):
-    with open(CSV_FILE, 'w') as f:
+def update_csv(runners: List[CombingRunner], results: Dict[str, Dict[str, List[CombingResult]]],file):
+    with open(file, 'w') as f:
         header = 'Test name, a_name, b_name, size_a, size_b'
         for runner in runners:
             header += f',{runner.name}_time_preprocess_mean,{runner.name}_time_preprocess_std' + \
@@ -106,7 +106,7 @@ def update_csv(runners: List[CombingRunner], results: Dict[str, Dict[str, List[C
             f.write(test + f',{a_name},{b_name},{size_a},{size_b}' + line + '\n')
 
 
-def run_tests(runners: List[CombingRunner], tests: List[CombingTest], repeats: int):
+def run_tests(runners: List[CombingRunner], tests: List[CombingTest], repeats: int,file):
     run_strategy = RunStrategy(runners, tests, repeats)
     results = {
         test.name: {
@@ -114,7 +114,7 @@ def run_tests(runners: List[CombingRunner], tests: List[CombingTest], repeats: i
         } for test in tests
     }
 
-    update_csv(runners, results)
+    update_csv(runners, results,file)
 
     info_log = {}
     cnt = 0
@@ -123,7 +123,7 @@ def run_tests(runners: List[CombingRunner], tests: List[CombingTest], repeats: i
         cnt += 1
 
         if isinstance(runner, str) and runner == 'iteration':
-            update_csv(runners, results)
+            update_csv(runners, results,file)
             continue
 
         if info_log.get((runner.name, test.name), '') == 'failed':
@@ -143,7 +143,7 @@ def run_tests(runners: List[CombingRunner], tests: List[CombingTest], repeats: i
             default_logger.write(f'{runner.name} failed on test {test.name} because of {e}')
             info_log[(runner.name, test.name)] = 'failed'
 
-    update_csv(runners, results)
+    update_csv(runners, results,file)
 
 
 # class CTestingSystem()
@@ -151,6 +151,7 @@ if __name__ == '__main__':
     arg_parser = ArgumentParser()
     arg_parser.add_argument('max_thds', type=int, help='Threads')
     arg_parser.add_argument('tests', type=str, help='Path to dataset with *.fna files, our specific format')
+    arg_parser.add_argument('resultcsvfile', type=str, help='csv file')
     args = arg_parser.parse_args()
 
     runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, args.max_thds)
@@ -173,4 +174,4 @@ if __name__ == '__main__':
     tests.sort(key=lambda  x: x[0])
     _, tests = zip(*tests)
     tests = list(tests)
-    run_tests(runners, tests, REPEATS)
+    run_tests(runners, tests, REPEATS,args.resultcsvfile)
