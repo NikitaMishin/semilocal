@@ -234,18 +234,18 @@ namespace semi_local {
                     right_strand = top_strands[j];
                     auto r = a_symbol == b[j] || (left_strand > right_strand);
 
-                    top_strands[j] = (right_strand & (r - 1))  | ((-r) &  left_strand);
-                    left_strand  = (left_strand & (r - 1))  | ((-r) &  right_strand);
-//                    if (r) {
-//                        top_strands[j] = left_strand;
-//                        left_strand = right_strand;
-//                    }
+//                    top_strands[j] = (right_strand & (r - 1))  | ((-r) &  left_strand);
+//                    left_strand  = (left_strand & (r - 1))  | ((-r) &  right_strand);
+                    if (r) {
+                        top_strands[j] = left_strand;
+                        left_strand = right_strand;
+                    }
                 }
                 right_strand = top_strands[n-1];
                 auto r = a_symbol == b[n-1] || (left_strand > right_strand);
                 left_strands[left_edge]  = (left_strand & (r - 1))  | ((-r) &  right_strand);
-//                if (r) top_strands[n-1] = left_strand;
-                top_strands[n-1] = (right_strand & (r - 1))  | ((-r) &  left_strand);
+                if (r) top_strands[n-1] = left_strand;
+//                top_strands[n-1] = (right_strand & (r - 1))  | ((-r) &  left_strand);
             }
 
             // permutation construction phase
