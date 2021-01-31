@@ -27,7 +27,7 @@ MULTI_THREADED_SOLUTIONS = [
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
 
-REPEATS = 2
+REPEATS = 1
 default_logger = Logger('log_single.txt')
 build_logger = Logger('build_single.txt')
 
@@ -163,7 +163,7 @@ if __name__ == '__main__':
     for i in range(len(test_cases)):
         for j in range(i+1,len(test_cases)):
             x,y = test_cases[i], test_cases[j]
-            if x[1] != y[1] and x[0] == y[0] and x[0]<= 50000:
+            if x[1] != y[1] and x[0] == y[0] and x[0]<= 40000:
                 tests.append( (x[0], CombingTest(x[1],y[1]) ) )
 
     tests.sort(key=lambda  x: x[0])
