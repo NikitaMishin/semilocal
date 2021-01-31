@@ -12,6 +12,7 @@ from utils.runners import Runner, CombingRunner
 from utils.tests import RunStrategy, CombingTest
 
 # /usr/bin/g++-10
+# CXX_COMPILER_PATH = '/usr/bin/g++-10'
 CXX_COMPILER_PATH = '/usr/bin/g++'
 
 
@@ -29,7 +30,7 @@ MULTI_THREADED_SOLUTIONS = [
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
 
-REPEATS = 2
+REPEATS = 3
 default_logger = Logger('log_single.txt')
 build_logger = Logger('build_single.txt')
 

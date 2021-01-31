@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < b_size ; ++i) b_vector->push_back(b[i]);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    auto score =  prefix_lcs_sequential_skewed(*a_vector,*b_vector);
+    auto score =  prefix_lcs_sequential_skewed(a,a_size,b,b_size);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
     std::cout << 0 <<  std::endl; // some preprocess

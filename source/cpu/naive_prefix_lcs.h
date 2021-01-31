@@ -89,15 +89,14 @@ int prefix_lcs_sequential(int* a, int a_size, int* b, int b_size) {
 }
 
 
-template<class Input>
-int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
+int prefix_lcs_sequential_skewed(int * a, int a_size, int* b, int b_size) {
 //    check special case 2x2
 
-    if (a.size() == 1 && b.size() == 1) {
+    if (a_size == 1 && b_size == 1) {
         return a[0] == b[0] ? 1 : 0;
     }
 
-    auto diagonal_size = 1 + std::min(a.size(), b.size());
+    auto diagonal_size = 1 + std::min(a_size, b_size);
     auto a1 = new int[diagonal_size];
     auto a2 = new int[diagonal_size];
     auto a3 = new int[diagonal_size];
@@ -106,8 +105,8 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
     auto pos_j = 0;
     auto start_i = pos_i;
     auto start_j = pos_j;
-    auto min = std::min(a.size(), b.size());
-    auto num_diag = a.size() + b.size() + 1;
+    auto min = std::min(a_size, b_size);
+    auto num_diag = a_size + b_size + 1;
     auto total_same_length_diag = num_diag - (min + 1) - min;
 
 //    init step
@@ -125,6 +124,7 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
         pos_j = 0;
         a3[0] = 0;
         a3[k - 1] = 0;
+//#pragma omp simd
         for (int i = 1; i < k - 1; ++i) {
             a3[i] = std::max(
                     std::max(a2[i], a2[i - 1]),
@@ -138,7 +138,7 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
     }
 
     // phase 2:: fill
-    if (a.size() >= b.size()) {
+    if (a_size >= b_size) {
         //        same pattern
         for (int k = 0; k < total_same_length_diag; ++k, start_i++) {
             pos_i = start_i;
@@ -167,7 +167,7 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
     pos_i = start_i;
     pos_j = 0;
 
-    if (a.size() < b.size()) {
+    if (a_size < b_size) {
         a3[diagonal_size - 1] = 0;
     }
 
@@ -183,7 +183,7 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
     std::swap(a1, a2);
     std::swap(a3, a2);
 
-    if (a.size() < b.size()) {
+    if (a_size < b_size) {
 //        since special case then -1
         for (int k = 0; k < total_same_length_diag; ++k, start_j++) {
             pos_i = start_i;
@@ -203,7 +203,7 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
         }
     }
 
-    if (a.size() >= b.size()) diagonal_size -= 1;
+    if (a_size >= b_size) diagonal_size -= 1;
 
 
 //    phase 3
@@ -227,7 +227,7 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
 
 
     //  need to calculate last one cell
-    return std::max(std::max(a2[0], a2[1]), (a[a.size() - 1]) == b[b.size() - 1] ? 1 + a1[1] : a1[1]);
+    return std::max(std::max(a2[0], a2[1]), (a[a_size - 1]) == b[b_size - 1] ? 1 + a1[1] : a1[1]);
 }
 
 

@@ -9,9 +9,7 @@ add_library(cpu semi_local.h  semi_local.cpp )
 # disable vectorization: -fno-tree-vectorize
 
 #set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -O0 -fopenmp  -fno-tree-vectorize -fopt-info-vec-optimized-optimized -fopt-info-vec-optimized-all")
-#set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -O1")
 set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall    -fstrict-aliasing    -fopt-info-vec-optimized-optimized -ffast-math -fopenmp   -march=native  -O3  -fopt-info-vec-optimized-all -funsafe-math-optimizations -fopt-info-vec-optimized-optimized  " )#    ")
-#set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11  -march=skylake ")
 
 add_executable(main main.cpp)
 target_link_libraries(main cpu)
