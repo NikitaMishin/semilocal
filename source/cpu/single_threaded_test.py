@@ -12,8 +12,8 @@ from utils.runners import Runner, CombingRunner
 from utils.tests import RunStrategy, CombingTest
 
 # /usr/bin/g++-10
-CXX_COMPILER_PATH = '/usr/bin/g++-10'
-# CXX_COMPILER_PATH = '/usr/bin/g++'
+# CXX_COMPILER_PATH = '/usr/bin/g++-10'
+CXX_COMPILER_PATH = '/usr/bin/g++'
 
 
 SINGLE_THREADED_SOLUTIONS = [

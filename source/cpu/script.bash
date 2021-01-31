@@ -9,13 +9,13 @@ python3 single_threaded_test.py 1 Datasets/synthethic_dataset/26/ res_26_single_
 python3 rec_testing_combing.py  1 Datasets/synthethic_dataset/26/ res_26_rec.csv
 
 # all for braid mult
-python3 braid_mul_testing_system.py 4
+python3 braid_mul_testing_system.py 7
 
 # test parallel versions
-python3 combing_testing_system.py 4 Datasets/synthethic_dataset/binary/ res_par_binary.csv
+python3 combing_testing_system.py 16 Datasets/synthethic_dataset/binary/ res_par_binary.csv
 
-python3 combing_testing_system.py 4 Datasets/synthethic_dataset/5/ res_par_5.csv
+python3 combing_testing_system.py 16 Datasets/synthethic_dataset/5/ res_par_5.csv
 
-python3 combing_testing_system.py 4 Datasets/synthethic_dataset/26/ res_par_26.csv
+python3 combing_testing_system.py 16 Datasets/synthethic_dataset/26/ res_par_26.csv
 
 # on real data need when find it
