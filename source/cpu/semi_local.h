@@ -119,7 +119,7 @@ namespace semi_local {
 
 
 
-
+//436757448
 
     /**
      *
@@ -214,30 +214,47 @@ namespace semi_local {
             auto n = b_size;
 
             auto size = m + n;
-            int *strand_map = new int[size];
-            // init phase
-            for (int i = 0; i < size; ++i) {
-                strand_map[i] = i;
+            auto top_strands = new int[n];
+            auto left_strands = new int[m];
+
+                    // init phase
+            for (int i = 0; i < m; ++i) {
+                left_strands[i] = i;
+            }
+            for (int i = 0; i < n; ++i) {
+                top_strands[i] = i+m;
             }
 
-            // braid combing phase
             for (int i = 0; i < m; ++i) {
-                auto top_edge = m;
                 auto left_edge = m - 1 - i;
-                for (int j = 0; j < n; ++j) {
-                    auto left_strand = strand_map[left_edge];
-                    auto right_strand = strand_map[top_edge];
-                    if (a[i] == b[j] || (left_strand > right_strand)) std::swap(strand_map[top_edge], strand_map[left_edge]);
-                    top_edge++;
+                auto left_strand =  left_strands[left_edge];
+                auto a_symbol = a[i];
+                int right_strand;
+                for (int j = 0; j < n-1; ++j) {
+                    right_strand = top_strands[j];
+                    auto r = a_symbol == b[j] || (left_strand > right_strand);
+
+                    top_strands[j] = (right_strand & (r - 1))  | ((-r) &  left_strand);
+                    left_strand  = (left_strand & (r - 1))  | ((-r) &  right_strand);
+//                    if (r) {
+//                        top_strands[j] = left_strand;
+//                        left_strand = right_strand;
+//                    }
                 }
+                right_strand = top_strands[n-1];
+                auto r = a_symbol == b[n-1] || (left_strand > right_strand);
+                left_strands[left_edge]  = (left_strand & (r - 1))  | ((-r) &  right_strand);
+//                if (r) top_strands[n-1] = left_strand;
+                top_strands[n-1] = (right_strand & (r - 1))  | ((-r) &  left_strand);
             }
 
             // permutation construction phase
-            for (int l = 0; l < m; l++) permutation.set_point(strand_map[l], n + l);
+            for (int l = 0; l < m; l++) permutation.set_point(left_strands[l], n + l);
 
-            for (int r = m; r < m + n; r++) permutation.set_point(strand_map[r], r - m);
+            for (int r = m; r < m + n; r++) permutation.set_point(top_strands[r-m], r - m);
 
-            delete[] strand_map;
+            delete[] left_strands;
+            delete[] top_strands;
         }
 
         void sticky_braid_mpi(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,

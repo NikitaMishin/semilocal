@@ -16,22 +16,22 @@ CXX_COMPILER_PATH = '/usr/bin/g++'
 
 
 SINGLE_THREADED_SOLUTIONS = [
+    'semi_local_naive_iterative',
+    'prefix_lcs',
+    'prefix_lcs_skewed',
 ]
 
 MULTI_THREADED_SOLUTIONS = [
     'semi_local_parallel_iterative',
-    'semi_local_parallel_hybrid',
-    'semi_local_parallel_1and3_combined_iterative',
     'semi_local_parallel_withoutif_iterative',
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
-CSV_FILE = 'results_combing.csv'
 
-REPEATS = 6
-default_logger = Logger('logpar.txt')
-build_logger = Logger('build_logpar.txt')
+REPEATS = 2
+default_logger = Logger('log_single.txt')
+build_logger = Logger('build_single.txt')
 
 
 def build_combing_algorithms(sequential_algos, parallel_algos, max_thds, folder_with_impls):

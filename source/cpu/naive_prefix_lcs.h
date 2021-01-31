@@ -47,21 +47,20 @@ int naive_prefix_lcs(std::vector<Input> a, std::vector<Input> b) {
  * @param b
  * @return
  */
-template<class Input>
-int prefix_lcs_sequential(std::vector<Input> a, std::vector<Input> b) {
+int prefix_lcs_sequential(int* a, int a_size, int* b, int b_size) {
 
-    std::vector<Input> input_a;
-    std::vector<Input> input_b;
+    int* input_a;
+    int * input_b;
     int m, n;
 
-    if (a.size() > b.size()) {
-        m = a.size() + 1;
-        n = b.size() + 1;
+    if (a > b) {
+        m = a_size + 1;
+        n = b_size + 1;
         input_a = a;
         input_b = b;
     } else {
-        n = a.size() + 1;
-        m = b.size() + 1;
+        n = a_size + 1;
+        m = b_size + 1;
         input_b = a;
         input_a = b;
     }
@@ -137,9 +136,6 @@ int prefix_lcs_sequential_skewed(std::vector<Input> a, std::vector<Input> b) {
         std::swap(a1, a2);
         std::swap(a3, a2);
     }
-//    if (a.size() <= b.size()) {
-//        start_i--;
-//    }
 
     // phase 2:: fill
     if (a.size() >= b.size()) {
