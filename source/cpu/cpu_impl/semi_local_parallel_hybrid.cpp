@@ -26,6 +26,7 @@ int main(int argc, char *argv[]) {
     int * b = split(name_content_b.second.second,",",b_size);
 
 
+//    omp_set_nested(true);
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
     auto beg_precalc = std::chrono::high_resolution_clock::now();
@@ -38,7 +39,7 @@ int main(int argc, char *argv[]) {
     auto perm = Permutation(a_size+b_size,a_size+b_size);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    int depth =  ceil(log(thds));
+    int depth =  ceil(thds);
     semi_local::hybrid_approach::hybrid(perm, a, a_size, b, b_size,map, thds,3,depth,depth, true);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
