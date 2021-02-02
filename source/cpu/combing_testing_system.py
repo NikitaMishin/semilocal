@@ -29,7 +29,7 @@ SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implemen
 
 CSV_FILE = 'results_combing.csv'
 
-REPEATS = 6
+REPEATS = 3
 default_logger = Logger('logpar.txt')
 build_logger = Logger('build_logpar.txt')
 
