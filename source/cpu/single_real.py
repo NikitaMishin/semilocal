@@ -16,18 +16,17 @@ CXX_COMPILER_PATH = '/usr/bin/g++'
 
 
 SINGLE_THREADED_SOLUTIONS = [
+    'semi_local_naive_iterative',
+    'prefix_lcs',
+    'prefix_lcs_skewed',
 ]
 
 MULTI_THREADED_SOLUTIONS = [
     'semi_local_parallel_iterative',
-    'semi_local_parallel_hybrid',
-    'semi_local_parallel_1and3_combined_iterative',
     'semi_local_parallel_withoutif_iterative',
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
-
-CSV_FILE = 'results_combing.csv'
 
 REPEATS = 2
 default_logger = Logger('logpar.txt')
@@ -160,12 +159,14 @@ if __name__ == '__main__':
             test_cases.append((size, os.path.join(args.tests, name)))
 
 
+    pair_tests = [(7742,9663),(13517,16945),(33356,39245),(43548,50884),(57623,59815),(74437,91721),(124884,134226)]
 
     tests = []
     for i in range(len(test_cases)):
-        for j in range(i+1,len(test_cases)):
+        for j in range(len(test_cases)):
             x,y = test_cases[i], test_cases[j]
-            if x[1] != y[1] and x[0] == y[0]:
+            if x[1] != y[1]  and (x[0],y[0]) in pair_tests :
+                print((x[0], y[0]))
                 tests.append( (x[0], CombingTest(x[1],y[1]) ) )
 
     tests.sort(key=lambda  x: x[0])

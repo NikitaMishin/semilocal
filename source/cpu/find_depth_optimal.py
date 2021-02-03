@@ -12,26 +12,24 @@ from utils.runners import Runner, CombingRunner
 from utils.tests import RunStrategy, CombingTest
 
 # /usr/bin/g++-10
+# CXX_COMPILER_PATH = '/usr/bin/g++-10'
 CXX_COMPILER_PATH = '/usr/bin/g++'
 
 
 SINGLE_THREADED_SOLUTIONS = [
+
 ]
 
 MULTI_THREADED_SOLUTIONS = [
-    'semi_local_parallel_iterative',
-    'semi_local_parallel_hybrid',
-    'semi_local_parallel_1and3_combined_iterative',
-    'semi_local_parallel_withoutif_iterative',
+    'semi_local_parallel_hybrid'
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
-CSV_FILE = 'results_combing.csv'
 
 REPEATS = 2
-default_logger = Logger('logpar.txt')
-build_logger = Logger('build_logpar.txt')
+default_logger = Logger('log_single.txt')
+build_logger = Logger('build_single.txt')
 
 
 def build_combing_algorithms(sequential_algos, parallel_algos, max_thds, folder_with_impls):
@@ -165,7 +163,7 @@ if __name__ == '__main__':
     for i in range(len(test_cases)):
         for j in range(i+1,len(test_cases)):
             x,y = test_cases[i], test_cases[j]
-            if x[1] != y[1] and x[0] == y[0]:
+            if x[1] != y[1] and x[0] == y[0] and x[0] in [10000, 50000, 100000, 7742,33356,74437]:
                 tests.append( (x[0], CombingTest(x[1],y[1]) ) )
 
     tests.sort(key=lambda  x: x[0])
