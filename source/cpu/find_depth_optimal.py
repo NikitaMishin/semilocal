@@ -158,12 +158,13 @@ if __name__ == '__main__':
             test_cases.append((size, os.path.join(args.tests, name)))
 
 
-
+    pairs = [(7742, 9663),(33356, 39245),(74437, 91721)]
     tests = []
     for i in range(len(test_cases)):
-        for j in range(i+1,len(test_cases)):
+        for j in range(len(test_cases)):
             x,y = test_cases[i], test_cases[j]
-            if x[1] != y[1] and x[0] == y[0] and x[0] in [10000, 50000, 100000, 7742,33356,74437]:
+            if x[1] != y[1] and ( (x[0] == y[0] and x[0] in [10000, 50000, 100000]) or ((x[0],y[0]) in pairs)):
+                print((x[0],y[0]))
                 tests.append( (x[0], CombingTest(x[1],y[1]) ) )
 
     tests.sort(key=lambda  x: x[0])

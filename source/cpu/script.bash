@@ -18,6 +18,8 @@
 #
 #python3 combing_testing_system.py 16 Datasets/synthethic_dataset/26/ res_par_26.csv
 #
+
+
 python3 find_depth_optimal.py 10 Datasets/synthethic_dataset/binary/ depth_binary.csv
 #
 python3 find_depth_optimal.py 10 Datasets/synthethic_dataset/5/ depth_5.csv
