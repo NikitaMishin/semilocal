@@ -2,10 +2,10 @@
 #include "gtest/gtest.h"
 #include "../sequence_generators.h"
 #include "../naive_prefix_lcs.h"
-#include "../transposition_network_approach/transposition_network_unbounded_alphabet.h"
+#include "../prefix_lcs/bitwise/transposition_network_unbounded_alphabet.h"
 #include "../semi_local.h"
-#include "../transposition_network_approach/transposition_network_binary_alphabet.h"
-#include "../transposition_network_approach/encoders_and_decoders.h"
+#include "../prefix_lcs/bitwise/transposition_network_binary_alphabet.h"
+#include "../prefix_lcs/bitwise/encoders_and_decoders.h"
 
 const int MAX_SIZE_B = 1800;
 const int ITERATIONS_PER_INPUT = 1;

@@ -3,13 +3,13 @@ project(cpu)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_library(cpu semi_local.h  semi_local.cpp )
+add_library(cpu semi_local.h  semi_local.cpp prefix_lcs/bitwise/transposition_network_binary_alphabet.h )
 #add_subdirectory(Google_tests)
 
 # disable vectorization: -fno-tree-vectorize
 
 #set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -O0 -fopenmp  -fno-tree-vectorize -fopt-info-vec-optimized-optimized -fopt-info-vec-optimized-all")
-set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall    -fopenmp   -march=native  -O3  " )#    ")
+set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall       -march=native  -O3  " )#    ")
 
 add_executable(main main.cpp)
 target_link_libraries(main cpu)

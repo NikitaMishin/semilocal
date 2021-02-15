@@ -30,7 +30,7 @@ MULTI_THREADED_SOLUTIONS = [
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
 
-REPEATS = 3
+REPEATS = 2
 default_logger = Logger('log_single.txt')
 build_logger = Logger('build_single.txt')
 

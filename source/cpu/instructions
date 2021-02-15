@@ -1,0 +1,25 @@
+1) Script one for compare rec semi-local vs iterative one
+    running implementations
+    -) semi_local_naive_rec
+    -) semi_local_naive_iterative
+    size up to 50000
+    repeats from 5 to 10
+
+2) Script two for compare iterative one vs prefix lcs
+    -) size up to 100000
+    -) repeats 5-10
+    -) semi_local_naive_iterative
+    -) prefix_lcs
+    -) different tests cases to show that comparable running time
+
+3) script to compare how each optimizations work
+    -) size up to 100000
+    -) threads up to 16 then step is 2, 1...16,18,20...32
+    -) differrent alphabets (tetst) to show how optimizations affect
+    -) branchless
+    -) hybrid brancheless
+    -) hybrid
+
+4) Braid mul how optimizations work +
+
+5) parallel version +

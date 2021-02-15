@@ -3,8 +3,8 @@
 #include <iostream>
 #include <chrono>
 #include "../fasta_parser.h"
-#include "../transposition_network_approach/encoders_and_decoders.h"
-#include "../transposition_network_approach/transposition_network_4symbol_alphabet_bit.h"
+#include "../prefix_lcs/bitwise/encoders_and_decoders.h"
+#include "../prefix_lcs/bitwise/transposition_network_4symbol_alphabet_bit.h"
 
 //static const int length = 1024*8;
 
