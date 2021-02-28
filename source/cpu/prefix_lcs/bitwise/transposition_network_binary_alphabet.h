@@ -326,72 +326,72 @@ namespace cell_routines {
     }
 
 
-    namespace mpi_4_size {
+    namespace mpi_nary_size {
         template<class Input>
         inline void process_antidiagonal(int lower_bound, int upper_bound, int l_edge, int t_edge,
-                                         Input *l_strands, Input *t_strands, Input const *a_reverse, Input const *b) {
+                                         Input *l_strands, Input *t_strands, Input const *a_reverse, Input const *b,
+                                         int residue=1,int bits_per_strand=1, Input braid_ones= ~Input(0)) {
+            Input single_strand = Input(1) << residue;
+            int size = sizeof(Input)*8 - residue - bits_per_strand;
 
-            const int strands_per_word = sizeof(Input) * 8 - 1;
-
-#pragma omp   for  simd schedule(static)  aligned(l_strands, t_strands:sizeof(Input)*8) aligned(a_reverse, b:sizeof(Input)*8)
+            #pragma omp   for  simd schedule(static)  aligned(l_strands, t_strands:sizeof(Input)*8) aligned(a_reverse, b:sizeof(Input)*8)
             for (int j = lower_bound; j < upper_bound; ++j) {
 
-                Input l_strand_cap, cond, inv_cond, t_strand_shifted;
+                Input l_strand_cap, cond, inv_cond, t_strand_cap;
                 //load phase
                 Input l_strand = l_strands[l_edge + j];
                 Input t_strand = t_strands[t_edge + j];
                 Input symbol_a = a_reverse[l_edge + j];
                 Input symbol_b = b[t_edge + j];
 
-                Input matches;
-                Input mask = Input(1);
+
+                Input mask = single_strand;
 
                 // manual say 256 just for complete
-#pragma GCC unroll  256
-                for (int shift = strands_per_word; shift > 0; shift--) {
+                #pragma GCC unroll  256
+                for (int shift = size; shift > 0; shift -= bits_per_strand) {
                     l_strand_cap = l_strand >> shift;
+                    t_strand_cap = t_strand << shift;
 
-                    cond = mask & ((~(((symbol_a >> shift)) ^ symbol_b)) | (((~(l_strand_cap)) & t_strand)));
-                    inv_cond = ~cond;
+                    //reduction block
+                    cond =  ~((symbol_a >> shift) ^ symbol_b);
+//                    #pragma GCC unroll  10
+//                    for(int i=1; i < bits_per_strand; i++) cond &= (cond>>i);
 
-                    t_strand_shifted = t_strand << shift;
-                    t_strand = (inv_cond & t_strand) | (cond & l_strand_cap);
+                    t_strand = (l_strand_cap | (braid_ones ^ mask)) & (t_strand | ( cond & mask));
+                    l_strand = t_strand_cap ^ (t_strand << shift) ^ l_strand;
 
-                    cond <<= shift;
-                    inv_cond = ~cond;
-
-                    l_strand = (inv_cond & l_strand) | (cond & t_strand_shifted);
-
-                    mask = (mask << 1) | Input(1);
+                    mask = (mask << bits_per_strand) | single_strand;
                 }
 
-                // center
-                matches = (~(symbol_a ^ symbol_b));
-                cond = (matches | ((~l_strand) & t_strand));
-                inv_cond = ~cond;
-                t_strand_shifted = t_strand;
-                t_strand = (inv_cond & t_strand) | (cond & l_strand);
-                l_strand = (inv_cond & l_strand) | (cond & t_strand_shifted);
+                cond =  ~((symbol_a) ^ symbol_b);
+//                #pragma GCC unroll  10
+//                for(int i=1; i < bits_per_strand; i++) cond &= (cond >> i);
 
-                mask = ~Input(0);
+                l_strand_cap = l_strand;
+                t_strand_cap = t_strand;
+
+                t_strand = (l_strand_cap | (~mask)) & (t_strand | ( cond & mask));
+                l_strand = t_strand_cap ^ (t_strand) ^ l_strand;
+
+                mask = braid_ones;
 
                 //lower half
-#pragma GCC unroll 256
-                for (int shift = 1; shift < strands_per_word + 1; shift++) {
-                    mask <<= 1;
+                #pragma GCC unroll 256
+                for (int shift = bits_per_strand; shift < size + bits_per_strand; shift += bits_per_strand) {
+                    mask <<= bits_per_strand;
 
-                    l_strand_cap = l_strand << (shift);
-                    matches = ~(((symbol_a << ((shift))) ^ symbol_b)); // NOT A XOR B = NOT (A XOR B)// ECONOMY
+                    //reduction block
+                    cond =  ~((symbol_a) ^ symbol_b);
+//                    #pragma GCC unroll  10
+//                    for(int i = 1; i < bits_per_strand; i++) cond &= (cond >> i);
 
-                    cond = mask & (matches | (((~(l_strand_cap)) & t_strand)));
-                    inv_cond = ~cond;
+                    l_strand_cap = l_strand << shift;
+                    t_strand_cap = t_strand >> shift;
+                    cond = ~(((symbol_a << (shift)) ^ symbol_b));
+                    t_strand = (l_strand_cap | (~mask)) & (t_strand | ( cond & mask));
+                    l_strand = t_strand_cap ^ (t_strand >> shift) ^ l_strand;
 
-                    t_strand_shifted = t_strand >> shift;
-                    t_strand = (inv_cond & t_strand) | (cond & l_strand_cap);
-                    cond >>= shift;
-                    inv_cond = ~cond;
-
-                    l_strand = (inv_cond & l_strand) | (cond & t_strand_shifted);
                 }
 
                 l_strands[l_edge + j] = l_strand;
@@ -651,6 +651,82 @@ namespace prefix_lcs_via_semi_local {
             return a_total_symbols - dis_braid;
         }
 
+
+    }
+
+    namespace  nary {
+        template<class Input>
+        int llcs_nary_symbol_smart_combing(Input *a_reverse, int a_size, Input *b, int b_size,
+                                           int a_total_symbols, int bits_per_symbol, int threads_num = 1) {
+            using namespace cell_routines::mpi_nary_size;
+            using namespace  cell_routines::mpi_binary_smart;
+            // also stored in the reverse order
+            Input *l_strands = static_cast<Input *> (aligned_alloc(sizeof(Input), sizeof(Input) * a_size));
+            Input *t_strands = static_cast<Input *> (aligned_alloc(sizeof(Input), sizeof(Input) * b_size));
+
+            auto m = a_size, n = b_size;
+
+            // total amount of strands that at the end hit right border of grid
+            int dis_braid = 0;
+
+            auto num_diag = m + n - 1;
+
+            auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
+
+            int residue = (sizeof(Input) * 8) % bits_per_symbol;
+//            Input braid_ones = 1 << residue;
+//            for (int i = 0; i < sizeof(Input)*8; i+=bits_per_symbol) braid_ones |= (braid_ones << i);
+            Input braid_ones = ~Input(0);
+
+            #pragma omp parallel num_threads(threads_num)  default(none) shared(residue,bits_per_symbol,braid_ones,l_strands, t_strands, a_reverse, b, m, n, dis_braid, total_same_length_diag)
+            {
+
+                // Initialization step, strands that hit the left grid border all have number 1; strands that hit top grid border are 0.
+                #pragma omp  for simd schedule(static) aligned(l_strands:sizeof(Input)*8)
+                for (int k = 0; k < m; ++k) l_strands[k] = braid_ones;
+                #pragma omp  for simd schedule(static) aligned(t_strands:sizeof(Input)*8)
+                for (int k = 0; k < n; ++k) t_strands[k] = Input(0);
+
+                // phase 1: process upper left triangle
+                for (int diag_len = 0; diag_len < m - 1; diag_len++) {
+//                    process_antidiag_formula2(0,diag_len + 1,m - 1 - diag_len,0,l_strands,t_strands,a_reverse,b);
+                    process_antidiagonal(0,diag_len + 1,m - 1 - diag_len,0,l_strands,t_strands,a_reverse,b,
+                                         residue,bits_per_symbol,braid_ones);
+
+                }
+
+                // phase2: process parallelogram
+                for (int k = 0; k < total_same_length_diag; k++) {
+                    process_antidiag_formula2(0, m, 0, k, l_strands, t_strands, a_reverse, b);
+//                    process_antidiagonal(0, m, 0, k, l_strands, t_strands, a_reverse, b,residue,bits_per_symbol,braid_ones);
+                }
+
+                auto start_j = total_same_length_diag;
+
+                // phase:3: lower-right triangle
+                for (int diag_len = m - 1; diag_len >= 1; diag_len--) {
+                    process_antidiag_formula2(0, diag_len, 0, start_j, l_strands, t_strands, a_reverse, b);
+//                    process_antidiagonal(0, diag_len, 0, start_j, l_strands, t_strands, a_reverse, b,
+//                                     residue, bits_per_symbol, braid_ones);
+                    start_j++;
+                }
+
+#pragma omp for  simd schedule(static) reduction(+:dis_braid)  aligned(l_strands:sizeof(Input)*8)
+                for (int i1 = 0; i1 < m; ++i1) {
+                    //  Brian Kernighan’s Algorithm
+                    int counter = 0;
+                    Input number = l_strands[i1];
+                    //  LogNumber
+                    while (number) {
+                        number &= (number - 1);
+                        counter++;
+                    }
+                    dis_braid += counter;
+                }
+            }
+
+            return a_total_symbols - dis_braid;
+        }
 
     }
 

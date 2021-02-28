@@ -63,12 +63,14 @@ encode(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_fo
     auto bitset_array = static_cast<Output *> (aligned_alloc(sizeof(Output), bytes_needed));
     auto n = bytes_needed / sizeof(Output);
 
+    auto residue = word_size_in_bits % bits_per_symbol;
+
 
 //    fill bitset
     for (int i = 0; i < n - 1; ++i) {
         Output word = 0;
         for (int symbol = 0; symbol < symbols_in_word; symbol++) {
-            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) << shift * symbol;
+            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) << (shift * symbol + residue);
         }
         bitset_array[i] = word;
     }
@@ -77,7 +79,7 @@ encode(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_fo
     for (int i = n - 1; i < n; ++i) {
         Output word = 0;
         for (int symbol = 0; i * symbols_in_word + symbol < a.size(); symbol++) {
-            word |= (*mapper_forward)[a[i * symbols_in_word + symbol]] << shift * symbol;
+            word |= (*mapper_forward)[a[i * symbols_in_word + symbol]] << (shift * symbol + residue);
         }
         bitset_array[i] = word;
     }
@@ -107,7 +109,7 @@ encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *m
     auto shift = bits_per_symbol;
     auto word_size_in_bits = sizeof(Output) * 8;
     auto symbols_in_word = int(word_size_in_bits / shift);
-
+    
     auto bytes_needed = int(std::ceil(a.size() * 1.0 / symbols_in_word) * sizeof(Output));
 
     auto bitset_array = static_cast<Output *> (aligned_alloc(sizeof(Output), bytes_needed));

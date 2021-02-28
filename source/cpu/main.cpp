@@ -144,8 +144,8 @@ int main(int argc, char *argv[]) {
 
 
 
-    int a_size = 64*1000*2;//
-    int b_size = 64*1000*3;
+    int a_size = 64*1000;//
+    int b_size = 64*1000;
 //    int a_size = 1024*32*10;//
 //    int b_size = 1024*1024*64;
 //96458
@@ -199,6 +199,11 @@ int main(int argc, char *argv[]) {
     time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout <<"false" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
+    begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::nary::llcs_nary_symbol_smart_combing(
+            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1,1)<<std::endl;
+    time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout <<"nary:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
 
     auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
