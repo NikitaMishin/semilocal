@@ -5,15 +5,7 @@
 #ifndef CPU_2SYMBOL_NEW_H
 #define CPU_2SYMBOL_NEW_H
 
-template<class Input>
-void precompute_info_table(int *a, int a_size, int *b, int b_size) {
-//    int bit_per_word = 8 * sizeof(Input);
-//    for (int i = 0; i < ; ++i) {
-//        // load 64 elems
-//        // 64 equals
-//
-//    }
-}
+
 
 
 #include <vector>
@@ -53,11 +45,6 @@ inline void process_cubes_antidiag_bin(int lower_bound, int upper_bound, int lef
             if (combing_condition) {
                 top_strand_shifted = top_strand << rev_counter;
                 top_strand = (rev_combing_cond & top_strand) | (combing_condition & left_cap);
-
-
-//                symbols = ~(((symbol_a)) ^ (symbol_b << rev_counter));
-//                symbols &= (symbols >> 1) & braid_ones;
-//                combing_condition = mask_r & (symbols | ((~(left_strand) & top_strand_shifted)));
 
                 combing_condition <<= rev_counter;
                 rev_combing_cond = combing_condition ^ braid_ones;

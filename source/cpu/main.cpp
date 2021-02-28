@@ -180,10 +180,26 @@ int main(int argc, char *argv[]) {
 
 
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::binary::prefix_lcs_via_braid_bits_2symbol(
-            a.first.first,a.first.second,b.first.first,b.first.second,a.second,4)<<std::endl;
+    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::binary::llcs_2symbol_naive_combing(
+            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1)<<std::endl;
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout <<"Time 4: " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+    std::cout <<"naive: " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+    begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::binary::llcs_2symbol_smart_combing(
+            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1, true)<<std::endl;
+    time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout <<"true " <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+
+
+    begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::binary::llcs_2symbol_smart_combing(
+            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1)<<std::endl;
+    time1 = std::chrono::high_resolution_clock::now() - begin1;
+    std::cout <<"false" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+
 
     auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     std::cout << std::endl<<"res corret: "<< prefix_lcs_sequential_skewed(a1,a_size,b1,b_size) << std::endl;
