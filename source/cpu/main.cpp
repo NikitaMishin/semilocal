@@ -138,20 +138,20 @@ int main(int argc, char *argv[]) {
 
 
 //    std::cout<<sizeof(wordType) <<std::endl;
-    std::srand(std::time(NULL)); // use current time as seed for random generator
+    std::srand(3); // use current time as seed for random generator
 
 
 
 
 
-    int a_size = 64*1000;//
-    int b_size = 64*1000;
+    int a_size = (64+32)*10;//
+    int b_size = (64+32+32)*10;
 //    int a_size = 1024*32*10;//
 //    int b_size = 1024*1024*64;
 //96458
 
-    auto seq_a = gen_vector_seq(a_size ,2);
-    auto seq_b = gen_vector_seq(b_size,2);
+    auto seq_a = gen_vector_seq(a_size ,4);
+    auto seq_b = gen_vector_seq(b_size,4);
 
     auto a1 = new int[a_size];
     auto b1 = new int[b_size];
@@ -159,7 +159,7 @@ int main(int argc, char *argv[]) {
     for (int i =0; i<b_size;i++) b1[i] = seq_b[i];
 
 
-    auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({1,0}));
+    auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({0,1,2,3}));
     auto a = encode_reverse<int, wordType>(seq_a,&mappers.first,&mappers.second);
     auto b = encode<int, wordType >(seq_b,&mappers.first,&mappers.second);
 
@@ -201,9 +201,17 @@ int main(int argc, char *argv[]) {
 
     begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
     std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::nary::llcs_nary_symbol_smart_combing(
-            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1,1)<<std::endl;
+            a.first.first,a.first.second,b.first.first,b.first.second,a.second,2,1)<<std::endl;
     time1 = std::chrono::high_resolution_clock::now() - begin1;
     std::cout <<"nary:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+
+//    begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    std::cout << std::endl<<"res: "<<prefix_lcs_via_braid_bits_4symbol_v2_full_mask
+//                (a.first.first,a.first.second,a.second,b.first.first,b.first.second,b.second,1)<<std::endl;
+//    time1 = std::chrono::high_resolution_clock::now() - begin1;
+//    std::cout <<"old:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
 
 
     auto begin4 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false

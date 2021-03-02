@@ -134,6 +134,7 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
         // upper half
         #pragma GCC unroll  64
         for (int rev_counter = (sizeof(Input) * 8 - 2); rev_counter > 0; rev_counter -= 2) {
+
             left_cap = left_strand >> rev_counter;
             symbols = ~(((symbol_a >> rev_counter)) ^ symbol_b);
             symbols &= (symbols >> 1) & braid_ones;
@@ -154,6 +155,8 @@ inline void process_cubes_antidiag_mpi(int lower_bound, int upper_bound, int lef
         }
 
         // center
+
+
         symbols = (~(symbol_a ^ symbol_b));
         symbols &= (symbols >> 1) & braid_ones;
         combing_condition = (symbols | ((~left_strand) & top_strand));
