@@ -50,9 +50,8 @@ encode_alphabet(std::unordered_set<Input> alphabet_set) {
 template<class Input, class Output>
 std::pair<std::pair<Output *, int>, int>
 encode(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_forward,
-       std::unordered_map<Output, Input> *mapper_reverse) {
+       std::unordered_map<Output, Input> *mapper_reverse, int alphabet_size) {
 
-    auto alphabet_size = mapper_reverse->size();
     auto bits_per_symbol = int(std::ceil(log2(alphabet_size)));
     auto shift = bits_per_symbol;
     auto word_size_in_bits = sizeof(Output) * 8;
@@ -101,10 +100,8 @@ encode(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_fo
 template<class Input, class Output>
 std::pair<std::pair<Output *, int>, int>
 encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *mapper_forward,
-               std::unordered_map<Output, Input> *mapper_reverse) {
+               std::unordered_map<Output, Input> *mapper_reverse,int alphabet_size) {
 
-
-    auto alphabet_size = mapper_reverse->size();
     auto bits_per_symbol = int(std::ceil(log2(alphabet_size)));
     auto shift = bits_per_symbol;
     auto word_size_in_bits = sizeof(Output) * 8;
@@ -114,13 +111,15 @@ encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *m
 
     auto bitset_array = static_cast<Output *> (aligned_alloc(sizeof(Output), bytes_needed));
     auto n = bytes_needed / sizeof(Output);
+    auto residue = word_size_in_bits % bits_per_symbol;
+
 
 
     // fill first guy
     for (int i = 0; i < n-1 ; ++i) {
         Output word = Output(0);
         for (int symbol = 0; symbol < symbols_in_word; symbol++) {
-            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1));
+            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1) + residue);
             }
         bitset_array[n-1-i] = word;
     }
@@ -129,7 +128,7 @@ encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *m
     for (int i = n - 1; i < n; ++i) {
         Output word = 0;
         for (int symbol = 0; (n-1) * symbols_in_word + symbol < a.size(); symbol++) {
-            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1));
+            word |= ((*mapper_forward)[a[i * symbols_in_word + symbol]]) <<  (bits_per_symbol*(symbols_in_word - symbol - 1) + residue);
         }
         bitset_array[n-1-i] = word;
     }
