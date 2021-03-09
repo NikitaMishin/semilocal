@@ -141,8 +141,13 @@ int main(int argc, char *argv[]) {
     std::srand(0); // use current time as seed for random generator
 
 
-    int a_size = (4)*2000*3;//
-    int b_size = (6)*2000*3;
+//    int a_size = (4)*2000*3;//
+//    int b_size = (6)*2000*3;
+
+
+    int a_size = 32*64;//
+    int b_size = 32*64;
+
 
     auto seq_a = gen_vector_seq(a_size ,8);
     auto seq_b = gen_vector_seq(b_size,8);
@@ -159,6 +164,13 @@ int main(int argc, char *argv[]) {
         b1[i] = seq_b[i];
     }
     std::cout<<std::endl;
+
+    auto set = std::unordered_set<int>({0,1,2,3,4,5,6,7});
+    auto lookup = std::unordered_map<int,unsigned int*>();
+    lllcs_hyyro::preprocess(b1,b_size,set,lookup);
+
+//    std::cout<<lookup[0]<<std::endl;
+    std::cout<<"hyyro:"<<lllcs_hyyro::hyyro_magic(a1,a_size,b1,33,lookup)<<std::endl;
 
     auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({7,6,5,4,3,2,1,0}));
     auto a = encode_reverse<int, wordType>(seq_a, &mappers.first, &mappers.second,32);

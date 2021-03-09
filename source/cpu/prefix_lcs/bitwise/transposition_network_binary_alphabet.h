@@ -740,4 +740,93 @@ namespace prefix_lcs_via_semi_local {
 
 }
 
+namespace lllcs_hyyro {
+
+    /**
+     * returns
+     * @param str
+     * @param size
+     */
+    template <class Input>
+    void preprocess(const int  * str, int size, std::unordered_set<int> & alphabet, std::unordered_map<int,Input*> & lookup) {
+
+        int word_size = (sizeof(Input)*8);
+        int size_words = std::ceil(size * 1.0 / word_size);
+        int mod = size % word_size;
+
+        if (mod==0) mod = word_size;
+
+        for(auto & symbol:alphabet) {
+            auto vector_b = new Input[size_words];
+            auto ptr = 0;
+
+            for(int i = 0; i < size_words - 1; i++) {
+                Input word = Input(0);
+                for(int j = 0; j < word_size; j++) {
+                    Input bit = Input(str[ptr] == symbol);
+                    word |= (bit<<j);
+                    ptr++;
+                }
+                vector_b[i] = word;
+            }
+
+            Input word = Input(0);
+            for (int j = 0; j < mod; ++j) {
+                Input bit = Input(str[ptr]==symbol);
+                word |= (bit<<j);
+                ptr++;
+            }
+            vector_b[size_words - 1] = word;
+
+            lookup[symbol] = vector_b;
+
+            std::cout<<symbol<<":"<<std::bitset<32>(vector_b[0])<<std::endl;
+        }
+    }
+
+    template <class Input>
+    int  hyyro_magic(const int * str_a, int size_a_bits, const int * str_b, int size_b_word, std::unordered_map<int,Input*> & lookup) {
+        auto vector_v = new Input[size_b_word];
+        for (int i = 0; i < size_b_word; ++i) {
+            vector_v[i] = ~Input(0);
+        }
+        auto bit_flag_sum = new int[size_b_word];
+        bit_flag_sum[0] = Input(0);
+
+
+        for (int i = 0; i < size_a_bits; ++i) {
+            auto table = lookup[str_a[i]];
+
+            for (int j = 0; j < size_b_word - 1 ; ++j) {
+                auto old_v = vector_v[j];
+                auto p = table[j] & old_v;
+                auto with_offset = bit_flag_sum[j] + old_v + p;
+                vector_v[j] =  (old_v ^ p) | with_offset;
+                bit_flag_sum[j + 1] = with_offset < old_v;
+            }
+
+            for (int j = size_b_word - 1; j < size_b_word; ++j) {
+                auto old_v = vector_v[j];
+                auto p = table[j] & old_v;
+                auto with_offset = bit_flag_sum[j] + old_v + p;
+                vector_v[j] =  (old_v ^ p) | with_offset;
+            }
+
+
+        }
+
+        auto score = 0;
+        for (int i = 0; i < size_b_word; ++i) {
+            auto v = std::bitset<sizeof(Input)*8>(vector_v[i]);
+            score += (~v).count();
+        };
+
+
+        return score;
+
+
+    }
+
+
+}
 #endif //CPU_TRANSPOSITION_NETWORK_BINARY_ALPHABET_H
