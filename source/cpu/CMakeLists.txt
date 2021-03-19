@@ -9,7 +9,7 @@ add_library(cpu semi_local.h  semi_local.cpp prefix_lcs/bitwise/transposition_ne
 # disable vectorization: -fno-tree-vectorize
 
 #set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -O0 -fopenmp  -fno-tree-vectorize -fopt-info-vec-optimized-optimized -fopt-info-vec-optimized-all")
-set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall       -march=native  -O1  " )#    ")
+set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -fopenmp  -Wall       -march=native  -O0 -I /home/garrancha/libs/boost_1_75_0/ " )#    ")
 
 add_executable(main main.cpp)
 target_link_libraries(main cpu)

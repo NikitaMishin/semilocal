@@ -780,17 +780,18 @@ namespace lllcs_hyyro {
 
             lookup[symbol] = vector_b;
 
-            std::cout<<symbol<<":"<<std::bitset<32>(vector_b[0])<<std::endl;
         }
     }
 
     template <class Input>
-    int  hyyro_magic(const int * str_a, int size_a_bits, const int * str_b, int size_b_word, std::unordered_map<int,Input*> & lookup) {
+    int  hyyro_magic(const int * str_a, int size_a_bits, int size_b_word, std::unordered_map<int,Input*> & lookup) {
+
         auto vector_v = new Input[size_b_word];
         for (int i = 0; i < size_b_word; ++i) {
             vector_v[i] = ~Input(0);
         }
-        auto bit_flag_sum = new int[size_b_word];
+
+        auto bit_flag_sum = new Input[size_b_word];
         bit_flag_sum[0] = Input(0);
 
 
@@ -816,15 +817,100 @@ namespace lllcs_hyyro {
         }
 
         auto score = 0;
-        for (int i = 0; i < size_b_word; ++i) {
-            auto v = std::bitset<sizeof(Input)*8>(vector_v[i]);
-            score += (~v).count();
-        };
-
+        for (int i1 = 0; i1 < size_b_word; ++i1) {
+            //  Brian Kernighan’s Algorithm
+            int counter = 0;
+            Input number = vector_v[i1];
+            //  LogNumber
+            while (number) {
+                number &= (number - 1);
+                counter++;
+            }
+            score += sizeof(Input)*8 - counter;
+        }
 
         return score;
 
 
+    }
+
+    template <class Input>
+    void hyyro_antidiag(int lower_bound, int upper_bound,int offset_a,
+                        int* str_a, std::unordered_map<int,Input*> &lookup, Input *vector_v, Input *shift_bits) {
+
+        #pragma omp  for  schedule(static)
+        for (int i = lower_bound; i < upper_bound; i++) {// b goes
+            auto table = lookup[str_a[offset_a - i]];
+            auto shift_bit = shift_bits[offset_a - i];
+            auto old_v = vector_v[i];
+            auto p = table[i] & old_v;
+            auto with_offset = shift_bit + old_v + p;
+            vector_v[i] =  (old_v ^ p) | with_offset;
+            shift_bits[offset_a - i] = with_offset < old_v;
+        }
+    }
+
+
+
+    /**
+     * It is assumed that a > size_b_word
+     * @tparam Input
+     * @param str_a
+     * @param size_a_bits
+     * @param str_b
+     * @param size_b_word
+     * @param lookup
+     * @param num_threads
+     * @return
+     */
+    template <class Input>
+    int  hyyro_magic_mpi_with_precalc(int * str_a, int size_a_bits, int size_b_word,
+                         std::unordered_map<int,Input*> & lookup, int num_threads = 1) {
+
+        Input * vector_v = new Input[size_b_word];
+        Input * bit_flag_sum = new Input[size_a_bits];
+        for (int i = 0; i < size_b_word; ++i) vector_v[i] = ~Input(0);
+        for (int i = 0; i < size_a_bits ; ++i) bit_flag_sum[i] = 0;
+
+        auto score = 0;
+
+        #pragma omp parallel num_threads(num_threads)  default(none) shared(vector_v,bit_flag_sum,lookup,str_a,size_b_word,size_a_bits,score)
+        {
+
+            // 1st phase
+            for (int i = 0; i < size_b_word - 1; ++i)
+                hyyro_antidiag(0, i + 1, i, str_a, lookup, vector_v, bit_flag_sum);
+
+
+            auto remains_full = (size_a_bits + size_b_word - 1) - (size_b_word - 1) - (size_b_word - 1);
+
+            // 2rd phase
+            auto offset = size_b_word - 1;
+            for (int i = 0; i < remains_full; ++i) {
+                hyyro_antidiag(0, size_b_word, offset, str_a, lookup, vector_v, bit_flag_sum);
+                offset++;
+            }
+
+
+            // 3rd phase
+            for (int i = 1; i < size_b_word; ++i) {
+                hyyro_antidiag(i, size_b_word, offset, str_a, lookup, vector_v, bit_flag_sum);
+                offset++;
+            }
+
+            #pragma omp for schedule(static) reduction(+:score)
+            for (int i1 = 0; i1 < size_b_word; ++i1) {
+                int counter = 0;
+                Input number = vector_v[i1];
+                while (number) {
+                    number &= (number - 1);
+                    counter++;
+                }
+                score += sizeof(Input) * 8 - counter;
+            }
+        }
+
+        return score;
     }
 
 

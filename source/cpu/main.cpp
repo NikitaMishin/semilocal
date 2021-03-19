@@ -23,7 +23,7 @@
 //static float a[length];
 //
 //
-
+#include "boost/multiprecision/cpp_int.hpp"
 
 
 //int main() {
@@ -134,43 +134,57 @@
 //
 
 int main(int argc, char *argv[]) {
+    using namespace boost::multiprecision;
 
-    typedef  unsigned long long  wordType;
+    typedef  int  semi_type;
+    typedef  semi_type  wordType;
 //todo fix description about required size
 
     std::srand(0); // use current time as seed for random generator
 
 
+    auto a3 = new uint256_t[5];
+    a3[0] = 4;
+
+    std::cout<<a3[0];
+    std::cout<<sizeof (unsigned short)<<std::endl;
 //    int a_size = (4)*2000*3;//
 //    int b_size = (6)*2000*3;
 
 
-    int a_size = 32*64;//
-    int b_size = 32*64;
+    int a_size = 10*245;//
+    int b_size = 256*32+31;
 
 
     auto seq_a = gen_vector_seq(a_size ,8);
     auto seq_b = gen_vector_seq(b_size,8);
 
-    auto a1 = new int[a_size];
-    auto b1 = new int[b_size];
+    semi_type* a1 = new semi_type[a_size];
+    semi_type* b1 = new semi_type[b_size];
+
+    auto a2 = new int[a_size];
+    auto b2 = new int[b_size];
+
     for (int i =0; i<a_size;i++) {
         std::cout<<seq_a[i];
         a1[i] = seq_a[i];
+        a2[i] = seq_a[i];
     }
     std::cout<<std::endl;
     for (int i =0; i<b_size;i++) {
         std::cout<<seq_b[i];
         b1[i] = seq_b[i];
+        b2[i] = seq_b[i];
     }
     std::cout<<std::endl;
-
     auto set = std::unordered_set<int>({0,1,2,3,4,5,6,7});
-    auto lookup = std::unordered_map<int,unsigned int*>();
-    lllcs_hyyro::preprocess(b1,b_size,set,lookup);
+    auto lookup = std::unordered_map<int,uint256_t *>();
+    lllcs_hyyro::preprocess(b2,b_size,set,lookup);
 
-//    std::cout<<lookup[0]<<std::endl;
-    std::cout<<"hyyro:"<<lllcs_hyyro::hyyro_magic(a1,a_size,b1,33,lookup)<<std::endl;
+    std::cout<<"siuzeof"<<sizeof (uint16_t)*8<<std::endl;
+
+    std::cout<<"hyyro:"<<lllcs_hyyro::hyyro_magic_mpi_with_precalc(a2,a_size,b_size/256+1,lookup,8)<<std::endl;
+    std::cout<<"hyyro_corre:"<<lllcs_hyyro::hyyro_magic(a2,a_size,b_size/(256 )+1,lookup)<<std::endl;
 
     auto mappers = encode_alphabet<int,wordType>(std::unordered_set<int>({7,6,5,4,3,2,1,0}));
     auto a = encode_reverse<int, wordType>(seq_a, &mappers.first, &mappers.second,32);
@@ -217,24 +231,23 @@ int main(int argc, char *argv[]) {
 //
 //
 
-    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::binary::llcs_2symbol_smart_combing(
-            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1)<<std::endl;
-    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout <<"false" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
-
-    begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::nary::llcs_nary_symbol_smart_combing(
-            a.first.first,a.first.second,b.first.first,b.first.second,a.second,5,1)<<std::endl;
-    time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout <<"nary:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
-
-
+//    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::binary::llcs_2symbol_smart_combing(
+//            a.first.first,a.first.second,b.first.first,b.first.second,a.second,1)<<std::endl;
+//    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+//    std::cout <<"false" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+//
 //    begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-//    std::cout << std::endl<<"res: "<<prefix_lcs_via_braid_bits_4symbol_splited_mpi
-//                (a.first.first,a.first.second,a.second,b.first.first,b.first.second,b.second,1)<<std::endl;
+//    std::cout << std::endl<<"res: "<<prefix_lcs_via_semi_local::nary::llcs_nary_symbol_smart_combing(
+//            a.first.first,a.first.second,b.first.first,b.first.second,a.second,5,1)<<std::endl;
 //    time1 = std::chrono::high_resolution_clock::now() - begin1;
-//    std::cout <<"old:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+//    std::cout <<"nary:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+
+//    auto perm = Permutation(a_size+b_size,a_size+b_size);
+//    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    semi_local::strand_combing_approach::sticky_braid_mpi_branchless(perm,a1,a_size,b1,b_size);
+//    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+//    std::cout <<"col="<< perm.get_col_by_row(0) <<"\n"<<"type:" <<std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
 
 

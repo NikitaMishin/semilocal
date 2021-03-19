@@ -43,9 +43,6 @@ void steady_ant_wrapper(AbstractPermutation &p, AbstractPermutation &q, Abstract
 namespace semi_local {
 
 
-    /**
- *
- */
     namespace steady_ant_approach {
         using namespace distance_unit_monge_product::steady_ant;
 
@@ -118,17 +115,11 @@ namespace semi_local {
     }
 
 
-
-//436757448
-
-    /**
-     *
-     */
     namespace strand_combing_approach {
         using namespace distance_unit_monge_product::steady_ant;
 
-
-         inline void anti_diagonal_computation_rev(int *strand_map, const int* a, const int *b,int  upper_bound,
+        template<class Input>
+         inline void anti_diagonal_computation_rev(Input *strand_map, const Input* a, const Input *b,int  upper_bound,
                                                   int left_edge, int top_edge, int offset_a,int offset_b){
 
             #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
@@ -145,7 +136,8 @@ namespace semi_local {
             }
         }
 
-        inline void anti_diagonal_computation_rev_branchless(int *strand_map, const int* a, const int *b,int  upper_bound,
+        template <class Input>
+        inline void anti_diagonal_computation_rev_branchless(Input *strand_map, const Input* a, const Input *b,int  upper_bound,
                                                   int left_edge, int top_edge, int offset_a,int offset_b){
 
             #pragma omp  for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8)
@@ -161,7 +153,8 @@ namespace semi_local {
         }
 
 
-        inline void initialization(int *strand_map,int m, int n){
+        template <class Input>
+        inline void initialization(Input *strand_map,int m, int n){
             #pragma omp for simd schedule(static)
             for (int k = 0; k < m; ++k) {
                 strand_map[k] = k;
@@ -174,7 +167,8 @@ namespace semi_local {
 
         }
 
-        inline void construct_permutation(AbstractPermutation &matrix, int *strand_map, bool is_reverse, int m, int n){
+        template <class Input>
+        inline void construct_permutation(AbstractPermutation &matrix, Input *strand_map, bool is_reverse, int m, int n){
             if (!is_reverse) {
                 #pragma omp for simd schedule(static)
                 for (int r = m; r < m + n; r++) {
@@ -201,7 +195,8 @@ namespace semi_local {
 
         }
 
-        inline void fill_a_reverse(const int*a, int * a_reverse, int m){
+        template <class Input>
+        inline void fill_a_reverse(const Input*a, Input * a_reverse, int m){
             #pragma omp  for simd schedule(static)
             for (int i = 0; i < m; ++i) {
                 a_reverse[i] = a[m - 1 - i];
@@ -257,7 +252,8 @@ namespace semi_local {
             delete[] top_strands;
         }
 
-        void sticky_braid_mpi(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
+        template <class Input>
+        void sticky_braid_mpi(AbstractPermutation &matrix, const Input *a, int a_size, const Input *b, int b_size,
                               int threads_num = 1, bool is_reverse = false) {
 
             if (a_size > b_size) {
@@ -269,11 +265,11 @@ namespace semi_local {
 
 
             auto size = m + n;
-            int *strand_map = new int[size];
+            Input *strand_map = new Input[size];
 
             auto num_diag = m + n - 1;
             auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
-            int *a_reverse = new int[m];
+            Input *a_reverse = new Input[m];
 
             long long s;
             #pragma omp parallel num_threads(threads_num)  default(none) shared(a_reverse,a, b, is_reverse, strand_map, matrix, total_same_length_diag, size, m, n)
@@ -318,7 +314,8 @@ namespace semi_local {
             delete[] strand_map;
         }
 
-        void sticky_braid_mpi_branchless(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
+        template <class Input>
+        void sticky_braid_mpi_branchless(AbstractPermutation &matrix, const Input *a, int a_size, const Input *b, int b_size,
                                          int threads_num = 1, bool is_reverse = false) {
 
             if (a_size > b_size) {
@@ -328,10 +325,10 @@ namespace semi_local {
             auto m = a_size;
             auto n = b_size;
 
-            int *a_reverse = new int[a_size];
+            Input *a_reverse = new Input[a_size];
 
             auto size = m + n;
-            int *strand_map = new int[size];
+            Input *strand_map = new Input[size];
 
             auto num_diag = m + n - 1;
             auto total_same_length_diag = num_diag - (m - 1) - (m - 1);
@@ -376,7 +373,6 @@ namespace semi_local {
             delete[] a_reverse;
         }
 
-//3299139415
         void first_and_third_phase_merged_branchless(AbstractPermutation &matrix, const int *a, int a_size, const int *b, int b_size,
                                           steady_ant_approach::PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
             if (a_size > b_size) {
