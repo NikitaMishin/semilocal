@@ -11,31 +11,33 @@ namespace bitwise_prefix_lcs_cuda {
 
 
     /**
-     * @tparam T
-     * @param a sum  of two sizeof(T)*8 bit unsigned vectors
-     * @param b  basically sum + 1
+     * @tparam T possible types are uint32 and uint64
+     * @param a sum  of  two vectors
+     * @param b  basically sum of two vectors plus one for each summator
      * @return  Update values for A and B and returns the  upper carry bit  for a value A
      */
     template <class T>
     inline   __device__ int kawanami_sum_reduction_without_if(T &a, T &b) {
-        int with_no_carry = a > p;
-        int with_carry =  max(with_no_carry, b > p);
+
+        int with_no_carry = a > p; // carry bit of A
+        int with_carry =  max(with_no_carry, b > p); // carry bit of B
 
 
-        T tmp;
-        int carry_tmp;
-        int put_other_value;
+        T tmp; // tmp value of A
+        int carry_tmp; // tmp value of carry bit of A
+        int put_other_value; // weather or not we need to place a new value to current variable
         int active_mask;
 
         #pragma  unroll
         for (int k = 1; k < 32; k<<=1) {
-            active_mask = (threadIdx.x % k) < k;
+            active_mask = (threadIdx.x % k) < k; // threads that on current iteration  can need to swap values
 
+            // tmp values for carries and value
             carry_tmp = with_no_carry;
-            tmp = a; // save them because  below we assign a possible new values for this variables
+            tmp = a;
 
             // update A part
-            put_other_value = __shfl_up_sync(0xffffffff, with_no_carry, k, k << 1); //broadcast
+            put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1); //broadcast
             put_b_value &= active_mask;
 
 
@@ -44,7 +46,7 @@ namespace bitwise_prefix_lcs_cuda {
                             (put_other_value_value & with_carry); // if put_b_value == 1 then we put with_no_carry <- with_carry;
 
             // update B part
-            put_other_value = !__shfl_up_sync(0xffffffff, with_carry, k, k << 1);
+            put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
             put_other_value &= active_mask ;
             b = (tmp & (put_other_value - 1)) | ((-put_other_value) & b);
             with_carry = (~put_other_value & carry_tmp) | (put_other_value & with_carry);
@@ -54,13 +56,6 @@ namespace bitwise_prefix_lcs_cuda {
     }
 
 
-    /**
-    *
-    * @tparam T
-    * @param a sum  of two sizeof(T)*8 bit unsigned vectors
-    * @param b  basically sum + 1
-    * @return  Update values for a and b and returns a upper bit  for a value
-    */
     template <class T>
     inline   __device__ int kawanami_sum_reduction_with_if(T &a, T &b) {
         int with_no_carry = a > p;
@@ -70,16 +65,15 @@ namespace bitwise_prefix_lcs_cuda {
         int carry_tmp;
         int put_other_value;
         int active_mask;
-
         #pragma  unroll
         for (int k = 1; k < 32; k<<=1) {
             active_mask = (threadIdx.x % k) < k;
 
             carry_tmp = with_no_carry;
-            tmp = a; // save them because  below we assign a possible new values for this variables
+            tmp = a;
 
             // update A part
-            put_other_value = __shfl_up_sync(0xffffffff, with_no_carry, k, k << 1);
+            put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1);
             put_other_value &= active_mask ;
 
             if (put_other_value) {
@@ -88,7 +82,7 @@ namespace bitwise_prefix_lcs_cuda {
             }
 
             // update B part
-            put_other_value = !__shfl_up_sync(0xffffffff, with_carry, k, k << 1);
+            put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
             put_other_value &= active_mask;
             if (put_other_value) {
                 b = tmp;
@@ -113,58 +107,60 @@ namespace bitwise_prefix_lcs_cuda {
      * @param offset_y
      * @param carries | 32
      */
-    template <class T>
-    __global__ void hyrro_kawanami_kernel(int m, int n_small, int *a  T * lookup, T *vector_v, int offset_x, int offset_y,int *carries) {
-// todo volatile
-        __shared__ shared_carries T[32];
-        __shared__ carry_sum_yes T[32];
-        __shared__ carry_sum_no bool[32];
-        __shared__ value_A T[32];
-        __shared__ value_B T[32];
+    __global__ void hyrro_kawanami_kernel(int m, int n_small, int *a  unsigned  int * lookup, unsigned int *vector_v,
+                                          int offset_x, int offset_y, unsigned int *carries) {
+        // todo volatile
+        __shared__ unsigned int shared_carries[32];
 
-        //kawanami
+        // position relative to global
         int global_id_x = offset_x + 32 * blockIdx.x + threadIdx.x;
         int global_id_y = 1024 * (offset_y + blockId.x);
         int global_carry_id  = 32 * (offset_y + blockId.x);
 
-        vector = vector_v[global_id_x];
+
+        //load packed carries from global memory
+        shared_carries_load[threadIdx.x] = carries[global_carry_id + threadIdx.x];
+
+        unsigned  int vector = vector_v[global_id_x];
 
 
-        shared_carries[threadIdx.x] = carries[global_carry_id + threadIdx.x];
-        int carry_pack = 0;
+        int loc = 0; // current position of packed carries for rows
+        int bit_pos = 0; // current position of lower bit in loc
+        unsigned int carry = 0; // either 1 or 0 for the lower bit of big vector number, for others always 0
+        unsigned int carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
+        unsigned int processing_carry_pack = (threadIdx.x == 0) ? shared_carries[loc] : 0; // only  lower adder can have carry
 
         #pragma unroll
         for (int i = 0; i < 1024; i++) {
-            //get cur carry
 
-            if(global_id_y > m) break;
+            if(global_id_y > m) break; // out of matrix
 
             int key_a = a[global_id_y];
-
             T lookup_value = lookup[key_a * n_small + threadIdx.x];
             T p = vector & lookup_value;
-            T sum_v = p + vector +   ;
+
+
+            carry = (( 1 << bit_pos) & processing_carry_pack) != 0;  // for others it would be always 0
+
+            T sum_v = p + vector + carry;
             T sum_v_inc = sum_v + 1;
 
-            kawanami_sum_reduction()
+            carry_pack_to_save |= (kawanami_sum_reduction_without_if(sum_v, sum_v_inc) << bit_pos);
+            vector = (vector ^ p) | sum_v; // update vector
 
+            // if 31 then we need to save packed values and load another one
+            if( (i % 32) == 31) {
+                // save
+                if(threadIdx.x == 31) shared_carries[loc] = carry_pack_to_save;
+                carry_pack_to_save = 0; // reset
 
+                loc++;
+                processing_carry_pack = (threadIdx.x == 0 && loc < 32) ? shared_carries[loc] : 0;
 
+                bit_pos = -1; // will be 0 at the end of this loop iteration
+            }
 
-            value_A[threadIdx.x] = sum_v;
-            carry_sum_no[threadIdx.x] = sum_v > p;
-            value_B[threadIdx.x] = sum_v + 1;
-            carry_sum_yes[threadIdx.x] = max(sum_v > p, (sum_v + 1) > p);
-            // reduction
-
-            int n = __shfl_up_sync(0xffffffff, value, i, 8);
-
-
-            // end todo
-
-            vector = (vector ^ p) | sum_v;
-            //carry_pack = todo;
-
+            bit_pos++;
             global_id_y++;
         }
 
@@ -172,6 +168,7 @@ namespace bitwise_prefix_lcs_cuda {
         vector_v[global_id_x] = vector;
         //save carries for the 1024 elements
         carries[global_carry_id + threadIdx.x] = shared_carries[threadIdx.x];
+
     }
 
 
