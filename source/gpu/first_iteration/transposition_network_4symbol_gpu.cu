@@ -107,10 +107,10 @@ namespace bitwise_prefix_lcs_cuda {
      * @param offset_y
      * @param carries | 32
      */
-    __global__ void hyrro_kawanami_kernel(int m, int n_small, int *a  unsigned  int * lookup, unsigned int *vector_v,
-                                          int offset_x, int offset_y, unsigned int *carries) {
-        // todo volatile
-        __shared__ unsigned int shared_carries[32];
+    __global__ void hyrro_kawanami_kernel_without_shared (int m, int n_small, int *a  unsigned  int *
+                                                            lookup, unsigned int *vector_v, int offset_x, int offset_y,
+                                                                    unsigned int *carries) {
+        //TODO does it faster then with shared?
 
         // position relative to global
         int global_id_x = offset_x + 32 * blockIdx.x + threadIdx.x;
@@ -119,7 +119,7 @@ namespace bitwise_prefix_lcs_cuda {
 
 
         //load packed carries from global memory
-        shared_carries_load[threadIdx.x] = carries[global_carry_id + threadIdx.x];
+        unsigned int own_carry = carries[global_carry_id + threadIdx.x];
 
         unsigned  int vector = vector_v[global_id_x];
 
@@ -133,7 +133,14 @@ namespace bitwise_prefix_lcs_cuda {
         #pragma unroll
         for (int i = 0; i < 1024; i++) {
 
-            if(global_id_y > m) break; // out of matrix
+            if(global_id_y > m) {
+                // save partial
+                // 31st broadcast carry_pack_to_save to all threads
+                carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
+                if(threadIdx.x == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
+
+                break; // out of matrix
+            }
 
             int key_a = a[global_id_y];
             T lookup_value = lookup[key_a * n_small + threadIdx.x];
@@ -150,12 +157,16 @@ namespace bitwise_prefix_lcs_cuda {
 
             // if 31 then we need to save packed values and load another one
             if( (i % 32) == 31) {
-                // save
-                if(threadIdx.x == 31) shared_carries[loc] = carry_pack_to_save;
-                carry_pack_to_save = 0; // reset
+
+                // 31st broadcast carry_pack_to_save to all threads
+                carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
+                if(threadIdx.x == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
+                carry_pack_to_save = 0;
 
                 loc++;
-                processing_carry_pack = (threadIdx.x == 0 && loc < 32) ? shared_carries[loc] : 0;
+                // transfer carry pack from loc thread to  lane with id = loc
+                processing_carry_pack = __shfl_sync(0xffffffff, own_carry, loc, 32);
+                processing_carry_pack = (threadIdx.x == 0 && loc < 32) ? processing_carry_pack : 0;
 
                 bit_pos = -1; // will be 0 at the end of this loop iteration
             }
@@ -167,7 +178,7 @@ namespace bitwise_prefix_lcs_cuda {
         // save 1024 bit vector back to memory
         vector_v[global_id_x] = vector;
         //save carries for the 1024 elements
-        carries[global_carry_id + threadIdx.x] = shared_carries[threadIdx.x];
+        carries[global_carry_id + threadIdx.x] = own_carry;
 
     }
 
