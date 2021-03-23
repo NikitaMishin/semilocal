@@ -27,7 +27,7 @@ namespace bitwise_prefix_lcs_cuda {
         int put_other_value; // weather or not we need to place a new value to current variable
         int active_mask;
 
-#pragma  unroll
+        #pragma  unroll
         for (int k = 1; k < 32; k <<= 1) {
             active_mask = (threadIdx.x % k) < k; // threads that on current iteration  can need to swap values
 
@@ -305,16 +305,15 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
     bitwise_prefix_semi_local_kernel(T *a_reversed, int size_a, T *b, int size_b,
                   unsigned int *left_strands, unsigned int *top_strands, int offset_b, int offset_a) {
 
-        int per_warp = (32 - 1) + Width;        // per warp
-        int per_block = per_warp * DimBlock;    // per block processed
+        int per_warp = (32 - 1) + Width;        // per warp processed columns amount
+        int per_block = per_warp * DimBlock;    // per block processed columns amount
 
 
-        //todo dynamic shared
-        volatile __shared__ b_part T[per_block];
-        volatile __shared__ t_part unsigned int[per_block];
+        volatile __shared__ b_part T[per_block]; // we load associated with blocks symbols of b
+        volatile __shared__ t_part unsigned int[per_block]; // load part of top strands elements
 
-        auto lane_id = threadIdx.x % 32;
-        auto warp_id = threadIdx.x / 32;
+        auto lane_id = threadIdx.x % 32; // id of thread within his logical warp
+        auto warp_id = threadIdx.x / 32; // id of warp that
 
 
         auto global_id_col = offset_a +  lane_id + warp_id  * per_warp +   blockIdx.x * per_block;
@@ -339,29 +338,35 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
             // todo i guess it is always >= 0 or not
             if ( (glob_pos >= 0) & ( glob_pos < size_b) ) {
-                t_part[threadIdx.x+ i * DimBlock] = top_strands[glob_pos];
-                b_part[threadIdx.x+ i * DimBlock] = b_part[glob_pos];
+                t_part[threadIdx.x + i * DimBlock] = top_strands[glob_pos];
+                b_part[threadIdx.x + i * DimBlock] = b_part[glob_pos];
+            } else {
+                t_part[threadIdx.x + i * DimBlock] = 0;
+                b_part[threadIdx.x + i * DimBlock] = 0;
             }
         }
 
         int ptr_shared = warp_id * per_warp + lane_id;
         int global_ptr_shared = global_id_col;
 
+        __syncwarp();
 
         #pragma unroll
         for (int i = 0; i < Width; i++) {
 
+            t_strand = t_part[ptr_shared];
+            symbol_b = b_part[ptr_shared];
+
+            cell_processing<T, K>(l_strand, t_strand, symbol_a, symbol_b);
+
+
+            //update t_part
             // todo is last condition really necessary?
-            if (global_ptr_shared > 0 & global_ptr_shared < size_b & global_id_row > 0) {
+            if (global_ptr_shared > 0 & global_ptr_shared < size_b & global_id_row > 0)
+                t_part[ptr_shared] = t_strand;
 
-                t_strand = t_part[ptr_shared];
-                symbol_b = b_part[ptr_shared];
 
-                cell_processing<T, K>(l_strand, t_strand, symbol_a, symbol_b);
-
-                //update t_part
-                t_part[ptr_shared] = t_part;
-            }
+            __syncwarp();
 
             ptr_shared++;
             global_ptr_shared++;
@@ -375,7 +380,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         #pragma unroll
         for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock); i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
-            if ( (glob_pos >= 0) & ( glob_pos < size_b) ) top_strands[glob_pos] t_part[threadIdx.x+ i * DimBlock];
+            if ( (glob_pos >= 0) & ( glob_pos < size_b) ) top_strands[glob_pos] =  t_part[threadIdx.x + i * DimBlock];
         }
 
     }
