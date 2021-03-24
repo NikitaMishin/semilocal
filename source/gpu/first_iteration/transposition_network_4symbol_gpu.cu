@@ -196,7 +196,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
      * @param n
      * @return
      */
-    __device__ inline unsigned int calc_reduction(unsigned long long int n) {
+    __device__ inline unsigned int calc_reduction(unsigned long long n) {
 
         n &= (n >> 1) & (6148914691236517205ull);
 
@@ -226,8 +226,14 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 
     /**
-     * Cell processing for binary and 4symbol
-     *
+     * Cell processing for binary and 4symbol alphabets.
+     * l and t both contains 32 strands, so by processing square built on their intersection we process 32*32 cell of initial matrix.
+     * Depending on alphabet size, T is either 32 bit unsigned integer (since we can encode each symbol by one bit)
+     * or 64 bit unsigned integer (2 bits per symbol).
+     * Further, we can apply same technique to higher alphabet sizes, basically uses widen T type and apply more commands to
+     * reduce 0^nk_10^nk_t...0 to 32 bit integer k_1...k_32. The changes will be in  calc_reduction.
+     * We define parameter K for optimization purposes, the possible values are 0(uint) and 1(ull).
+     * It is assumed that there no dummy strands and symbols both in strings and strands. For such specific case see our paper.
      * @tparam T possible types are unsigned int (for binary), ull  for 4 symbol alphabet; for 16 symbol see paper
      * @tparam K possible values are 0 (unsigned int), 1 (unsigned long long)
      * @param l left packed 32 strands in machine word
@@ -246,7 +252,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         unsigned int cond;
 
 
-#pragma unroll
+        #pragma unroll
         for (int shift = 31; shift > 0; shift--) {
 
             l_shifted = l >> shift;
@@ -270,7 +276,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
         mask = unsigned int(-1);
 
-#pragma unroll
+        #pragma unroll
         for (int shift = 1; shift < 32; shift++) {
             mask <<= 1;
 
@@ -286,27 +292,51 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 
 
+
     /**
      *
-     * @tparam Width  number of processing cells per thread. Witdh of one is a special case of antidiagonal patttern
-     * @tparam T
-     * @tparam K
-     * @param a_reversed
-     * @param size_a
-     * @param b
-     * @param size_b
-     * @param left_strands
-     * @param top_strands
-     * @param offset_b
-     * @param offset_a
+     * Calculate bitwise semi-local lcs by zig-zag appoarch.
+     * TODO add notion about edge cases
+     *
+     * Caution: the whole matrix should be procceded in a such way that  not threads can be  with global_id_row < 0 (i.e size must be greater then GRIDDIM)
+     *
+     * Visualization of our zig-zag (stripe) approach. Here we have W = 3 and a warp size of 4. As we can see such approach allows us
+     * to each such  quadrangle independently, the only need of sync is needed within quadringle. Latter is achieved by a
+     * __syncwarp primitive (on CUDA < 9.0) need not to sync threads within warp at all (what a  good days we left).
+     *                  XXX
+     *                 XXX
+     *                XXX
+     *               XXX
+     *             ...
+     *             ...
+     *           XXX
+     *          XXX
+     *        XXX
+     *       XXX
+     *    XXX
+     *   XXX
+     *  XXX
+     * XXX
+     * @tparam Width how many cells are processed by a single thread
+     * @tparam T see  cell_processing definition
+     * @tparam K see cell_processing definition
+     * @tparam DimBlock same as DimGrid for one Dimensional case (used for ability to use static shared memory allocation)
+     * @param a_reversed encoded string, where each symbol requires log2 |Alphabeet| bits, stored in reverse order for consecutive access
+     * @param size_a size of input sequence a  in machine words
+     * @param b encoded string, where each symbol requires log2 |Alphabeet| bits
+     * @param size_b size of input sequence b  in machine words
+     * @param left_strands one bit per strand, stored in a reversed order
+     * @param top_strands one bit per strand
+     * @param offset_b offset from left of the matrix, >= 0
+     * @param offset_a offset from bottom of the matrix >=
      */
-    template<int Width, class T, int K, DimBlock>
+    template<int Width, class T, int K, int DimBlock>
     __global__ void
     bitwise_prefix_semi_local_kernel(T *a_reversed, int size_a, T *b, int size_b,
                   unsigned int *left_strands, unsigned int *top_strands, int offset_b, int offset_a) {
 
-        int per_warp = (32 - 1) + Width;        // per warp processed columns amount
-        int per_block = per_warp * DimBlock;    // per block processed columns amount
+        int per_warp = (32 - 1) + Width;        // per warp processed columns number
+        int per_block = per_warp * (DimBlock / 32) ;    // per block processed columns number
 
 
         volatile __shared__ b_part T[per_block]; // we load associated with blocks symbols of b
@@ -316,11 +346,12 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         auto warp_id = threadIdx.x / 32; // id of warp that
 
 
-        auto global_id_col = offset_a +  lane_id + warp_id  * per_warp +   blockIdx.x * per_block;
+        auto global_id_col = offset_b +  lane_id + warp_id  * per_warp  +   blockIdx.x * per_block;
+        auto global_id_zero_in_block_col = offset_b + threadIdx.x + blockIdx.x * per_block; // for load to shared memory required stuff
 
-        auto global_id_zero_in_block_col = offset_a + blockIdx.x * per_block + threadId.x;
-        auto global_id_row = offset_b + threadIdx.x + blockIdx.x * blockDim.x;
+        auto global_id_row = offset_a + threadIdx.x + blockIdx.x * blockDim.x;
 
+        //local registers
         unsigned int l_strand = 0;
         unsigned int t_strand;
 
@@ -328,7 +359,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         T symbol_b;
 
 
-        if (global_id_row >= 0 & global_id_row < size_a) {
+        if (global_id_row < size_a) {
             symbol_a = a_reversed[global_id_row];
             l_strand = left_strands[global_id_row];
         }
@@ -336,8 +367,8 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         #pragma unroll
         for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock); i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
-            // todo i guess it is always >= 0 or not
-            if ( (glob_pos >= 0) & ( glob_pos < size_b) ) {
+
+            if (glob_pos < size_b ) {
                 t_part[threadIdx.x + i * DimBlock] = top_strands[glob_pos];
                 b_part[threadIdx.x + i * DimBlock] = b_part[glob_pos];
             } else {
@@ -361,8 +392,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 
             //update t_part
-            // todo is last condition really necessary?
-            if (global_ptr_shared > 0 & global_ptr_shared < size_b & global_id_row > 0)
+            if (global_ptr_shared < size_b & global_id_row < size_a)
                 t_part[ptr_shared] = t_strand;
 
 
@@ -374,13 +404,13 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 
         // store l
-        if (global_id_row >= 0 & global_id_row < size_a) left_strands[global_id_row] = l_strand;
+        if (global_id_row < size_a) left_strands[global_id_row] = l_strand;
 
 
         #pragma unroll
         for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock); i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
-            if ( (glob_pos >= 0) & ( glob_pos < size_b) ) top_strands[glob_pos] =  t_part[threadIdx.x + i * DimBlock];
+            if ( glob_pos < size_b)  top_strands[glob_pos] =  t_part[threadIdx.x + i * DimBlock];
         }
 
     }
