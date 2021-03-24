@@ -10,13 +10,14 @@ namespace bitwise_prefix_lcs_cuda {
 
 
     /**
+     * Note that we neednot to use __syncwarp since we use sync shuffle
      * @tparam T possible types are uint32 and uint64
      * @param a sum  of  two vectors
      * @param b  basically sum of two vectors plus one for each summator
      * @return  Update values for A and B and returns the  upper carry bit  for a value A
      */
-    template<class T>
-    inline   __device__ int kawanami_sum_reduction_without_if(T &a, T &b) {
+    template<class T, bool with_if>
+    inline   __device__ int kawanami_sum_reduction(T &a, T &b) {
 
         int with_no_carry = a > p; // carry bit of A
         int with_carry = max(with_no_carry, b > p); // carry bit of B
@@ -27,9 +28,11 @@ namespace bitwise_prefix_lcs_cuda {
         int put_other_value; // weather or not we need to place a new value to current variable
         int active_mask;
 
+        auto lane_id = threadIdx.x % 32;
+
         #pragma  unroll
         for (int k = 1; k < 32; k <<= 1) {
-            active_mask = (threadIdx.x % k) < k; // threads that on current iteration  can need to swap values
+            active_mask = (lane_id % k) < k; // threads that on current iteration  can need to swap values
 
             // tmp values for carries and value
             carry_tmp = with_no_carry;
@@ -39,56 +42,42 @@ namespace bitwise_prefix_lcs_cuda {
             put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1); //broadcast
             put_b_value &= active_mask;
 
+            if (with_if) {
 
-            a = (a & (put_other_value - 1)) | ((-put_other_value) & b);
-            with_no_carry = (~put_other_value_value & with_no_carry) |
-                            (put_other_value_value &
-                             with_carry); // if put_b_value == 1 then we put with_no_carry <- with_carry;
+                if (put_other_value) {
+                    a = b;
+                    with_no_carry = with_carry;
+                }
+
+            } else {
+
+                a = (a & (put_other_value - 1)) | ((-put_other_value) & b);
+                with_no_carry = (~put_other_value_value & with_no_carry) |
+                                (put_other_value_value &
+                                 with_carry); // if put_b_value == 1 then we put with_no_carry <- with_carry;
+
+            }
+
 
             // update B part
             put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
             put_other_value &= active_mask;
-            b = (tmp & (put_other_value - 1)) | ((-put_other_value) & b);
-            with_carry = (~put_other_value & carry_tmp) | (put_other_value & with_carry);
-        }
 
-        return with_no_carry;
-    }
+            if (with_if) {
 
+                if (put_other_value) {
+                    b = tmp;
+                    with_carry = carry_tmp;
+                }
 
-    template<class T>
-    inline   __device__ int kawanami_sum_reduction_with_if(T &a, T &b) {
-        int with_no_carry = a > p;
-        int with_carry = max(with_no_carry, b > p);
+            } else {
 
-        T tmp;
-        int carry_tmp;
-        int put_other_value;
-        int active_mask;
+                b = (tmp & (put_other_value - 1)) | ((-put_other_value) & b);
+                with_carry = (~put_other_value & carry_tmp) | (put_other_value & with_carry);
 
-        #pragma  unroll
-        for (int k = 1; k < 32; k <<= 1) {
-            active_mask = (threadIdx.x % k) < k;
-
-            carry_tmp = with_no_carry;
-            tmp = a;
-
-            // update A part
-            put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1);
-            put_other_value &= active_mask;
-
-            if (put_other_value) {
-                a = b;
-                with_no_carry = with_carry;
             }
 
-            // update B part
-            put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
-            put_other_value &= active_mask;
-            if (put_other_value) {
-                b = tmp;
-                with_carry = carry_tmp;
-            }
+
         }
 
         return with_no_carry;
@@ -107,10 +96,11 @@ namespace bitwise_prefix_lcs_cuda {
      * @param offset_y
      * @param carries | 32
      */
+    template<bool with_if>
     __global__ void hyrro_kawanami_kernel_without_shared(int m, int n_small, int *a  unsigned int *
     lookup, unsigned int *vector_v, int offset_x, int offset_y,
                                                          unsigned int *carries) {
-        //TODO does it faster then with shared?
+        //TODO  shift to size of block > 32 varying
 
         // position relative to global
         int global_id_x = offset_x + 32 * blockIdx.x + threadIdx.x;
@@ -131,7 +121,7 @@ namespace bitwise_prefix_lcs_cuda {
         unsigned int processing_carry_pack = (threadIdx.x == 0) ? shared_carries[loc]
                                                                 : 0; // only  lower adder can have carry
 
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < 1024; i++) {
 
             if (global_id_y > m) {
@@ -153,7 +143,7 @@ namespace bitwise_prefix_lcs_cuda {
             T sum_v = p + vector + carry;
             T sum_v_inc = sum_v + 1;
 
-            carry_pack_to_save |= (kawanami_sum_reduction_without_if(sum_v, sum_v_inc) << bit_pos);
+            carry_pack_to_save |= (kawanami_sum_reduction<unsigned int, with_if>(sum_v, sum_v_inc) << bit_pos);
             vector = (vector ^ p) | sum_v; // update vector
 
             // if 31 then we need to save packed values and load another one
@@ -252,7 +242,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         unsigned int cond;
 
 
-        #pragma unroll
+#pragma unroll
         for (int shift = 31; shift > 0; shift--) {
 
             l_shifted = l >> shift;
@@ -276,7 +266,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
         mask = unsigned int(-1);
 
-        #pragma unroll
+#pragma unroll
         for (int shift = 1; shift < 32; shift++) {
             mask <<= 1;
 
@@ -291,14 +281,10 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
     }
 
 
-
-
     /**
      *
      * Calculate bitwise semi-local lcs by zig-zag appoarch.
-     * TODO add notion about edge cases
-     *
-     * Caution: the whole matrix should be procceded in a such way that  not threads can be  with global_id_row < 0 (i.e size must be greater then GRIDDIM)
+     * We use additional check of boundaries to allow run kernel even if matrix is small and less then DimGrid
      *
      * Visualization of our zig-zag (stripe) approach. Here we have W = 3 and a warp size of 4. As we can see such approach allows us
      * to each such  quadrangle independently, the only need of sync is needed within quadringle. Latter is achieved by a
@@ -333,10 +319,11 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
     template<int Width, class T, int K, int DimBlock>
     __global__ void
     bitwise_prefix_semi_local_kernel(T *a_reversed, int size_a, T *b, int size_b,
-                  unsigned int *left_strands, unsigned int *top_strands, int offset_b, int offset_a) {
+                                     unsigned int *left_strands, unsigned int *top_strands, int offset_b,
+                                     int offset_a) {
 
         int per_warp = (32 - 1) + Width;        // per warp processed columns number
-        int per_block = per_warp * (DimBlock / 32) ;    // per block processed columns number
+        int per_block = per_warp * (DimBlock / 32);    // per block processed columns number
 
 
         volatile __shared__ b_part T[per_block]; // we load associated with blocks symbols of b
@@ -346,8 +333,9 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         auto warp_id = threadIdx.x / 32; // id of warp that
 
 
-        auto global_id_col = offset_b +  lane_id + warp_id  * per_warp  +   blockIdx.x * per_block;
-        auto global_id_zero_in_block_col = offset_b + threadIdx.x + blockIdx.x * per_block; // for load to shared memory required stuff
+        auto global_id_col = offset_b + lane_id + warp_id * per_warp + blockIdx.x * per_block;
+        auto global_id_zero_in_block_col =
+                offset_b + threadIdx.x + blockIdx.x * per_block; // for load to shared memory required stuff
 
         auto global_id_row = offset_a + threadIdx.x + blockIdx.x * blockDim.x;
 
@@ -359,16 +347,17 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         T symbol_b;
 
 
-        if (global_id_row < size_a) {
+        if ((global_id_row >= 0) && (global_id_row < size_a)) {
             symbol_a = a_reversed[global_id_row];
             l_strand = left_strands[global_id_row];
         }
 
-        #pragma unroll
-        for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock); i++) {
+#pragma unroll
+        for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock);
+        i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
 
-            if (glob_pos < size_b ) {
+            if ((glob_pos >= 0) && (glob_pos < size_b)) {
                 t_part[threadIdx.x + i * DimBlock] = top_strands[glob_pos];
                 b_part[threadIdx.x + i * DimBlock] = b_part[glob_pos];
             } else {
@@ -382,7 +371,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
         __syncwarp();
 
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < Width; i++) {
 
             t_strand = t_part[ptr_shared];
@@ -392,7 +381,8 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 
             //update t_part
-            if (global_ptr_shared < size_b & global_id_row < size_a)
+            if ((global_ptr_shared < size_b) && (global_id_row < size_a) && (global_id_row >= 0) &&
+                (global_ptr_shared >= 0))
                 t_part[ptr_shared] = t_strand;
 
 
@@ -404,13 +394,14 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 
         // store l
-        if (global_id_row < size_a) left_strands[global_id_row] = l_strand;
+        if ((global_id_row >= 0) && (lobal_id_row < size_a)) left_strands[global_id_row] = l_strand;
 
 
-        #pragma unroll
-        for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock); i++) {
+#pragma unroll
+        for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock);
+        i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
-            if ( glob_pos < size_b)  top_strands[glob_pos] =  t_part[threadIdx.x + i * DimBlock];
+            if ((glob_pos < size_b) && (glob_pos >= 0)) top_strands[glob_pos] = t_part[threadIdx.x + i * DimBlock];
         }
 
     }
