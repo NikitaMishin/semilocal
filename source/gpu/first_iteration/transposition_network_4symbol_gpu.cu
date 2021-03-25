@@ -6,31 +6,31 @@ using namespace cooperative_groups; // or...
 using cooperative_groups::thread_group; // etc.
 
 
+typedef unsigned int Bit32;
+typedef unsigned long long Bit64;
+
 namespace bitwise_prefix_lcs_cuda {
 
 
     /**
-     * Note that we neednot to use __syncwarp since we use sync shuffle
-     * @tparam T possible types are uint32 and uint64
-     * @param a sum  of  two vectors
+     * Note that we need not to use __syncwarp since we use sync shuffle
+     * @param a sum  of  two vectors consisting of 32 32bit values
      * @param b  basically sum of two vectors plus one for each summator
      * @return  Update values for A and B and returns the  upper carry bit  for a value A
      */
-    template<class T, bool with_if>
-    inline   __device__ int kawanami_sum_reduction(T &a, T &b) {
+    template<bool withIf>
+    inline   __device__ int kawanami_sum_reduction(Bit32 &a, Bit32 &b, Bit32 lane_id) {
 
-        int with_no_carry = a > p; // carry bit of A
-        int with_carry = max(with_no_carry, b > p); // carry bit of B
+        Bit32 with_no_carry = a > p; // carry bit of A
+        Bit32 with_carry = max(with_no_carry, b > p); // carry bit of B
 
 
-        T tmp; // tmp value of A
-        int carry_tmp; // tmp value of carry bit of A
-        int put_other_value; // weather or not we need to place a new value to current variable
-        int active_mask;
+        Bit32 tmp; // tmp value of A
+        Bit32 carry_tmp; // tmp value of carry bit of A
+        Bit32 put_other_value; // weather or not we need to place a new value to current variable
+        Bit32 active_mask;
 
-        auto lane_id = threadIdx.x % 32;
-
-        #pragma  unroll
+#pragma  unroll
         for (int k = 1; k < 32; k <<= 1) {
             active_mask = (lane_id % k) < k; // threads that on current iteration  can need to swap values
 
@@ -42,7 +42,7 @@ namespace bitwise_prefix_lcs_cuda {
             put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1); //broadcast
             put_b_value &= active_mask;
 
-            if (with_if) {
+            if (withIf) {
 
                 if (put_other_value) {
                     a = b;
@@ -63,7 +63,7 @@ namespace bitwise_prefix_lcs_cuda {
             put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
             put_other_value &= active_mask;
 
-            if (with_if) {
+            if (withIf) {
 
                 if (put_other_value) {
                     b = tmp;
@@ -84,43 +84,16 @@ namespace bitwise_prefix_lcs_cuda {
     }
 
 
-    /**
-     * With if
-     * @tparam T
-     * @param m
-     * @param n_small | 32
-     * @param a
-     * @param lookup
-     * @param vector_v
-     * @param offset_x
-     * @param offset_y
-     * @param carries | 32
-     */
-    template<bool with_if>
-    __global__ void hyrro_kawanami_kernel_without_shared(int m, int n_small, int *a  unsigned int *
-    lookup, unsigned int *vector_v, int offset_x, int offset_y,
-                                                         unsigned int *carries) {
-        //TODO  shift to size of block > 32 varying
-
-        // position relative to global
-        int global_id_x = offset_x + 32 * blockIdx.x + threadIdx.x;
-        int global_id_y = 1024 * (offset_y + blockId.x);
-        int global_carry_id = 32 * (offset_y + blockId.x);
-
-
-        //load packed carries from global memory
-        unsigned int own_carry = carries[global_carry_id + threadIdx.x];
-
-        unsigned int vector = vector_v[global_id_x];
-
+    inline __device__ void kawanami_core(int *a_rev, Bit32 *lookup, int lane_id, Bit32 &own_carry, int global_id_y) {
 
         int loc = 0; // current position of packed carries for rows
         int bit_pos = 0; // current position of lower bit in loc
         unsigned int carry = 0; // either 1 or 0 for the lower bit of big vector number, for others always 0
         unsigned int carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
-        unsigned int processing_carry_pack = (threadIdx.x == 0) ? shared_carries[loc]
-                                                                : 0; // only  lower adder can have carry
+        unsigned int processing_carry_pack = (lane_id == 0) ? own_carry : 0; // only  lower adder can have carry
 
+
+        //todo write without break for actual unrolling
 #pragma unroll
         for (int i = 0; i < 1024; i++) {
 
@@ -128,20 +101,19 @@ namespace bitwise_prefix_lcs_cuda {
                 // save partial
                 // 31st broadcast carry_pack_to_save to all threads
                 carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
-                if (threadIdx.x == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
 
-                break; // out of matrix
+                if (lane_id == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
+                break;
             }
 
-            int key_a = a[global_id_y];
-            T lookup_value = lookup[key_a * n_small + threadIdx.x];
-            T p = vector & lookup_value;
-
+            auto key_a = a_rev[global_id_y];
+            auto lookup_value = lookup[key_a * n_small + threadIdx.x];
+            auto p = vector & lookup_value;
 
             carry = ((1 << bit_pos) & processing_carry_pack) != 0;  // for others it would be always 0
 
-            T sum_v = p + vector + carry;
-            T sum_v_inc = sum_v + 1;
+            auto sum_v = p + vector + carry;
+            auto sum_v_inc = sum_v + 1;
 
             carry_pack_to_save |= (kawanami_sum_reduction<unsigned int, with_if>(sum_v, sum_v_inc) << bit_pos);
             vector = (vector ^ p) | sum_v; // update vector
@@ -163,14 +135,66 @@ namespace bitwise_prefix_lcs_cuda {
             }
 
             bit_pos++;
-            global_id_y++;
+            global_id_y--;//since a is reverse
         }
 
-        // save 1024 bit vector back to memory
-        vector_v[global_id_x] = vector;
-        //save carries for the 1024 elements
-        carries[global_carry_id + threadIdx.x] = own_carry;
 
+    }
+
+    /**
+     *
+     * possible TODO: add paratrt WIDTH that allows to process more than 32 elements in a row -- cycle optimization
+     *
+     *
+     * @tparam H
+     * @tparam W
+     * @tparam with_if
+     * @param m
+     * @param n_small
+     * @param a
+     * @param lookup
+     * @param vector_v
+     * @param offset_x cpl
+     * @param offset_y | by 32
+     * @param carries
+     */
+    template<int H, int BlockDim, int Iter, bool WithIf>
+    __global__ void hyrro_kawanami_kernel_without_shared(int *a_rev, int m, Bit32 * lookup, Bit32 *vector_v, Bit32 *carries,
+                                                         int n_small, int offset_x, int offset_y) {
+
+        auto warp_id = threadIdx.x / 32;
+        auto lane_id = threadIdx.x % 32;
+        auto per_block = BlockDim * Iter;
+
+        // position relative to global
+        int global_id_x = offset_x + lane_id + 32 * Iter * warp_id + blockIdx.x * per_block;
+        int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32);
+
+        int global_carry_id = TODO;
+//        int global_carry_id = offset_y +     32 * repeats  32  32 * (offset_y + blockId.x);
+
+
+        unsigned int vector = vector_v[global_id_x];
+
+// todo add checking of boundaries
+        // todo: acn cuda handle nested unrolling; seems can
+        #pragma unroll
+        for (int i = 0; i < Iter; i++) {
+            Bit32 vector = vector_v[global_id_x + 32 * i];
+
+            #pragma unroll
+            for (int rep = 0; rep < H; rep++) {
+                //load packed carries from global memory
+                unsigned int own_carry = carries[todo];
+                kawanami_core<WithIf>(a_rev, lookup, lane_id, own_carry, global_id_y);
+
+                //save carries for the 1024 elements
+                carries[todo] = own_carry;
+            }
+
+            // save 1024 bit vector back to memory
+            vector_v[global_id_x] = vector;
+        }
     }
 
 
