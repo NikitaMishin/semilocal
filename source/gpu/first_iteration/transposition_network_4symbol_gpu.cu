@@ -19,7 +19,7 @@ namespace bitwise_prefix_lcs_cuda {
      * @return  Update values for A and B and returns the  upper carry bit  for a value A
      */
     template<bool withIf>
-    inline   __device__ int kawanami_sum_reduction(Bit32 &a, Bit32 &b, Bit32 lane_id) {
+    inline   __device__ int sklansky_sum_reduction(Bit32 &a, Bit32 &b, Bit32 lane_id) {
 
         Bit32 with_no_carry = a > p; // carry bit of A
         Bit32 with_carry = max(with_no_carry, b > p); // carry bit of B
@@ -30,7 +30,7 @@ namespace bitwise_prefix_lcs_cuda {
         Bit32 put_other_value; // weather or not we need to place a new value to current variable
         Bit32 active_mask;
 
-#pragma  unroll
+        #pragma  unroll
         for (int k = 1; k < 32; k <<= 1) {
             active_mask = (lane_id % k) < k; // threads that on current iteration  can need to swap values
 
@@ -84,38 +84,44 @@ namespace bitwise_prefix_lcs_cuda {
     }
 
 
+    /**
+     *
+     * @param a_rev
+     * @param lookup
+     * @param lane_id
+     * @param own_carry
+     * @param global_id_y
+     */
     inline __device__ void kawanami_core(int *a_rev, Bit32 *lookup, int lane_id, Bit32 &own_carry, int global_id_y) {
 
         int loc = 0; // current position of packed carries for rows
         int bit_pos = 0; // current position of lower bit in loc
-        unsigned int carry = 0; // either 1 or 0 for the lower bit of big vector number, for others always 0
-        unsigned int carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
-        unsigned int processing_carry_pack = (lane_id == 0) ? own_carry : 0; // only  lower adder can have carry
+        Bit32 carry = 0; // either 1 or 0 for the lower bit of big vector number, for others always 0
+        Bit32 carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
+        Bit32 processing_carry_pack = (lane_id == 0) ? own_carry : 0; // only  lower adder can have carry
 
-
-        //todo write without break for actual unrolling
-#pragma unroll
+        #pragma unroll
         for (int i = 0; i < 1024; i++) {
 
-            if (global_id_y > m) {
+            if (global_id_y < 0 ) {
                 // save partial
                 // 31st broadcast carry_pack_to_save to all threads
                 carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
 
                 if (lane_id == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
-                break;
+                return;
             }
 
-            auto key_a = a_rev[global_id_y];
-            auto lookup_value = lookup[key_a * n_small + threadIdx.x];
-            auto p = vector & lookup_value;
+            Bit32 key_a = a_rev[global_id_y];
+            Bit32 lookup_value = lookup[key_a * n_small + threadIdx.x];
+            Bit32 p = vector & lookup_value;
 
             carry = ((1 << bit_pos) & processing_carry_pack) != 0;  // for others it would be always 0
 
-            auto sum_v = p + vector + carry;
-            auto sum_v_inc = sum_v + 1;
+            Bit32 sum_v = p + vector + carry;
+            Bit32 sum_v_inc = sum_v + 1;
 
-            carry_pack_to_save |= (kawanami_sum_reduction<unsigned int, with_if>(sum_v, sum_v_inc) << bit_pos);
+            carry_pack_to_save |= (sklansky_sum_reduction<unsigned int, withIf>(sum_v, sum_v_inc) << bit_pos);
             vector = (vector ^ p) | sum_v; // update vector
 
             // if 31 then we need to save packed values and load another one
@@ -149,35 +155,29 @@ namespace bitwise_prefix_lcs_cuda {
      * @tparam H
      * @tparam W
      * @tparam with_if
-     * @param m
-     * @param n_small
+     * @param m | Тут все ок, просто offset взять отрицательный
+     * @param n_small | 32*Iter
      * @param a
      * @param lookup
      * @param vector_v
-     * @param offset_x cpl
-     * @param offset_y | by 32
+     * @param offset_x row offset from left
+     * @param offset_y col offset from top
      * @param carries
      */
     template<int H, int BlockDim, int Iter, bool WithIf>
     __global__ void hyrro_kawanami_kernel_without_shared(int *a_rev, int m, Bit32 * lookup, Bit32 *vector_v, Bit32 *carries,
                                                          int n_small, int offset_x, int offset_y) {
 
-        auto warp_id = threadIdx.x / 32;
-        auto lane_id = threadIdx.x % 32;
-        auto per_block = BlockDim * Iter;
+        int warp_id = threadIdx.x / 32;
+        int lane_id = threadIdx.x % 32;
+        int columns_per_block = BlockDim * Iter;// processed by threads within one block since each thread process Iter columns
 
         // position relative to global
-        int global_id_x = offset_x + lane_id + 32 * Iter * warp_id + blockIdx.x * per_block;
-        int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32);
+        int global_id_x = offset_x + lane_id + 32 * Iter * warp_id + blockIdx.x * columns_per_block; // global row pos
+        int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32)) - 1;// global col pos could be negative to adjust with non divisible parts
 
-        int global_carry_id = TODO;
-//        int global_carry_id = offset_y +     32 * repeats  32  32 * (offset_y + blockId.x);
+        int global_carry_id = global_id_y / 32 - lane_id;
 
-
-        unsigned int vector = vector_v[global_id_x];
-
-// todo add checking of boundaries
-        // todo: acn cuda handle nested unrolling; seems can
         #pragma unroll
         for (int i = 0; i < Iter; i++) {
             Bit32 vector = vector_v[global_id_x + 32 * i];
@@ -185,16 +185,105 @@ namespace bitwise_prefix_lcs_cuda {
             #pragma unroll
             for (int rep = 0; rep < H; rep++) {
                 //load packed carries from global memory
-                unsigned int own_carry = carries[todo];
+                unsigned int own_carry = (global_carry_id - 32 * rep >= 0) ? carries[global_carry_id - 32 * rep] : 0;
                 kawanami_core<WithIf>(a_rev, lookup, lane_id, own_carry, global_id_y);
 
                 //save carries for the 1024 elements
-                carries[todo] = own_carry;
+                if (global_carry_id - 32 * rep >= 0) carries[global_carry_id] = own_carry;
             }
 
             // save 1024 bit vector back to memory
-            vector_v[global_id_x] = vector;
+            vector_v[global_id_x + 32 * i] = vector;
         }
+    }
+
+
+
+    template <int Iter, int Split ,int Width, int BlockDim>
+    __global__ void hyyro_shared(int *a_rev, int m, Bit32 * lookup, Bit32 *vector_v, Bit32 *carries,
+                                 int n_small, int offset_row, int offset_col){
+
+        int per_warp_cols = ((32 - 1) + Width) * Iter;        // per warp processed columns number
+        int per_block_cols = per_warp_cols * (BlockDim / 32);     // per block processed columns number
+
+
+        // Each warp manage own memory space of size WX32. By varying W we make  tradeoffs between occypancy and number of load operations to shared memory
+        // to eliminate bank conflict  we fill in column major order
+        __shared__ precalced_part Bit32[Split * BlockDim / 32][32];
+
+        //TODO shflup seems to eliminate shared memory here
+        __shared__ vector_part Bit32[(BlockDim / 32) *  ((32 - 1) + Split)  ]
+
+        int lane_id = threadIdx.x % 32;
+        int warp_id = threadIdx.x / 32;
+
+
+        //inital stuff
+        int global_row = offset_row + lane_id + 32 * Iter * ( warp_id + blockIdx.x * (BlockDim / 32));
+        int global_col = offset_col + lane_id + warp_id * per_warp_cols + blockIdx.x * per_block_cols;
+
+        int pos = warp_id * Split;
+
+        #pragma unroll
+        for(int k = 0; k < Iter; k++) {
+
+            #pragma unroll
+            for(int it = 0; it < Width / Split; it++) {
+
+                // load precalc from shared memory
+                #pragma unroll
+                for(int i = 0; i < 32; i++) {
+                    int key = __shfl_sync(0xffffffff, private_key, i, 32);
+                    if (lane_id < Split) precalced_part[lane_id + pos][i] = lookup[key * n_small + global_row + i + it * Split] ;
+                }
+                // load vectors from global memory
+                #pragma unroll
+                for (int i = 0; i < 42; i++) {
+
+                    vector_part[lane_id + pos] = vector_v[]
+
+
+
+    auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
+
+                    if ((glob_pos >= 0) && (glob_pos < size_b)) {
+                        t_part[threadIdx.x + i * DimBlock] = top_strands[glob_pos];
+                        b_part[threadIdx.x + i * DimBlock] = b_part[glob_pos];
+                    } else {
+                        t_part[threadIdx.x + i * DimBlock] = 0;
+                        b_part[threadIdx.x + i * DimBlock] = 0;
+                    }
+                }
+
+
+
+
+                __syncwarp();
+
+
+                // local vector v
+
+                // jheart
+            }
+
+
+
+        }
+
+
+        //load key for each row, no need for shared memory since we can use shfl_sync
+        int private_key = (global_row < m) ? a_rev[global_row]: 0;
+        Bit32 vector = (global_col < n_small ) ? vector_v[global_col] : 0;
+
+
+
+        // load values
+        #pragma unroll
+        for(int i = 0; i < 32; i++) {
+            int key = __shfl_sync(0xffffffff, private_key, i, 32);
+            if (lane_id < Split) b_part[ lane_id + pos][i] = lookup[key * n_small + ] ;// if less then 8
+        }
+
     }
 
 
@@ -202,6 +291,7 @@ namespace bitwise_prefix_lcs_cuda {
 
 
 namespace bitwise_prefix_semi_local_lcs_cuda {
+
 
 
     /**
@@ -266,7 +356,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         unsigned int cond;
 
 
-#pragma unroll
+        #pragma unroll
         for (int shift = 31; shift > 0; shift--) {
 
             l_shifted = l >> shift;
@@ -307,7 +397,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
     /**
      *
-     * Calculate bitwise semi-local lcs by zig-zag appoarch.
+     * Calculate bitwise semi-local lcs by zig-zag approach.
      * We use additional check of boundaries to allow run kernel even if matrix is small and less then DimGrid
      *
      * Visualization of our zig-zag (stripe) approach. Here we have W = 3 and a warp size of 4. As we can see such approach allows us
@@ -376,7 +466,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
             l_strand = left_strands[global_id_row];
         }
 
-#pragma unroll
+        #pragma unroll
         for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock);
         i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
@@ -429,6 +519,51 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         }
 
     }
+
+
+
+
+    __device__ inline Bit32 process_hyrro(Bit32 & vector, Bit32 sum_bit , Bit32  lookup_value) {
+        Bit32 old_v = vector;
+        Bit32 p = lookup_value & old_v;
+        with_offset = sum_bit + old_v + p;
+        vector =  (old_v ^ p) | with_offset;
+        return with_offset < old_v;
+
+    }
+
+}
+
+
+namespace semi_local_lcs {
+
+    template <int withIf>
+    inline  void __device__ process_cell(int symbol_a, int & l, int &t,  int symbol_b) {
+
+        // guess with temporary register will be faster then two xors
+        int tmp;
+
+        if (withIf){
+            if ((symbol_a == symbol_b) || (l > t) ) {
+                tmp = l;
+                l = r;
+                l = tmp;
+            }
+
+        } else {
+
+            bool r = symbol_a == symbol_b || (l > t);
+            tmp  = l;
+
+            l = (l & (r - 1))  | ((-r) &  t);
+            t = t ^ tmp ^ l;
+        }
+
+
+
+    }
+
+
 
 }
 
