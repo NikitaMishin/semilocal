@@ -30,7 +30,7 @@ namespace bitwise_prefix_lcs_cuda {
         Bit32 put_other_value; // weather or not we need to place a new value to current variable
         Bit32 active_mask;
 
-        #pragma  unroll
+#pragma  unroll
         for (int k = 1; k < 32; k <<= 1) {
             active_mask = (lane_id % k) < k; // threads that on current iteration  can need to swap values
 
@@ -100,10 +100,10 @@ namespace bitwise_prefix_lcs_cuda {
         Bit32 carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
         Bit32 processing_carry_pack = (lane_id == 0) ? own_carry : 0; // only  lower adder can have carry
 
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < 1024; i++) {
 
-            if (global_id_y < 0 ) {
+            if (global_id_y < 0) {
                 // save partial
                 // 31st broadcast carry_pack_to_save to all threads
                 carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
@@ -165,28 +165,31 @@ namespace bitwise_prefix_lcs_cuda {
      * @param carries
      */
     template<int H, int BlockDim, int Iter, bool WithIf>
-    __global__ void hyrro_kawanami_kernel_without_shared(int *a_rev, int m, Bit32 * lookup, Bit32 *vector_v, Bit32 *carries,
-                                                         int n_small, int offset_x, int offset_y) {
+    __global__ void
+    hyrro_kawanami_kernel_without_shared(int *a_rev, int m, Bit32 *lookup, Bit32 *vector_v, Bit32 *carries,
+                                         int n_small, int offset_x, int offset_y) {
 
         int warp_id = threadIdx.x / 32;
         int lane_id = threadIdx.x % 32;
-        int columns_per_block = BlockDim * Iter;// processed by threads within one block since each thread process Iter columns
+        int columns_per_block =
+                BlockDim * Iter;// processed by threads within one block since each thread process Iter columns
 
         // position relative to global
         int global_id_x = offset_x + lane_id + 32 * Iter * warp_id + blockIdx.x * columns_per_block; // global row pos
-        int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32)) - 1;// global col pos could be negative to adjust with non divisible parts
+        int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32)) -
+                          1;// global col pos could be negative to adjust with non divisible parts
 
         int global_carry_id = global_id_y / 32 - lane_id;
 
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < Iter; i++) {
             Bit32 vector = vector_v[global_id_x + 32 * i];
 
-            #pragma unroll
+#pragma unroll
             for (int rep = 0; rep < H; rep++) {
                 //load packed carries from global memory
                 unsigned int own_carry = (global_carry_id - 32 * rep >= 0) ? carries[global_carry_id - 32 * rep] : 0;
-                kawanami_core<WithIf>(a_rev, lookup, lane_id, own_carry, global_id_y);
+                kawanami_core < WithIf > (a_rev, lookup, lane_id, own_carry, global_id_y);
 
                 //save carries for the 1024 elements
                 if (global_carry_id - 32 * rep >= 0) carries[global_carry_id] = own_carry;
@@ -198,91 +201,151 @@ namespace bitwise_prefix_lcs_cuda {
     }
 
 
+    namespace stripe {
 
-    template <int Iter, int Split ,int Width, int BlockDim>
-    __global__ void hyyro_shared(int *a_rev, int m, Bit32 * lookup, Bit32 *vector_v, Bit32 *carries,
-                                 int n_small, int offset_row, int offset_col){
+        /**
+         *
+         * Example ChunkSize = 3, Width = 6, warp size = 3, Iter = 2
+         *
+         *                             ___
+         *                             XXXXXX|        |
+         *                            XXXXXX |        |
+         *                           XXXXXX  |        |
+         *                     XXXXXX        |        |
+         *                    XXXXXX         |<- warp |
+         *                   XXXXXX          |        |
+         *                                            |
+         *                                            |
+         *                                            |
+         *                                            |
+         *                                            |
+         *                                            |
+         *                                            |  <- threadblock
+         *          |columns |                        |
+         *          | per    |                        |
+         *          | warp   |                        |
+         *          |------- |                        |
+         *          |  width |                        |
+         *  ...     |  ----- |                        |
+         *          |  XXXXXX|            |           |
+         *          | XXXXXX |            |           |
+         *          |XXXXXX  |            |Iter * warp|
+         *     XXXXXX       |             |           |
+         *    XXXXXX        |<- warp      |           |
+         *   XXXXXX         |             |           |
+         *
+         *
+         *
+         *
+         * @tparam Iter number of Iterations for each warp
+         * @tparam ChunkSize  Width is divisile by ChunkSize. We split one iteration on Width/ChunkSize for reduce shared memory reqieremetns to allow better occupancy
+         * @tparam Width number of columns that  is processed by each thread in one Iter
+         * @tparam BlockDim same as BlockDim property. We need template for static shared memory allocation
+         * @param a_rev a in  the reverse order
+         * @param m size of a_rev
+         * @param lookup precalc for compressed string b
+         * @param vector_v compressed vector
+         * @param carries of size m. Carry bits for each row of a_rev
+         * @param n_small size of comprsesed string b (n_small = n / 32)
+         * @param offset_row from bottom border
+         * @param offset_col from left border
+         */
+        template<int Iter, int ChunkSize, int Width, int BlockDim>
+        __global__ void
+        hyyro_shared(int *a_rev, int m, Bit32 *lookup, Bit32 *vector_v, Bit32 *carries, int n_small, int offset_row,
+                     int offset_col) {
 
-        int per_warp_cols = ((32 - 1) + Width) * Iter;        // per warp processed columns number
-        int per_block_cols = per_warp_cols * (BlockDim / 32);     // per block processed columns number
+            int warps_per_threadblock = BlockDim / 32;
+            int per_warp_cols = (32 - 1) + Width;                             // per warp processed columns number
+            int per_block_cols = Iter * per_warp_cols * warps_per_threadblock;// per block processed columns number
+            int lane_id = threadIdx.x % 32;                                   // thread id within warp
+            int warp_id = threadIdx.x / 32;                                   // warp id of current thread
+
+            // Each warp manage own memory space of size SX32. By varying ChunkSize we make  tradeoffs between occupancy
+            // and number of load operations to shared memory; to eliminate bank conflicts  we fill store  in column major order
+            __shared__ Bit32 precalced_part[ChunkSize * warps_per_threadblock][32];
+
+            // Each warp store in shared memory  part of processed vector for one Iter
+            __shared__ Bit32 vector_part[warps_per_threadblock * per_warp_cols];
 
 
-        // Each warp manage own memory space of size WX32. By varying W we make  tradeoffs between occypancy and number of load operations to shared memory
-        // to eliminate bank conflict  we fill in column major order
-        __shared__ precalced_part Bit32[Split * BlockDim / 32][32];
 
-        //TODO shflup seems to eliminate shared memory here
-        __shared__ vector_part Bit32[(BlockDim / 32) *  ((32 - 1) + Split)  ]
+            // global positions
+            int global_row = offset_row + lane_id + 32 * Iter * (warp_id + blockIdx.x * warps_per_threadblock);
+            int global_col = offset_col + lane_id + warp_id * Iter * per_warp_cols + blockIdx.x * per_block_cols;
 
-        int lane_id = threadIdx.x % 32;
-        int warp_id = threadIdx.x / 32;
+            int precalc_offset = warp_id * ChunkSize;
+            int shared_offset_v = warp_id * per_warp_cols;
 
+            // within each iteration each warp process 32 rows elements and  (32 - 1) + Width columns
+#pragma unroll
+            for (int k = 0; k < Iter; k++, global_row += 32, global_col += per_warp_cols) {
 
-        //inital stuff
-        int global_row = offset_row + lane_id + 32 * Iter * ( warp_id + blockIdx.x * (BlockDim / 32));
-        int global_col = offset_col + lane_id + warp_id * per_warp_cols + blockIdx.x * per_block_cols;
+                // load carry bits
+                Bit32 carry_bit = (global_row < m) ? carries[global_row] : 0;
 
-        int pos = warp_id * Split;
+                // load symbol a aka key
+                //load key for each row, no need for shared memory since we can use shfl_sync
+                int private_key = (global_row < m) ? a_rev[global_row] : 0;
 
-        #pragma unroll
-        for(int k = 0; k < Iter; k++) {
-
-            #pragma unroll
-            for(int it = 0; it < Width / Split; it++) {
-
-                // load precalc from shared memory
-                #pragma unroll
-                for(int i = 0; i < 32; i++) {
-                    int key = __shfl_sync(0xffffffff, private_key, i, 32);
-                    if (lane_id < Split) precalced_part[lane_id + pos][i] = lookup[key * n_small + global_row + i + it * Split] ;
+                //  load vector: each warp load  per_warp_cols
+#pragma unroll
+                for (int i = 0; i < (per_warp_cols + 31) / 32; i++) {
+                    if (lane_id + i * 32 < per_warp_cols)
+                        vector_part[lane_id + i * 32 + shared_offset_v] = vector_v[global_col + 32 * i];
                 }
-                // load vectors from global memory
-                #pragma unroll
-                for (int i = 0; i < 42; i++) {
-
-                    vector_part[lane_id + pos] = vector_v[]
 
 
+                // heart of algo
+#pragma unroll
+                for (int it = 0; it < Width / ChunkSize; it++) {
 
-    auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
+                    // load precalc from shared memory
+#pragma unroll
+                    for (int i = 0; i < 32; i++) {
+                        // broadcast current private key  for load chunk of values for it
+                        int key = __shfl_sync(0xffffffff, private_key, i, 32);
+                        //TODO: no need for  since vectors > n_small will be zeroed
+                        if (lane_id < ChunkSize)
+                            precalced_part[lane_id + ChunkSize * warp_id][i] = lookup[key * n_small + global_col + i +
+                                                                                      it * ChunkSize];
+                    }
 
-                    if ((glob_pos >= 0) && (glob_pos < size_b)) {
-                        t_part[threadIdx.x + i * DimBlock] = top_strands[glob_pos];
-                        b_part[threadIdx.x + i * DimBlock] = b_part[glob_pos];
-                    } else {
-                        t_part[threadIdx.x + i * DimBlock] = 0;
-                        b_part[threadIdx.x + i * DimBlock] = 0;
+                    __syncwarp();
+
+#pragma unroll
+                    for (int i = 0; i < ChunkSize; i++) {
+                        Bit32 v = vector_part[lane_id + i + it * ChunkSize + shared_offset_v];
+                        Bit32 precalc = precalced_part[i + precalc_offset][lane_id];
+                        Bit32 p = precalc & v;
+                        Bit32 old_v = v;
+                        v = carry_bit + v + p;
+                        carry_bit = v < old_v;
+                        v = (p ^ v) | v;
+
+                        __syncwarp();
+
+                        //save back v
+                        vector_part[lane_id + i + it * ChunkSize + shared_offset_v] = v;
+                        __syncwarp();
                     }
                 }
 
 
 
+                // save carry bit
+                if (global_row < m) carries[global_row] = carry_bit;
 
+                // save vector
+#pragma unroll
+                for (int i = 0; i < (per_warp_cols + 31) / 32; i++) {
+                    if (lane_id + i * 32 < per_warp_cols)
+                        vector_v[global_col + 32 * i] = vector_part[lane_id + i * 32 + shared_offset_v];
+                }
                 __syncwarp();
-
-
-                // local vector v
-
-                // jheart
             }
-
-
-
         }
 
-
-        //load key for each row, no need for shared memory since we can use shfl_sync
-        int private_key = (global_row < m) ? a_rev[global_row]: 0;
-        Bit32 vector = (global_col < n_small ) ? vector_v[global_col] : 0;
-
-
-
-        // load values
-        #pragma unroll
-        for(int i = 0; i < 32; i++) {
-            int key = __shfl_sync(0xffffffff, private_key, i, 32);
-            if (lane_id < Split) b_part[ lane_id + pos][i] = lookup[key * n_small + ] ;// if less then 8
-        }
 
     }
 
@@ -291,7 +354,6 @@ namespace bitwise_prefix_lcs_cuda {
 
 
 namespace bitwise_prefix_semi_local_lcs_cuda {
-
 
 
     /**
@@ -356,7 +418,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
         unsigned int cond;
 
 
-        #pragma unroll
+#pragma unroll
         for (int shift = 31; shift > 0; shift--) {
 
             l_shifted = l >> shift;
@@ -466,7 +528,7 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
             l_strand = left_strands[global_id_row];
         }
 
-        #pragma unroll
+#pragma unroll
         for (int i = 0; i < (per_block + DimBlock - 1) / DimBlock);
         i++) {
             auto glob_pos = global_id_zero_in_block_col + i * DimBlock;
@@ -521,13 +583,11 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
     }
 
 
-
-
-    __device__ inline Bit32 process_hyrro(Bit32 & vector, Bit32 sum_bit , Bit32  lookup_value) {
+    __device__ inline Bit32 process_hyrro(Bit32 &vector, Bit32 sum_bit, Bit32 lookup_value) {
         Bit32 old_v = vector;
         Bit32 p = lookup_value & old_v;
         with_offset = sum_bit + old_v + p;
-        vector =  (old_v ^ p) | with_offset;
+        vector = (old_v ^ p) | with_offset;
         return with_offset < old_v;
 
     }
@@ -537,14 +597,14 @@ namespace bitwise_prefix_semi_local_lcs_cuda {
 
 namespace semi_local_lcs {
 
-    template <int withIf>
-    inline  void __device__ process_cell(int symbol_a, int & l, int &t,  int symbol_b) {
+    template<int withIf>
+    inline void __device__ process_cell(int symbol_a, int &l, int &t, int symbol_b) {
 
         // guess with temporary register will be faster then two xors
         int tmp;
 
-        if (withIf){
-            if ((symbol_a == symbol_b) || (l > t) ) {
+        if (withIf) {
+            if ((symbol_a == symbol_b) || (l > t)) {
                 tmp = l;
                 l = r;
                 l = tmp;
@@ -553,16 +613,14 @@ namespace semi_local_lcs {
         } else {
 
             bool r = symbol_a == symbol_b || (l > t);
-            tmp  = l;
+            tmp = l;
 
-            l = (l & (r - 1))  | ((-r) &  t);
+            l = (l & (r - 1)) | ((-r) & t);
             t = t ^ tmp ^ l;
         }
 
 
-
     }
-
 
 
 }
