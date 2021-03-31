@@ -11,193 +11,203 @@ typedef unsigned long long Bit64;
 
 namespace bitwise_prefix_lcs_cuda {
 
-
-    /**
-     * Note that we need not to use __syncwarp since we use sync shuffle
-     * @param a sum  of  two vectors consisting of 32 32bit values
-     * @param b  basically sum of two vectors plus one for each summator
-     * @return  Update values for A and B and returns the  upper carry bit  for a value A
-     */
-    template<bool withIf>
-    inline   __device__ int sklansky_sum_reduction(Bit32 &a, Bit32 &b, Bit32 lane_id) {
-
-        Bit32 with_no_carry = a > p; // carry bit of A
-        Bit32 with_carry = max(with_no_carry, b > p); // carry bit of B
+    namespace sklansky {
 
 
-        Bit32 tmp; // tmp value of A
-        Bit32 carry_tmp; // tmp value of carry bit of A
-        Bit32 put_other_value; // weather or not we need to place a new value to current variable
-        Bit32 active_mask;
+        /**
+  *  Note that we need not to use __syncwarp since we use sync shuffle
+  * @param a sum  of  two vectors consisting of 32 32bit values
+  * @param b  basically sum of two vectors plus one for each summator
+  * @return  Update values for A and B and returns the  upper carry bit  for a value A
+            */
+        template<bool withIf>
+        inline   __device__ int sklansky_sum_reduction(Bit32 &a, Bit32 &b, Bit32 &p, Bit32 &lane_id) {
 
-#pragma  unroll
-        for (int k = 1; k < 32; k <<= 1) {
-            active_mask = (lane_id % k) < k; // threads that on current iteration  can need to swap values
+            Bit32 with_no_carry = a > p; // carry bit of A
+            Bit32 with_carry = max(with_no_carry, b > p); // carry bit of B
 
-            // tmp values for carries and value
-            carry_tmp = with_no_carry;
-            tmp = a;
 
-            // update A part
-            put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1); //broadcast
-            put_b_value &= active_mask;
+            Bit32 tmp; // tmp value of A
+            Bit32 carry_tmp; // tmp value of carry bit of A
+            Bit32 put_other_value; // weather or not we need to place a new value to current variable
+            Bit32 active_mask;
 
-            if (withIf) {
+            #pragma  unroll
+            for (int k = 1; k < 32; k <<= 1) {
+                active_mask = (lane_id % k) < k; // threads that on current iteration  can need to swap values
 
-                if (put_other_value) {
-                    a = b;
-                    with_no_carry = with_carry;
+                // tmp values for carries and value
+                carry_tmp = with_no_carry;
+                tmp = a;
+
+                // update A part
+                put_other_value = __shfl_sync(0xffffffff, with_no_carry, k, k << 1); //broadcast
+                put_other_value &= active_mask;
+
+                if (withIf) {
+
+                    if (put_other_value) {
+                        a = b;
+                        with_no_carry = with_carry;
+                    }
+
+                } else {
+
+                    a = (a & (put_other_value - 1)) | ((-put_other_value) & b);
+                    with_no_carry = (~put_other_value & with_no_carry) |
+                                    (put_other_value &
+                                     with_carry); // if put_other_value == 1 then we put with_no_carry <- with_carry;
+
                 }
 
-            } else {
 
-                a = (a & (put_other_value - 1)) | ((-put_other_value) & b);
-                with_no_carry = (~put_other_value_value & with_no_carry) |
-                                (put_other_value_value &
-                                 with_carry); // if put_b_value == 1 then we put with_no_carry <- with_carry;
+                // update B part
+                put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
+                put_other_value &= active_mask;
 
-            }
+                if (withIf) {
 
+                    if (put_other_value) {
+                        b = tmp;
+                        with_carry = carry_tmp;
+                    }
 
-            // update B part
-            put_other_value = !__shfl_sync(0xffffffff, with_carry, k, k << 1);
-            put_other_value &= active_mask;
+                } else {
 
-            if (withIf) {
+                    b = (tmp & (put_other_value - 1)) | ((-put_other_value) & b);
+                    with_carry = (~put_other_value & carry_tmp) | (put_other_value & with_carry);
 
-                if (put_other_value) {
-                    b = tmp;
-                    with_carry = carry_tmp;
                 }
 
-            } else {
 
-                b = (tmp & (put_other_value - 1)) | ((-put_other_value) & b);
-                with_carry = (~put_other_value & carry_tmp) | (put_other_value & with_carry);
+            }
 
+            return with_no_carry;
+        }
+
+
+        /**
+         *
+         * @param a_rev
+         * @param lookup
+         * @param lane_id
+         * @param own_carry
+         * @param global_id_y
+         */
+        template<bool withIf>
+        inline __device__ void
+        kawanami_core(int *a_rev, Bit32 *lookup, Bit32 &vector, int n_small, int lane_id, Bit32 &own_carry,
+                      int global_id_y) {
+
+            int loc = 0; // current position of packed carries for rows
+            int bit_pos = 0; // current position of lower bit in loc
+            Bit32 carry = 0; // either 1 or 0 for the lower bit of big vector number, for others always 0
+            Bit32 carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
+            Bit32 processing_carry_pack = (lane_id == 0) ? own_carry : 0; // only  lower adder can have carry
+
+#pragma unroll
+            for (int i = 0; i < 1024; i++) {
+
+                if (global_id_y < 0) {
+                    // save partial
+                    // 31st broadcast carry_pack_to_save to all threads
+                    carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
+
+                    if (lane_id == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
+                    return;
+                }
+
+                Bit32 key_a = a_rev[global_id_y];
+                Bit32 lookup_value = lookup[key_a * n_small + threadIdx.x];
+                Bit32 p = vector & lookup_value;
+
+                carry = ((1 << bit_pos) & processing_carry_pack) != 0;  // for others it would be always 0
+
+                Bit32 sum_v = p + vector + carry;// sum+1>p
+                Bit32 sum_v_inc = sum_v + 1;
+
+                carry_pack_to_save |= (sklansky_sum_reduction<withIf>(sum_v, sum_v_inc, p, lane_id) << bit_pos);
+                vector = (vector ^ p) | sum_v; // update vector
+
+                // if 31 then we need to save packed values and load another one
+                if ((i % 32) == 31) {
+
+                    // 31st broadcast carry_pack_to_save to all threads
+                    carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
+                    if (threadIdx.x == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
+                    carry_pack_to_save = 0;
+
+                    loc++;
+                    // transfer carry pack from loc thread to  lane with id = loc
+                    processing_carry_pack = __shfl_sync(0xffffffff, own_carry, loc, 32);
+                    processing_carry_pack = (threadIdx.x == 0 && loc < 32) ? processing_carry_pack : 0;
+
+                    bit_pos = -1; // will be 0 at the end of this loop iteration
+                }
+
+                bit_pos++;
+                global_id_y--;//since a is reverse
             }
 
 
         }
 
-        return with_no_carry;
-    }
+        /**
+         *
+         * possible TODO: add paratrt WIDTH that allows to process more than 32 elements in a row -- cycle optimization
+         *
+         *
+         * @tparam H
+         * @tparam W
+         * @tparam with_if
+         * @param m | Тут все ок, просто offset взять отрицательный
+         * @param n_small | 32*Iter
+         * @param a
+         * @param lookup
+         * @param vector_v
+         * @param offset_x row offset from left
+         * @param offset_y col offset from top
+         * @param carries
+         */
+        template<int H, int BlockDim, int Iter, bool WithIf>
+        __global__ void
+        hyrro_kawanami_kernel_without_shared(int *a_rev, int m, Bit32 *lookup, Bit32 *vector_v, Bit32 *carries,
+                                             int n_small, int offset_x, int offset_y) {
 
+            int warp_id = threadIdx.x / 32;
+            int lane_id = threadIdx.x % 32;
+            int columns_per_block =
+                    BlockDim * Iter;// processed by threads within one block since each thread process Iter columns
 
-    /**
-     *
-     * @param a_rev
-     * @param lookup
-     * @param lane_id
-     * @param own_carry
-     * @param global_id_y
-     */
-    inline __device__ void kawanami_core(int *a_rev, Bit32 *lookup, int lane_id, Bit32 &own_carry, int global_id_y) {
+            // position relative to global
+            int global_id_x =
+                    offset_x + lane_id + 32 * Iter * warp_id + blockIdx.x * columns_per_block; // global row pos
+            int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32)) -
+                              1;// global col pos could be negative to adjust with non divisible parts
 
-        int loc = 0; // current position of packed carries for rows
-        int bit_pos = 0; // current position of lower bit in loc
-        Bit32 carry = 0; // either 1 or 0 for the lower bit of big vector number, for others always 0
-        Bit32 carry_pack_to_save = 0; // packed carry bits to save, only upper carry bit is saved
-        Bit32 processing_carry_pack = (lane_id == 0) ? own_carry : 0; // only  lower adder can have carry
+            int global_carry_id = global_id_y / 32 - lane_id;
 
 #pragma unroll
-        for (int i = 0; i < 1024; i++) {
+            for (int i = 0; i < Iter; i++) {
+                Bit32 vector = vector_v[global_id_x + 32 * i];
 
-            if (global_id_y < 0) {
-                // save partial
-                // 31st broadcast carry_pack_to_save to all threads
-                carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
+#pragma unroll
+                for (int rep = 0; rep < H; rep++) {
+                    //load packed carries from global memory
+                    unsigned int own_carry = (global_carry_id - 32 * rep >= 0) ? carries[global_carry_id - 32 * rep]
+                                                                               : 0;
+                    kawanami_core<WithIf>(a_rev, lookup, lane_id, own_carry, global_id_y);
 
-                if (lane_id == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
-                return;
+                    //save carries for the 1024 elements
+                    if (global_carry_id - 32 * rep >= 0) carries[global_carry_id] = own_carry;
+                }
+
+                // save 1024 bit vector back to memory
+                vector_v[global_id_x + 32 * i] = vector;
             }
-
-            Bit32 key_a = a_rev[global_id_y];
-            Bit32 lookup_value = lookup[key_a * n_small + threadIdx.x];
-            Bit32 p = vector & lookup_value;
-
-            carry = ((1 << bit_pos) & processing_carry_pack) != 0;  // for others it would be always 0
-
-            Bit32 sum_v = p + vector + carry;
-            Bit32 sum_v_inc = sum_v + 1;
-
-            carry_pack_to_save |= (sklansky_sum_reduction<unsigned int, withIf>(sum_v, sum_v_inc) << bit_pos);
-            vector = (vector ^ p) | sum_v; // update vector
-
-            // if 31 then we need to save packed values and load another one
-            if ((i % 32) == 31) {
-
-                // 31st broadcast carry_pack_to_save to all threads
-                carry_pack_to_save = __shfl_sync(0xffffffff, carry_pack_to_save, 31, 32);
-                if (threadIdx.x == loc) own_carry = carry_pack_to_save; // and loc lane will update own_carry
-                carry_pack_to_save = 0;
-
-                loc++;
-                // transfer carry pack from loc thread to  lane with id = loc
-                processing_carry_pack = __shfl_sync(0xffffffff, own_carry, loc, 32);
-                processing_carry_pack = (threadIdx.x == 0 && loc < 32) ? processing_carry_pack : 0;
-
-                bit_pos = -1; // will be 0 at the end of this loop iteration
-            }
-
-            bit_pos++;
-            global_id_y--;//since a is reverse
         }
 
 
-    }
-
-    /**
-     *
-     * possible TODO: add paratrt WIDTH that allows to process more than 32 elements in a row -- cycle optimization
-     *
-     *
-     * @tparam H
-     * @tparam W
-     * @tparam with_if
-     * @param m | Тут все ок, просто offset взять отрицательный
-     * @param n_small | 32*Iter
-     * @param a
-     * @param lookup
-     * @param vector_v
-     * @param offset_x row offset from left
-     * @param offset_y col offset from top
-     * @param carries
-     */
-    template<int H, int BlockDim, int Iter, bool WithIf>
-    __global__ void
-    hyrro_kawanami_kernel_without_shared(int *a_rev, int m, Bit32 *lookup, Bit32 *vector_v, Bit32 *carries,
-                                         int n_small, int offset_x, int offset_y) {
-
-        int warp_id = threadIdx.x / 32;
-        int lane_id = threadIdx.x % 32;
-        int columns_per_block =
-                BlockDim * Iter;// processed by threads within one block since each thread process Iter columns
-
-        // position relative to global
-        int global_id_x = offset_x + lane_id + 32 * Iter * warp_id + blockIdx.x * columns_per_block; // global row pos
-        int global_id_y = offset_y + H * 1024 * (1 + warp_id + blockIdx.x * (BlockDim / 32)) -
-                          1;// global col pos could be negative to adjust with non divisible parts
-
-        int global_carry_id = global_id_y / 32 - lane_id;
-
-#pragma unroll
-        for (int i = 0; i < Iter; i++) {
-            Bit32 vector = vector_v[global_id_x + 32 * i];
-
-#pragma unroll
-            for (int rep = 0; rep < H; rep++) {
-                //load packed carries from global memory
-                unsigned int own_carry = (global_carry_id - 32 * rep >= 0) ? carries[global_carry_id - 32 * rep] : 0;
-                kawanami_core < WithIf > (a_rev, lookup, lane_id, own_carry, global_id_y);
-
-                //save carries for the 1024 elements
-                if (global_carry_id - 32 * rep >= 0) carries[global_carry_id] = own_carry;
-            }
-
-            // save 1024 bit vector back to memory
-            vector_v[global_id_x + 32 * i] = vector;
-        }
     }
 
 
