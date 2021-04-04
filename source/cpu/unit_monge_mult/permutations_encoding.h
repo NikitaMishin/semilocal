@@ -29,7 +29,6 @@ namespace std {
             using std::hash;
             using std::string;
 
-            auto pass_by_row = k.row_size < k.col_size;
             size_t sum = 0;
             auto bits_per_symbol = int(std::ceil(log2(k.row_size)));
 

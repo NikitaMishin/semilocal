@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 
 
 
-    auto empty_map = distance_unit_monge_product::steady_ant::PrecalcMap();
+    auto empty_map = PrecalcMap();
 
     auto beg = std::chrono::high_resolution_clock::now();
     auto product = distance_unit_monge_product::steady_ant::steady_ant(p,q,empty_map);

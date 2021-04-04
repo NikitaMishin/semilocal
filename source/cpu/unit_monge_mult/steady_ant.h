@@ -14,6 +14,7 @@
 #include "permutations_encoding.h"
 #include "dominance_sum_queries.h"
 #include "../semi_local.h"
+#include "../predefined_types.h"
 
 
 namespace distance_unit_monge_product {
@@ -73,13 +74,19 @@ namespace distance_unit_monge_product {
      */
     namespace steady_ant {
 
+
+
         /**
-         * Data structure that contains pre calced product for pair of matrices i.e
-         * For matrices p,q of size n it contains its product
-         */
-        typedef std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>> PrecalcMap;
-
-
+        * see theorem 5.21
+        * Allows get P_{b,a} when you have P_{a,b}
+        */
+        void fill_permutation_ba(AbstractPermutation *ab, AbstractPermutation *ba, int m, int n) {
+            ba->unset_all();
+            for (int i = 0; i < ab->row_size; ++i) {
+                auto col = ab->get_col_by_row(i);
+                if (col != NOPOINT) ba->set_point(n + m - 1 - i, m + n - 1 - col);
+            }
+        }
 
 
         /**
@@ -96,7 +103,7 @@ namespace distance_unit_monge_product {
             auto ptr = 0;
             for (int row = 0; row < p_i->row_size; ++row) {
                 auto col = p_i->get_col_by_row(row);
-                if (col >= col_start_inclusive & col < col_end_exclusive) {
+                if (col >= col_start_inclusive && col < col_end_exclusive) {
                     cur_row_to_prev_row_mapping[ptr] = row;
                     succ_pi->set_point(ptr, col - col_start_inclusive);
                     ptr++;
@@ -119,7 +126,7 @@ namespace distance_unit_monge_product {
             auto ptr = 0;
             for (int col = 0; col < q_i->col_size; ++col) {
                 auto row = q_i->get_row_by_col(col);
-                if (row >= row_start_inclusive & row < row_end_exclusive) {
+                if (row >= row_start_inclusive && row < row_end_exclusive) {
                     cur_col_to_prev_col_mapping[ptr] = col;
                     succ_pi->set_point(row - row_start_inclusive, ptr);
 
