@@ -31,16 +31,16 @@ int main() {
     typedef unsigned short Hold;
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
     omp_set_nested(true);
-    auto a_size = 200000;
-    auto b_size = 800000;
-    distance_unit_monge_product::steady_ant::precalc(map, 1);
+    auto a_size = 30000/2;
+    auto b_size = 30000*2;
+    precalc(map, 5);
 
     auto seq_a = gen_vector_seq<Hold>(a_size, 6);
     auto seq_b = gen_vector_seq<Hold>(b_size, 5);
-    Hold a[a_size];
-    Hold b[b_size];
-    int a_int[a_size];
-    int b_int[b_size];
+    auto a = new Hold[a_size];
+    auto b = new Hold[b_size];
+    auto a_int = new int[a_size];
+    auto b_int = new int[b_size];
     for (int i = 0; i < a_size; ++i) {
         a[i] = seq_a[i];
         a_int[i] = seq_a[i];
@@ -52,7 +52,7 @@ int main() {
 //        std::cout<<b[i]<<" ";
     }
 
-
+//6555
 //    time24866.5
 //    Precalc for value 5
 //    time24010.9
@@ -62,22 +62,28 @@ int main() {
     auto should = Permutation(a_size + b_size, a_size + b_size);
     auto actual = Permutation(a_size + b_size, a_size + b_size);
 
+//
+
     std::cout << "Precalc for value 5" << std::endl;
     auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    semi_local::hybrid<Hold , false,false, true > (actual, a, a_size, b, b_size, map, 1, 0, 0, 65000, 6);
+    semi_local::semi_local_down_to_top<Hold , false> (actual, a, a_size, b, b_size, map,5,20,4);
     auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout << "time" << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+    std::cout << "total_time" << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
 
 
-    std::cout << "Precalc for value 5" << std::endl;
+        std::cout << "Precalc for value 5" << std::endl;
     auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    semi_local::sticky_braid_mpi<int, false, true>(should, a_int, a_size, b_int, b_size, 4);
+    semi_local::sticky_braid_mpi<int , false, true>(should, a_int, a_size, b_int, b_size, 4);
 
     auto time2 = std::chrono::high_resolution_clock::now() - begin2;
     std::cout << "time" << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
 
     std::cout << should.is_equal_to(actual);
+    delete []a;
+    delete [] b;
+    delete [] a_int;
+    delete [] b_int;
 //    int a[a_size];
 //    int b[b_size];
 //    for (int i = 0; i < a_size; ++i) {

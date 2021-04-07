@@ -15,46 +15,10 @@
 #include "predefined_types.h"
 #include "deque"
 
-struct{
-    int fst_1;
-    int snd_1;
-    int fst_2;
-    int snd_2;
-    bool bit;
-
-} tripple;
-
-
-void steady_ant_wrapper(AbstractPermutation &p, AbstractPermutation &q, AbstractPermutation &product,
-                        PrecalcMap &map, int nested_lvls = 3) {
-
-
-    int nearest_2_degree = pow(2, int(ceil(log2(2 * p.row_size))));
-    int total = int(log2(nearest_2_degree)) * nearest_2_degree;
-    auto memory_block = new int[p.row_size * 8 + total];
-    auto m_new = PermutationPreAllocated(p.row_size, p.col_size, memory_block, memory_block + p.row_size);
-    auto n_new = PermutationPreAllocated(p.row_size, p.col_size, memory_block + 2 * p.row_size,
-                                         memory_block + 3 * p.row_size);
-
-    copy(p, m_new);
-    copy(q, n_new);
-
-
-    distance_unit_monge_product::steady_ant::steady_ant_with_precalc_and_memory(&m_new, &n_new, memory_block,
-                                                                                memory_block + 4 * p.row_size,
-                                                                                memory_block + 8 * p.row_size,
-                                                                                map, total, nested_lvls);
-    copy(m_new, product);
-
-    delete[] memory_block;
-
-}
-
 
 namespace semi_local {
 
     namespace _details {
-        using namespace distance_unit_monge_product::steady_ant;
 
         /**
          *
@@ -73,7 +37,7 @@ namespace semi_local {
         anti_diagonal_computation(Input *strand_map, const Input *a, const Input *b, int upper_bound, int left_edge,
                                   int top_edge, int offset_a, int offset_b) {
 
-            #pragma omp for simd schedule(static) aligned(a, b, strand_map:sizeof(int)*8) nowait
+#pragma omp for simd schedule(static) aligned(a, b, strand_map:sizeof(Input)*8) nowait
             for (int k = 0; k < upper_bound; ++k) {
 
                 auto left_strand = strand_map[left_edge + k];
@@ -92,12 +56,10 @@ namespace semi_local {
                 }
             }
 
-            if (withWait){
-                #pragma omp barrier
+            if (withWait) {
+#pragma omp barrier
             }
         }
-
-
 
 
         template<class Input>
@@ -145,7 +107,7 @@ namespace semi_local {
 
         template<class Input>
         inline void fill_a_reverse(const Input *a, Input *a_reverse, int m) {
-        #pragma omp  for simd schedule(static)
+#pragma omp  for simd schedule(static)
             for (int i = 0; i < m; ++i) {
                 a_reverse[i] = a[m - 1 - i];
             }
@@ -155,6 +117,16 @@ namespace semi_local {
     }
 
 
+    /**
+     * Computes the kernel of semi-local lcs solution for given two strings in naive fashion
+     * @tparam Input
+     * @tparam WithIf
+     * @param permutation
+     * @param a
+     * @param a_size
+     * @param b
+     * @param b_size
+     */
     template<class Input, bool WithIf>
     void
     sticky_braid_sequential(AbstractPermutation &permutation, const Input *a, int a_size, const Input *b, int b_size) {
@@ -220,9 +192,10 @@ namespace semi_local {
 
 
     /**
-     *
+     * Computes the kernel of semi-local lcs solution for given two strings with antidiagonal pattern using Open MP
      * @tparam Input
      * @tparam WithIf
+     * @tparam WithWait
      * @param matrix
      * @param a
      * @param a_size
@@ -231,13 +204,14 @@ namespace semi_local {
      * @param threads_num
      * @param is_reverse
      */
-    template<class Input, bool WithIf,bool WithWait>
+    template<class Input, bool WithIf, bool WithWait>
     void sticky_braid_mpi(AbstractPermutation &matrix, const Input *a, int a_size, const Input *b, int b_size,
                           int threads_num = 1, bool is_reverse = false) {
         using namespace _details;
+        using namespace distance_unit_monge_product::steady_ant::_details;
 
         if (a_size > b_size) {
-            sticky_braid_mpi<Input, WithIf,WithWait>(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
+            sticky_braid_mpi<Input, WithIf, WithWait>(matrix, b, b_size, a, a_size, threads_num, !is_reverse);
             return;
         }
 
@@ -265,15 +239,16 @@ namespace semi_local {
             top_edge = m;
             left_edge = m - 1;
             for (int cur_diag_len = 0; cur_diag_len < m - 1; ++cur_diag_len) {
-                anti_diagonal_computation<Input, WithIf,WithWait>(strand_map, a_reverse, b, cur_diag_len + 1, left_edge,
-                                                         top_edge, left_edge, 0);
+                anti_diagonal_computation<Input, WithIf, WithWait>(strand_map, a_reverse, b, cur_diag_len + 1,
+                                                                   left_edge,
+                                                                   top_edge, left_edge, 0);
                 left_edge--;
             }
 
             //phase 2
             top_edge = m;
             for (int j = 0; j < total_same_length_diag; ++j) {
-                anti_diagonal_computation<Input, WithIf,WithWait>(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
+                anti_diagonal_computation<Input, WithIf, WithWait>(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
                 top_edge++;
             }
 
@@ -282,8 +257,9 @@ namespace semi_local {
             top_edge = start_j + m;
 
             for (int diag_len = m - 2; diag_len >= 0; --diag_len, start_j++) {
-                anti_diagonal_computation<Input, WithIf,WithWait>(strand_map, a_reverse, b, diag_len + 1, 0, top_edge, 0,
-                                                         start_j);
+                anti_diagonal_computation<Input, WithIf, WithWait>(strand_map, a_reverse, b, diag_len + 1, 0, top_edge,
+                                                                   0,
+                                                                   start_j);
                 top_edge++;
             }
 
@@ -294,15 +270,32 @@ namespace semi_local {
         delete[] strand_map;
     }
 
+    /**
+     * Computes the kernel of semi-local lcs solution for given two strings with antidiagonal pattern using Open MP where
+     * 1st and 3rd phases are merged together so there less syncronizations
+     * @tparam Input
+     * @tparam WithIf
+     * @param matrix
+     * @param a
+     * @param a_size
+     * @param b
+     * @param b_size
+     * @param map
+     * @param nested_parall_regions
+     * @param threads_num
+     */
     template<class Input, bool WithIf>
     void
     first_and_third_phase_combined(AbstractPermutation &matrix, const Input *a, int a_size, const Input *b,
                                    int b_size, PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
+        using namespace distance_unit_monge_product::steady_ant::_details;
         using namespace _details;
+        using distance_unit_monge_product::steady_ant::glueing_part_to_whole;
 
         if (a_size > b_size) {
             auto p = Permutation(a_size + b_size, a_size + b_size);
-            first_and_third_phase_combined<Input, WithIf>(p, b, b_size, a, a_size, map, nested_parall_regions, threads_num);
+            first_and_third_phase_combined<Input, WithIf>(p, b, b_size, a, a_size, map, nested_parall_regions,
+                                                          threads_num);
             fill_permutation_ba(&p, &matrix, a_size, b_size);
             return;
         }
@@ -348,7 +341,7 @@ namespace semi_local {
             for (int diag_number = 0; diag_number < m - 1; ++diag_number) {
 
 
-                #pragma omp for simd schedule(static) nowait
+#pragma omp for simd schedule(static) nowait
                 for (int pos_in_diag = 0; pos_in_diag < in_third_phase; ++pos_in_diag) {
 
                     auto top_edge = diag_number + pos_in_diag;
@@ -359,14 +352,14 @@ namespace semi_local {
                     if (WithIf) {
                         if (r) std::swap(third_phase_map[pos_in_diag], third_phase_map[m - 1 + top_edge]);
                     } else {
-                        third_phase_map[pos_in_diag] = (left_strand & (r - 1))  | ((-r) &  top_strand);
-                        third_phase_map[m - 1 + top_edge]  = (top_strand & (r - 1)) | ((-r) & left_strand );
+                        third_phase_map[pos_in_diag] = (left_strand & (r - 1)) | ((-r) & top_strand);
+                        third_phase_map[m - 1 + top_edge] = (top_strand & (r - 1)) | ((-r) & left_strand);
                     }
 
 
                 }
 
-                #pragma omp for simd schedule(static)
+#pragma omp for simd schedule(static)
                 for (int pos_in_diag = in_third_phase; pos_in_diag < m; ++pos_in_diag) {
                     auto top_edge = diag_number + pos_in_diag + 1 - m;
                     auto left_strand = strand_map[pos_in_diag];
@@ -376,8 +369,8 @@ namespace semi_local {
                     if (WithIf) {
                         if (r) if (r) std::swap(strand_map[pos_in_diag], strand_map[m + top_edge]);
                     } else {
-                        strand_map[pos_in_diag] = (left_strand & (r - 1))  | ((-r) &  top_strand);
-                        strand_map[m + top_edge]  = (top_strand & (r - 1)) | ((-r) & left_strand );
+                        strand_map[pos_in_diag] = (left_strand & (r - 1)) | ((-r) & top_strand);
+                        strand_map[m + top_edge] = (top_strand & (r - 1)) | ((-r) & left_strand);
                     }
 
 
@@ -432,9 +425,25 @@ namespace semi_local {
     }
 
 
-
-
-
+    /**
+     * Hybrid appoarch of recursive and iterative combing. Firstly, follows the recursive structure, then switches to the iterative combing
+     * TODO add documentation in details
+     * @tparam Input
+     * @tparam WithIf
+     * @tparam WithWait
+     * @tparam UseSumBound
+     * @param perm
+     * @param a
+     * @param m
+     * @param b
+     * @param n
+     * @param map
+     * @param thds_per_combing_algo
+     * @param braid_mul_parall_depth
+     * @param depth
+     * @param sum_bound
+     * @param parallel_depth
+     */
     template<class Input, bool WithIf, bool WithWait, bool UseSumBound>
     void hybrid(
             AbstractPermutation &perm, const Input *a, int m, const Input *b, int n,
@@ -442,18 +451,19 @@ namespace semi_local {
             int braid_mul_parall_depth, int depth, int sum_bound, int parallel_depth) {
 
         using namespace _details;
+        using distance_unit_monge_product::steady_ant::staggered_sticky_multiplication;
 
 
-        if(UseSumBound) {
+        if (UseSumBound) {
             if (m + n <= sum_bound) {
-                sticky_braid_mpi<Input, WithIf,WithWait>(perm, a, m, b, n, thds_per_combing_algo);
+                sticky_braid_mpi<Input, WithIf, WithWait>(perm, a, m, b, n, thds_per_combing_algo);
                 return;
             }
 
         } else {
             //base case
             if (depth <= 0) {
-                sticky_braid_mpi<Input, WithIf,WithWait>(perm, a, m, b, n, thds_per_combing_algo);
+                sticky_braid_mpi<Input, WithIf, WithWait>(perm, a, m, b, n, thds_per_combing_algo);
                 return;
             }
         }
@@ -473,27 +483,33 @@ namespace semi_local {
 #pragma omp single nowait
                     {
 #pragma omp task
-                        hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_l, b1, n1, a, m, map, thds_per_combing_algo,
-                                              braid_mul_parall_depth, depth - 1, sum_bound, parallel_depth - 1);
+                        hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_l, a, m, b1, n1, map,
+                                                                     thds_per_combing_algo,
+                                                                     braid_mul_parall_depth, depth - 1, sum_bound,
+                                                                     parallel_depth - 1);
 
 #pragma omp task
-                        hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_r, b2, n - n1, a, m, map, thds_per_combing_algo,
-                                              braid_mul_parall_depth, depth - 1, sum_bound, parallel_depth - 1);
+                        hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_r, a, m, b2, n - n1, map,
+                                                                     thds_per_combing_algo,
+                                                                     braid_mul_parall_depth, depth - 1, sum_bound,
+                                                                     parallel_depth - 1);
                     }
 
                 }
 #pragma omp taskwait
             } else {
-                hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_l, b1, n1, a, m, map, thds_per_combing_algo, braid_mul_parall_depth,
-                                      depth - 1, sum_bound, parallel_depth - 1);
-                hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_r, b2, n - n1, a, m, map, thds_per_combing_algo,
-                                      braid_mul_parall_depth, depth - 1, sum_bound, parallel_depth - 1);
+                hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_l, a, m, b1, n1, map, thds_per_combing_algo,
+                                                             braid_mul_parall_depth,
+                                                             depth - 1, sum_bound, parallel_depth - 1);
+                hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_r, a, m, b2, n - n1, map, thds_per_combing_algo,
+                                                             braid_mul_parall_depth, depth - 1, sum_bound,
+                                                             parallel_depth - 1);
             }
 
-            auto product = Permutation(perm.row_size, perm.col_size);
 
-            staggered_sticky_multiplication(&subtree_l, &subtree_r, m, map, &product, braid_mul_parall_depth);
-            fill_permutation_ba(&product, &perm, m, n);
+            staggered_sticky_multiplication<false, false>(&subtree_l, &subtree_r, m, map, &perm,
+                                                          braid_mul_parall_depth);
+
         } else {
 
             auto m1 = m / 2;
@@ -510,38 +526,201 @@ namespace semi_local {
 #pragma omp single nowait
                     {
 #pragma omp task
-                        hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_l, a1, m1, b, n, map, thds_per_combing_algo,
-                                              braid_mul_parall_depth, depth - 1, sum_bound, parallel_depth - 1);
+                        hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_l, a1, m1, b, n, map,
+                                                                     thds_per_combing_algo,
+                                                                     braid_mul_parall_depth, depth - 1, sum_bound,
+                                                                     parallel_depth - 1);
 #pragma omp task
-                        hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_r, a2, m - m1, b, n, map, thds_per_combing_algo,
-                                              braid_mul_parall_depth, depth - 1, sum_bound, parallel_depth - 1);
+                        hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_r, a2, m - m1, b, n, map,
+                                                                     thds_per_combing_algo,
+                                                                     braid_mul_parall_depth, depth - 1, sum_bound,
+                                                                     parallel_depth - 1);
                     }
                 }
 #pragma omp taskwait
             } else {
-                hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_l, a1, m1, b, n, map, thds_per_combing_algo, braid_mul_parall_depth,
-                                      depth - 1, sum_bound, parallel_depth - 1);
-                hybrid<Input, WithIf,WithWait, UseSumBound>(subtree_r, a2, m - m1, b, n, map, thds_per_combing_algo,
-                                      braid_mul_parall_depth, depth - 1, sum_bound, parallel_depth - 1);
+                hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_l, a1, m1, b, n, map, thds_per_combing_algo,
+                                                             braid_mul_parall_depth,
+                                                             depth - 1, sum_bound, parallel_depth - 1);
+                hybrid<Input, WithIf, WithWait, UseSumBound>(subtree_r, a2, m - m1, b, n, map, thds_per_combing_algo,
+                                                             braid_mul_parall_depth, depth - 1, sum_bound,
+                                                             parallel_depth - 1);
             }
 
-            staggered_sticky_multiplication(&subtree_l, &subtree_r, n, map, &perm, braid_mul_parall_depth);
+            staggered_sticky_multiplication<true, false>(&subtree_l, &subtree_r, n, map, &perm, braid_mul_parall_depth);
         }
 
 
     }
 
 
-    template<class Input, bool WithIf, bool WithWait, bool UseSumBound>
-    void hybrid_non_rec(
+    /**
+     * The hybrid appaorch with down to top apparoch. No recustion. Fixed amount of iteartive combing problems that further are merged via
+     * sticky braid multiplication.
+     * @tparam Input
+     * @tparam WithIf
+     * @param perm
+     * @param a
+     * @param m
+     * @param b
+     * @param n
+     * @param map
+     * @param small_m
+     * @param small_n
+     * @param threads_num
+     */
+    template<class Input, bool WithIf>
+    void semi_local_down_to_top(
             AbstractPermutation &perm, const Input *a, int m, const Input *b, int n,
-            PrecalcMap &map  ) {
+            PrecalcMap &map, int small_m, int small_n, int threads_num = 1) {
 
         using namespace _details;
-        // TDOO implement buttom-up appaorch
+        using distance_unit_monge_product::steady_ant::staggered_sticky_multiplication;
 
 
+        int num_tasks = small_m * small_n;
 
+        auto tasks = new AbstractPermutation *[num_tasks];
+        auto tasks_next_iter = new AbstractPermutation *[num_tasks];
+
+        int cols_per_block = ceil(1.0 * n / small_n);
+        int rows_per_block = ceil(1.0 * m / small_m);
+
+
+#pragma omp parallel  master taskloop num_threads(threads_num)
+        for (int i = 0; i < num_tasks; i++) {
+            int start_col = (i % small_n) * cols_per_block;
+            int end_col = std::min(start_col + cols_per_block, n);
+
+            int start_row = (i / small_n) * rows_per_block;
+            int end_row = std::min(start_row + rows_per_block, m);
+
+            int size_block_b = end_col - start_col;
+            int size_block_a = end_row - start_row;
+
+
+            auto b_loop = b + start_col;
+            auto a_loop = a + start_row;
+
+            auto matrix = new Permutation(size_block_a + size_block_b, size_block_a + size_block_b);
+
+            matrix->m = size_block_a;
+            matrix->n = size_block_b;
+
+            sticky_braid_mpi<Input, WithIf, false>(*matrix, a_loop, size_block_a, b_loop, size_block_b, 1);
+
+
+            tasks[i] = matrix;
+        }
+
+
+        auto next_jobs = tasks;
+        auto current_jobs = tasks_next_iter;
+
+        int steps = ceil(log2(small_n)) + ceil(log2(small_m));
+
+
+        int block_rows = rows_per_block;
+        int block_cols = cols_per_block;
+
+
+        double total = 0;
+        for (int j = 0; j < steps; ++j) {
+
+
+            bool is_reduction_in_row = small_n > small_m;
+
+            //TODO: heuristic now we choose to glue by the large one (seems to work) best. Specifically reduction in a row if on next step row is still big
+            //TODO: following is working worse but it copipies logic of recursion: is_reduction_in_row = 2 * block_cols >= block_rows
+            if (small_n > 1 && small_m > 1) {
+                is_reduction_in_row = block_rows >= 2 * block_cols;
+            }
+
+
+            if (is_reduction_in_row) {
+                block_cols *= 2;
+            } else {
+                block_rows *= 2;
+            }
+
+
+            auto new_cols = is_reduction_in_row ? int(ceil(small_n / 2.0)) : small_n;
+            auto new_rows = !is_reduction_in_row ? int(ceil(small_m / 2.0)) : small_m;
+
+            auto tmp = current_jobs;
+            current_jobs = next_jobs;
+
+            next_jobs = tmp;
+
+
+#pragma omp parallel master taskloop num_threads(threads_num)
+            for (int i = 0; i < new_cols * new_rows; i++) {
+
+                auto cur_row = i / new_cols;
+                auto cur_col = i % new_cols;
+
+
+                AbstractPermutation *p;
+                AbstractPermutation *q;
+
+                if (is_reduction_in_row) {
+                    p = current_jobs[cur_row * small_n + 2 * cur_col];
+
+                    if ((2 * cur_col + 1) >= small_n) {
+                        next_jobs[i] = p;
+                    } else {
+                        q = current_jobs[cur_row * small_n + 2 * cur_col + 1];
+                        auto product = new Permutation(p->m + q->n + p->n, p->m + q->n + p->n);
+                        product->m = p->m;
+                        product->n = p->n + q->n;
+
+                        staggered_sticky_multiplication<false, false>(p, q, p->m, map, product);
+
+                        next_jobs[i] = product;
+
+                        delete p;
+                        delete q;
+                    }
+
+                } else {
+                    p = current_jobs[2 * cur_row * small_n + cur_col];
+
+                    if ((2 * cur_row + 1) >= small_m) {
+                        next_jobs[i] = p;
+                    } else {
+                        q = current_jobs[(2 * cur_row + 1) * small_n + cur_col];
+                        auto product = new Permutation(p->m + q->m + p->n, p->m + q->m + p->n);
+                        product->m = p->m + q->m;
+                        product->n = p->n;
+
+                        staggered_sticky_multiplication<true, false>(p, q, p->n, map, product);
+
+                        next_jobs[i] = product;
+
+                        delete p;
+                        delete q;
+                    }
+
+
+                }
+
+            }
+
+            small_n = new_cols;
+            small_m = new_rows;
+
+        }
+
+        auto result = next_jobs[0];
+
+
+        //        fill permutation perm
+#pragma omp parallel for
+        for (int j = 0; j < m + n; ++j) perm.set_point(j, result->get_col_by_row(j));
+
+        delete result;
+        delete[] tasks;
+        delete[] tasks_next_iter;
 
     }
 

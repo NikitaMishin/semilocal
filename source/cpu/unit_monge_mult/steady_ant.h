@@ -266,10 +266,13 @@ namespace distance_unit_monge_product {
 
         }
 
-
-        /*
+        /**
          * Non optimized version of steady ant algorithm that allocated new memory on each recursion step and
-         * uses  precomputed if had.
+         * uses  precomputed if had
+         * @param p
+         * @param q
+         * @param map
+         * @return
          */
         AbstractPermutation *steady_ant(AbstractPermutation *p, AbstractPermutation *q, PrecalcMap &map) {
             using namespace _details;
@@ -362,6 +365,17 @@ namespace distance_unit_monge_product {
         }
 
 
+        /**
+         * Optimized version. Uses linear memory. You need to allocate in total 4n for memory block matrix;
+         * p uses 2n memory, q uses 2n memory.
+         * Result can be obtained from p matrix
+         * @param p permutation of size nXn
+         * @param q permutation of size nXn
+         * @param memory_block_matrices  4n memory of p and q
+         * @param free_space_matrices  extra 4n mamory that algorithm uses to split matrices on sub parts
+         * @param memory_block_indices  8n memory for stroring memory indices in sequential case
+         * @param map precalc for  size at least 1, optimal size is 5
+         */
         void steady_ant_optimized_seq(
                 AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
                 int *memory_block_indices, PrecalcMap &map) {
@@ -408,12 +422,12 @@ namespace distance_unit_monge_product {
 
 
             steady_ant_optimized_seq(&p_lo, &q_lo, free_space_matrices, memory_block_matrices,
-                                               memory_block_indices + 2 * n, map);
+                                     memory_block_indices + 2 * n, map);
 
 
             steady_ant_optimized_seq(&p_hi, &q_hi, free_space_matrices + 4 * spliter,
-                                               memory_block_matrices + 4 * spliter,
-                                               memory_block_indices + 2 * n, map);
+                                     memory_block_matrices + 4 * spliter,
+                                     memory_block_indices + 2 * n, map);
 
             inverse_mapping(&p_lo, p_lo_row_mapper, q_lo_col_mapper, r_lo);
             inverse_mapping(&p_hi, p_hi_row_mapper, q_hi_col_mapper, r_hi);
@@ -445,9 +459,6 @@ namespace distance_unit_monge_product {
         * matrices itself. Also it uses precomputed values via PrecalcMap.
         * Exactly 8n memory required for stroring matrices.
         * 2nlog(2n) memory is required for parallel version for memory mapping.
-        * Memory optimization is handled as follows:
-        *   TODO
-        *
         */
         void steady_ant_with_precalc_and_memory(
                 AbstractPermutation *p, AbstractPermutation *q, int *memory_block_matrices, int *free_space_matrices,
@@ -791,92 +802,97 @@ namespace distance_unit_monge_product {
 
 
         /**
-         * For each size n (1,2,3...max_size) function compute
-         * for all possible permutations p of size n  (n!) and all possible permutations of size n (n!)
-         * it computes its distance product.
-         * For example, map[3][hash_p][hash_q] will store product of permutation matrices p and q of size 3x3
-         * @param map
-         * @param max_size
+         * Wrapper for steady ant multiplication, uses nlogn memory with since uses parallel approach
+         * @param p permutation matrix that represents braid
+         * @param q permutation matrix that represents braid
+         * @param product product of two braids
+         * @param map precalc values for all products of two braids up to specific size
+         * @param nested_lvls number of upper levels of recursion  to parallelize. If 0 is set then algorithm follows sequential appoarch and uses linear space
          */
-        void precalc(PrecalcMap & map, int
-        max_size) {
-        using namespace std;
-        int p_arr[max_size];
-        int q_arr[max_size];
-        auto empty_map = PrecalcMap();
-
-        for (
-        int size = 1;
-        size<max_size + 1; size++) {
+        void steady_ant_parallel_wrapper(AbstractPermutation &p, AbstractPermutation &q, AbstractPermutation &product,
+                                         PrecalcMap &map, int nested_lvls = 3) {
 
 
-        for (
-        int i = 0;
-        i<size;
-        ++i) p_arr[i] =
-        i;
+            int nearest_2_degree = pow(2, int(ceil(log2(2 * p.row_size))));
+            int total = int(log2(nearest_2_degree)) * nearest_2_degree;
+
+            // if sequential mode
+            if (nested_lvls == 0) total = p.row_size * 8;
 
 
-        do {
-        for (
-        int i = 0;
-        i<size;
-        ++i) q_arr[i] =
-        i;
+            auto memory_block = new int[p.row_size * 8 + total];
 
-        do {
-        auto p = new Permutation(size, size);
-        for (
-        int i = 0;
-        i<size;
-        ++i) p->
-        set_point(i, p_arr[i]
-        );
 
-        auto q = new Permutation(size, size);
-        for (
-        int i = 0;
-        i<size;
-        ++i) q->
-        set_point(i, q_arr[i]
-        );
-        long long hash_p = hash<AbstractPermutation>()(*p);
-        long long hash_q = hash<AbstractPermutation>()(*q);
+            auto m_new = PermutationPreAllocated(p.row_size, p.col_size, memory_block, memory_block + p.row_size);
+            auto n_new = PermutationPreAllocated(p.row_size, p.col_size, memory_block + 2 * p.row_size,
+                                                 memory_block + 3 * p.row_size);
 
-        auto r = distance_unit_monge_product::steady_ant::steady_ant(p, q, empty_map);
-        auto points = std::vector<std::pair<int, int>>();
-        if (map[size][hash_p].
-        count(hash_q)
-        > 0) {
-        std::cout << " Some error";
-        return;
+            copy(p, m_new);
+            copy(q, n_new);
+
+            if(nested_lvls == 0) {
+                steady_ant_optimized_seq(
+                        &m_new, &n_new, memory_block, memory_block + 4 * p.row_size, memory_block + 8 * p.row_size, map);
+            } else {
+                steady_ant_with_precalc_and_memory(
+                        &m_new, &n_new, memory_block, memory_block + 4 * p.row_size, memory_block + 8 * p.row_size, map, total, nested_lvls);
+            }
+
+            copy(m_new, product);
+
+            delete[] memory_block;
+
+        }
+
+
     }
-
-    r->
-    to_points_on_grid(points);
-    map[size][hash_p][hash_q] =
-    points;
-
-
-    delete
-    r;
-
-}
-while (
-std::next_permutation(q_arr, q_arr
-+ size));
-
-
-} while (
-std::next_permutation(p_arr, p_arr
-+ size));
-}
-}
-
-}
 
 
 };
+
+/**
+  * For each size n (1,2,3...max_size) function compute
+  * for all possible permutations p of size n  (n!) and all possible permutations of size n (n!)
+  * it computes its distance product.
+  * For example, map[3][hash_p][hash_q] will store product of permutation matrices p and q of size 3x3
+  * @param map
+  * @param max_size
+  */
+void precalc(PrecalcMap & map, int max_size) {
+    using namespace std;
+    int p_arr[max_size];
+    int q_arr[max_size];
+    auto empty_map = PrecalcMap();
+    for (int size = 1; size < max_size + 1; size++) {
+        for (int i = 0; i<size; ++i) p_arr[i] = i;
+
+
+        do {
+            for (int i = 0; i < size; ++i) q_arr[i] = i;
+            do {
+                auto p = new Permutation(size, size);
+                for ( int i = 0; i < size; ++i) p->set_point(i, p_arr[i]);
+                auto q = new Permutation(size, size);
+                for (int i = 0;i < size; ++i) q-> set_point(i, q_arr[i]);
+
+                long long hash_p = hash<AbstractPermutation>()(*p);
+                long long hash_q = hash<AbstractPermutation>()(*q);
+                auto r = distance_unit_monge_product::steady_ant::steady_ant(p, q, empty_map);
+                auto points = std::vector<std::pair<int, int>>();
+                if (map[size][hash_p].count(hash_q) > 0) {
+                    std::cout << " Some error";
+                    return;
+                }
+                r->to_points_on_grid(points);
+                map[size][hash_p][hash_q] = points;
+                delete r;
+            }
+            while (std::next_permutation(q_arr, q_arr + size));
+
+        } while (
+                std::next_permutation(p_arr, p_arr + size));
+    }
+}
 
 
 #endif //CPU_STEADY_ANT_H

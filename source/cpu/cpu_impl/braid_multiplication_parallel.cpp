@@ -29,7 +29,7 @@ int main(int argc, char *argv[]) {
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
     auto beg_precalc = std::chrono::high_resolution_clock::now();
-    distance_unit_monge_product::steady_ant::precalc(map,5);
+    precalc(map,5);
     auto delta = std::chrono::high_resolution_clock::now() - beg_precalc;
     auto precalc_elapsed_time = long(std::chrono::duration<double, std::milli>(delta).count());
 
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 
 
     auto beg = std::chrono::high_resolution_clock::now();
-    steady_ant_wrapper(p,q,product,map,depth);
+    distance_unit_monge_product::steady_ant::steady_ant_parallel_wrapper(p, q, product, map, depth);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
 

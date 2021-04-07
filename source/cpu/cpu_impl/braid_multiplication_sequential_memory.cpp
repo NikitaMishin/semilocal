@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 
 
     auto beg = std::chrono::high_resolution_clock::now();
-    steady_ant_wrapper(p,q,product,map,0);
+    steady_ant_parallel_wrapper(p, q, product, map, 0);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
 

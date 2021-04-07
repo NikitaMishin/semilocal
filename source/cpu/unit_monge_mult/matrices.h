@@ -6,9 +6,9 @@
 #define CPU_MATRICES_H
 
 
-#include <ostream>
 #include <vector>
 
+// NOPOINT indicates that no non-zero element in matrix in specified position
 #define NOPOINT (-1)
 
 
@@ -48,9 +48,14 @@ protected:
  * an example of subpermutation matrix:
  *                                   0 1
  *                                   0 0
+ * NOPOINT indicates that no non-zero element in matrix in specified position
  */
 class AbstractPermutation : public AbstractMatrix {
 public:
+
+    //TODO bad design but we need it for several algos
+    int m = 0;
+    int n = 0;
 
     /**
      * set non-zero element in (row,col) position in permutation matrix
@@ -145,6 +150,7 @@ private:
 
 public:
 
+
     inline void set_point(int row, int col) override {
         row_to_col[row] = col;
         col_to_row[col] = row;
@@ -178,6 +184,7 @@ public:
         for (int i = 0; i < row_size; ++i) row_to_col[i] = NOPOINT;
         for (int i = 0; i < col_size; ++i) col_to_row[i] = NOPOINT;
     }
+
 
     /**
      * Initializes permutation matrix of size rowXcol  as matrix that has non-zero entries given by vector points
@@ -355,7 +362,7 @@ void get_dominance_matrix(AbstractPermutation &m, Lambda &&func, Matrix *output_
 
 
 /**
- * Todo
+ * Cope elements from permutation matrix from to permutation matrix to
  * @param from
  * @param to
  */
