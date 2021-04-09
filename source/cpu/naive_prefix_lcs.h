@@ -7,7 +7,6 @@
 
 #include <vector>
 #include <cmath>
-#include "omp.h"
 
 /**
  *
@@ -47,10 +46,10 @@ int naive_prefix_lcs(std::vector<Input> a, std::vector<Input> b) {
  * @param b
  * @return
  */
-int prefix_lcs_sequential(int* a, int a_size, int* b, int b_size) {
+int prefix_lcs_sequential(int *a, int a_size, int *b, int b_size) {
 
-    int* input_a;
-    int * input_b;
+    int *input_a;
+    int *input_b;
     int m, n;
 
     if (a > b) {
@@ -89,8 +88,11 @@ int prefix_lcs_sequential(int* a, int a_size, int* b, int b_size) {
 }
 
 
-int prefix_lcs_sequential_skewed(int * a, int a_size, int* b, int b_size) {
+int prefix_lcs_sequential_skewed(int *a, int a_size, int *b, int b_size) {
 //    check special case 2x2
+    if (a_size > b_size) {
+        return prefix_lcs_sequential_skewed(b, b_size, a, a_size);
+    }
 
     if (a_size == 1 && b_size == 1) {
         return a[0] == b[0] ? 1 : 0;
@@ -106,7 +108,7 @@ int prefix_lcs_sequential_skewed(int * a, int a_size, int* b, int b_size) {
     auto start_i = pos_i;
     auto start_j = pos_j;
     auto min = std::min(a_size, b_size);
-    auto num_diag = a_size + b_size + 1;
+    auto num_diag = a_size + b_size;
     auto total_same_length_diag = num_diag - (min + 1) - min;
 
 //    init step
@@ -133,6 +135,7 @@ int prefix_lcs_sequential_skewed(int * a, int a_size, int* b, int b_size) {
             pos_i--;
             pos_j++;
         }
+
         std::swap(a1, a2);
         std::swap(a3, a2);
     }
@@ -231,200 +234,5 @@ int prefix_lcs_sequential_skewed(int * a, int a_size, int* b, int b_size) {
 }
 
 
-
-
-//
-///**
-// * Compute via antidiagonal pattern using open mpi
-// * @tparam Input
-// * @param a
-// * @param b
-// * @return
-// */
-//template<class Input>
-//int prefix_lcs_parallel_mpi(std::vector<Input> a, std::vector<Input> b, int threads_num = 2) {
-//
-//    if (a.size() == 1 && b.size() == 1) {
-//        return a[0] == b[0] ? 1 : 0;
-//    }
-//
-//    auto mn = 1 + std::min(a.size(), b.size());
-//    auto a1 = new int[mn];
-//    auto a2 = new int[mn];
-//    auto a3 = new int[mn];
-//
-////
-//#pragma omp parallel num_threads(threads_num) default(none) firstprivate(threads_num) shared(a1, a2, a3, , a, b,std::cout)
-//{
-//
-//
-//    auto result = 0;
-//    #pragma omp parallel num_threads(threads_num) default(none) firstprivate(threads_num) shared(a1, a2, a3, result, a, b,std::cout)
-//    {
-//        int diagonal_size = 1 + std::min(a.size(), b.size());
-//        auto pos_i = 0;
-//        auto pos_j = 0;
-//
-//        auto start_i = -1;
-//        auto start_j = pos_j;
-//
-//        auto min = std::min(a.size(), b.size());
-//        auto num_diag = a.size() + b.size() + 1;
-//        auto total_same_length_diag = num_diag - (min + 1) - min;
-//
-//
-//        // create private pointers to int
-//        int *a1_ptr = a1;
-//        int *a2_ptr = a2;
-//        int *a3_ptr = a3;
-//
-//        auto thread_id = omp_get_thread_num();
-////        std::cout<<result;
-//
-//        // responsible for interevals that current thread proccess at specific diagonal
-//        // if out of bound then thread do nothing and just swap pointers a1,a2,a3
-//        auto max_diag_elem_per_thread = int(std::ceil((diagonal_size * 1.0) / threads_num));
-//        auto upper_bound = std::min(max_diag_elem_per_thread * (thread_id + 1), diagonal_size);
-//        auto lower_bound = thread_id * max_diag_elem_per_thread;
-//
-//        //    init step, fill with zeros
-//        for (int k = lower_bound; k < upper_bound; ++k) {
-//            a3[k] = 0;
-//            a2[k] = 0;
-//            a1[k] = 0;
-//        }
-//
-//
-//        #pragma omp barrier
-//
-//        // fill upper square
-//        for (int k = 2; k <= diagonal_size; ++k, start_i++) {
-//            auto diag_elems_per_thread = int(std::ceil(((k - 2) * 1.0) / threads_num));
-//
-//            pos_i = start_i - thread_id * diag_elems_per_thread;
-//            pos_j = 0 + thread_id * diag_elems_per_thread; //different to each thread
-//            a3_ptr[0] = 0;
-//            a3_ptr[k - 1] = 0;
-//            lower_bound = 1 + (diag_elems_per_thread * thread_id);
-//            upper_bound = std::min(1 + (thread_id + 1) * diag_elems_per_thread, k - 2);
-//
-//            for (int i = lower_bound; i < upper_bound; ++i, pos_i--, pos_j++) {
-//                a3[i] = std::max(std::max(a2_ptr[i], a2_ptr[i - 1]),
-//                                 (a[pos_i] == b[pos_j]) ? 1 + a1_ptr[i - 1] : a1_ptr[i - 1]);
-//            }
-//            //each thread swaps pointers
-//            std::swap(a1_ptr, a2_ptr);
-//            std::swap(a3_ptr, a2_ptr);
-//            #pragma omp barrier
-//        }
-//
-//
-//
-//        // phase 2:: fill
-//        if (a.size() >= b.size()) {
-//
-//            for (int k = 0; k < total_same_length_diag; ++k, start_i++) {
-//                auto diag_elems_per_thread = int(std::ceil(((diagonal_size - 1) * 1.0) / threads_num));
-//                pos_i = start_i - thread_id * diag_elems_per_thread;
-//                pos_j = 0 + thread_id * diag_elems_per_thread;
-//                a3_ptr[0] = 0;
-//                lower_bound = 1 + (thread_id) * diag_elems_per_thread;
-//                upper_bound = std::min(1 + (thread_id + 1) * diag_elems_per_thread, diagonal_size - 1);
-//
-//                for (int i = lower_bound; i < upper_bound; ++i, pos_i--, pos_j++) {
-//                    a3_ptr[i] = std::max(std::max(a2_ptr[i], a2_ptr[i - 1]),
-//                                         (a[pos_i] == b[pos_j]) ? 1 + a1_ptr[i - 1] : a1_ptr[i - 1]);
-//                }
-//
-//                std::swap(a1_ptr, a2_ptr);
-//                std::swap(a3_ptr, a2_ptr);
-//#pragma omp barrier
-//            }
-//        }
-//
-//
-//        if (a.size() < b.size()) {
-//            a3_ptr[diagonal_size - 1] = 0;
-//        }
-//
-////        no need to sync
-//        auto per_thread = int(std::ceil(((diagonal_size - 1) * 1.0) / threads_num));
-//        lower_bound = thread_id * per_thread;
-//        upper_bound = std::min(diagonal_size - 1, (thread_id + 1) * per_thread);
-//        pos_i = start_i - thread_id * per_thread;
-//        pos_j = per_thread * thread_id;
-//
-//        for (int i = lower_bound; i < upper_bound; ++i, pos_j++, pos_i--) {
-//            a3_ptr[i] = std::max(std::max(a2_ptr[i], a2_ptr[i + 1]),
-//                                 (a[pos_i] == b[pos_j]) ? 1 + a1_ptr[i] : a1_ptr[i]);
-//        }
-//
-//        start_j++;
-//        std::swap(a1_ptr, a2_ptr);
-//        std::swap(a3_ptr, a2_ptr);
-//#pragma omp barrier
-//
-//
-//        if (a.size() < b.size()) {
-//            per_thread = int(std::ceil(((diagonal_size - 1) * 1.0) / threads_num));
-//            lower_bound = thread_id * per_thread;
-//            upper_bound = std::min(diagonal_size - 1, (thread_id + 1) * per_thread);
-//
-//
-//            for (int k = 0; k < total_same_length_diag; ++k, start_j++) {
-//                pos_i = start_i - thread_id * per_thread;
-//                pos_j = start_j + per_thread * thread_id;
-////todo
-//                a3_ptr[diagonal_size - 1] = 0;
-//
-//                for (int i = lower_bound; i < upper_bound; ++i, pos_i--, pos_j++) {
-//                    a3_ptr[i] = std::max(std::max(a2_ptr[i], a2_ptr[i + 1]),
-//                                         (a[pos_i] == b[pos_j]) ? 1 + a1_ptr[i + 1] : a1_ptr[i + 1]);
-//                }
-//                std::swap(a1_ptr, a2_ptr);
-//                std::swap(a3_ptr, a2_ptr);
-//        #pragma  omp barrier
-//            }
-//        }
-//
-//        if (a.size() >= b.size()) diagonal_size -= 1;
-//
-//
-//        for (int size = diagonal_size - 1; size > 1; size--, start_j++) {
-//            per_thread = int(std::ceil(((size) * 1.0) / threads_num));
-//
-//            pos_i = start_i - per_thread * thread_id;
-//            pos_j = start_j + per_thread * thread_id - 1 ;
-//            lower_bound = thread_id * per_thread;
-//            upper_bound = std::min(size, (thread_id + 1) * per_thread);
-//            for (int i = lower_bound; i < upper_bound; ++i) {
-////                if (pos_j >=b.size()) std::cout<<"J"<<pos_j<<","<<size<<std::endl;
-//                a3[i] = std::max(
-//                        std::max(a2[i], a2[i + 1]),
-//                        (a[pos_i] == b[pos_j]) ? 1 + a1[i + 1] : a1[i + 1]
-//                );
-//                pos_i--;
-//                pos_j++;
-//            }
-//
-//            std::swap(a1_ptr, a2_ptr);
-//            std::swap(a3_ptr, a2_ptr);
-//            #pragma omp barrier
-//        }
-//
-//        //master thread
-//        #pragma omp master
-//        {
-//            result = std::max(std::max(a2_ptr[0], a2_ptr[1]),
-//                              (a[a.size() - 1]) == b[b.size() - 1] ? 1 + a1_ptr[1] : a1_ptr[1]);
-//        }
-////#pragma  omp barrier
-//
-//    }
-//    //  need to calculate last one cell
-//    return result;
-//
-//}
-//
 
 #endif //CPU_NAIVE_PREFIX_LCS_H

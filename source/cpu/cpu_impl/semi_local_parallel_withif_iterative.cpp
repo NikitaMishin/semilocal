@@ -1,12 +1,21 @@
 
+//
+// Created by garrancha on 23.01.2021.
+//
+
+
+
 #include <string>
 #include <iostream>
 #include <chrono>
+#include "../semi_local.h"
 #include "../parsers.h"
-#include "../naive_prefix_lcs.h"
+#include "../test_utils.h"
 
 /**
- *
+ * Solves semi-local problem for strings a and b.
+ * Parallel  combing version without branching.
+ * Use simd parallelism with antidiagonal pattern and thread-level parallism
  * @param argc
  * @param argv
  * @return
@@ -25,27 +34,22 @@ int main(int argc, char *argv[]) {
     int * a = split(name_content_a.second.second,",",a_size);
     int * b = split(name_content_b.second.second,",",b_size);
 
-    auto a_vector = new std::vector<int>();
-    auto b_vector = new std::vector<int>();
-    for (int i = 0; i < a_size ; ++i) a_vector->push_back(a[i]);
-    for (int i = 0; i < b_size ; ++i) b_vector->push_back(b[i]);
+    auto perm = Permutation(a_size+b_size,a_size+b_size);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    auto score =  prefix_lcs_sequential(a,a_size,b,b_size);
+    semi_local::sticky_braid_mpi<int, true, false>(perm, a, a_size, b, b_size, 1);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
-    std::cout << 0 <<  std::endl; // some preprocess
-    std::cout << elapsed_time << std::endl; // algo time
-    std::cout << score << std::endl;
+    std::cout << 0   << std::endl; // some preprocess
+    std::cout << elapsed_time  << std::endl; // algo time
+    std::cout << hash(perm, perm.row_size) << std::endl;
     std::cout<< a_size<<std::endl;
     std::cout<< b_size<<std::endl;
     std::cout<< a_name<<std::endl;
     std::cout<< b_name;
 
-    delete a_vector;
-    delete b_vector;
-    delete a;
-    delete b;
+
+    delete[] a;
+    delete[] b;
 
 }
-

@@ -9,8 +9,8 @@ add_library(cpu semi_local.h  semi_local.cpp prefix_lcs/bitwise/transposition_ne
 # disable vectorization: -fno-tree-vectorize
 
 #set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -O0 -fopenmp  -fno-tree-vectorize -fopt-info-vec-optimized-optimized -fopt-info-vec-optimized-all")
-set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++17 -fopenmp  -Wall       -march=native  -O3 -I /home/garrancha/libs/boost_1_75_0/ " )#    ")
-
+set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++17 -fopenmp  -march=native  -O3  " )#    ")
+# -I /home/garrancha/libs/boost_1_75_0/ -for  boost libary
 add_executable(main main.cpp)
 target_link_libraries(main cpu)
 
@@ -28,19 +28,40 @@ add_executable(semi_local_parallel_iterative cpu_impl/semi_local_parallel_iterat
 #
 add_executable(semi_local_parallel_withoutif_iterative cpu_impl/semi_local_parallel_withoutif_iterative.cpp)
 
+#
+add_executable(semi_local_parallel_withif_iterative cpu_impl/semi_local_parallel_withif_iterative.cpp)
+
 
 #
 ##
 add_executable(semi_local_parallel_1and3_combined_iterative cpu_impl/semi_local_parallel_1and3_combined_iterative.cpp)
 #
 ##
-add_executable(semi_local_naive_rec cpu_impl/semi_local_naive_rec.cpp)
+#add_executable(semi_local_naive_rec cpu_impl/semi_local_naive_rec.cpp)
 #
 #
 #
 ##
 add_executable(semi_local_parallel_hybrid cpu_impl/semi_local_parallel_hybrid.cpp)
 #
+
+add_executable(semi_local_hybrid_iterative cpu_impl/semi_local_hybrid_iterative.cpp)
+#
+
+
+
+
+#
+##
+
+add_executable(prefix_lcs_semi_bit_parallel_1form cpu_impl/prefix_lcs_semi_bit_parallel_1form.cpp)
+
+
+##
+add_executable(prefix_lcs_semi_bit_parallel_2form cpu_impl/prefix_lcs_semi_bit_parallel_2form.cpp)
+
+##
+add_executable(prefix_lcs_semi_bit_parallel_old cpu_impl/prefix_lcs_semi_bit_parallel_old.cpp)
 
 
 ##

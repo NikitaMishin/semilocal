@@ -22,7 +22,7 @@
 //static float a[length];
 //
 //
-#include "boost/multiprecision/cpp_int.hpp"
+//#include "boost/multiprecision/cpp_int.hpp"
 
 int f() { return 5; };
 
@@ -30,13 +30,14 @@ int main() {
 
     typedef unsigned short Hold;
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
-    omp_set_nested(true);
-    auto a_size = 30000/2;
-    auto b_size = 30000*2;
     precalc(map, 5);
 
-    auto seq_a = gen_vector_seq<Hold>(a_size, 6);
-    auto seq_b = gen_vector_seq<Hold>(b_size, 5);
+    omp_set_nested(true);
+    auto a_size = 70;
+    auto b_size = 125;
+
+    auto seq_a = gen_vector_seq<Hold>(a_size, 26);
+    auto seq_b = gen_vector_seq<Hold>(b_size, 26);
     auto a = new Hold[a_size];
     auto b = new Hold[b_size];
     auto a_int = new int[a_size];
@@ -64,22 +65,26 @@ int main() {
 
 //
 
-    std::cout << "Precalc for value 5" << std::endl;
-    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    semi_local::semi_local_down_to_top<Hold , false> (actual, a, a_size, b, b_size, map,5,20,4);
-    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
-    std::cout << "total_time" << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+//    std::cout << "Precalc for value 5" << std::endl;
+//    auto begin1 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    semi_local::hybrid_iterative<Hold , false> (actual, a, a_size, b, b_size, map,5,20,4);
+//    auto time1 = std::chrono::high_resolution_clock::now() - begin1;
+//    std::cout << "total_time" << std::chrono::duration<double, std::milli>(time1).count() << std::endl;
+//
+//
+//        std::cout << "Precalc for value 5" << std::endl;
+//    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
+//    semi_local::sticky_braid_mpi<int , false, true>(should, a_int, a_size, b_int, b_size, 4);
+//
+//    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
+//    std::cout << "time" << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
 
 
-        std::cout << "Precalc for value 5" << std::endl;
-    auto begin2 = std::chrono::high_resolution_clock::now(); // or use steady_clock if high_resolution_clock::is_steady is false
-    semi_local::sticky_braid_mpi<int , false, true>(should, a_int, a_size, b_int, b_size, 4);
+//    std::cout << should.is_equal_to(actual);
+//
 
-    auto time2 = std::chrono::high_resolution_clock::now() - begin2;
-    std::cout << "time" << std::chrono::duration<double, std::milli>(time2).count() << std::endl;
-
-
-    std::cout << should.is_equal_to(actual);
+    std::cout<<prefix_lcs_sequential(a_int,a_size,b_int,b_size)<<std::endl;
+    std::cout<<prefix_lcs_sequential_skewed(a_int,a_size,b_int,b_size)<<std::endl;
     delete []a;
     delete [] b;
     delete [] a_int;

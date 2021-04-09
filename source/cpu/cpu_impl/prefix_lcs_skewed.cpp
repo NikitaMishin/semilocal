@@ -2,7 +2,7 @@
 #include <string>
 #include <iostream>
 #include <chrono>
-#include "../fasta_parser.h"
+#include "../parsers.h"
 #include "../naive_prefix_lcs.h"
 
 

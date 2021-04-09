@@ -2,7 +2,7 @@
 #include <string>
 #include <iostream>
 #include <chrono>
-#include "../fasta_parser.h"
+#include "../parsers.h"
 #include "../prefix_lcs/bitwise/encoders_and_decoders.h"
 #include "../prefix_lcs/bitwise/transposition_network_binary_alphabet.h"
 

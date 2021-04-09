@@ -8,7 +8,8 @@
 #include <iostream>
 #include <chrono>
 #include "../semi_local.h"
-#include "../fasta_parser.h"
+#include "../parsers.h"
+#include "../test_utils.h"
 
 /**
  * Solves semi-local problem for strings a and b.
@@ -35,7 +36,7 @@ int main(int argc, char *argv[]) {
 
     auto beg = std::chrono::high_resolution_clock::now();
 
-    semi_local::strand_combing_approach::sticky_braid_sequential(perm,a ,a_size,b ,b_size);
+    semi_local::sticky_braid_sequential<int,true>(perm, a, a_size,b, b_size);
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
     std::cout << 0   << std::endl; // some preprocess

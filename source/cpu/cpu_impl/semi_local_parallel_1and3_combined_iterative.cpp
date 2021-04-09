@@ -9,8 +9,9 @@
 #include <iostream>
 #include <chrono>
 #include "../semi_local.h"
-#include "../fasta_parser.h"
+#include "../parsers.h"
 #include "../unit_monge_mult/steady_ant.h"
+#include "../test_utils.h"
 
 
 /**
@@ -39,7 +40,7 @@ int main(int argc, char *argv[]) {
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
     auto beg_precalc = std::chrono::high_resolution_clock::now();
-    distance_unit_monge_product::steady_ant::precalc(map,5);
+    precalc(map,5);
     auto delta = std::chrono::high_resolution_clock::now() - beg_precalc;
     auto precalc_elapsed_time = long(std::chrono::duration<double, std::milli>(delta).count());
 
@@ -48,7 +49,12 @@ int main(int argc, char *argv[]) {
     auto perm = Permutation(a_size+b_size,a_size+b_size);
 
     auto beg = std::chrono::high_resolution_clock::now();
-    semi_local::strand_combing_approach::first_and_third_phase_merged(perm, a, a_size, b, b_size,map,2, thds);
+    if(thds==1){
+        semi_local::first_and_third_phase_combined<int, false,false>(perm, a, a_size, b, b_size,map,2, thds);
+    } else {
+        semi_local::first_and_third_phase_combined<int, false,true>(perm, a, a_size, b, b_size,map,2, thds);
+    }
+
     auto time = std::chrono::high_resolution_clock::now() - beg;
     auto elapsed_time = long(std::chrono::duration<double, std::milli>(time).count());
     std::cout << precalc_elapsed_time <<   std::endl; // some preprocess

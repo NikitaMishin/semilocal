@@ -284,7 +284,7 @@ namespace semi_local {
      * @param nested_parall_regions
      * @param threads_num
      */
-    template<class Input, bool WithIf>
+    template<class Input, bool WithIf, bool WithWait>
     void
     first_and_third_phase_combined(AbstractPermutation &matrix, const Input *a, int a_size, const Input *b,
                                    int b_size, PrecalcMap &map, int nested_parall_regions = 0, int threads_num = 1) {
@@ -294,8 +294,8 @@ namespace semi_local {
 
         if (a_size > b_size) {
             auto p = Permutation(a_size + b_size, a_size + b_size);
-            first_and_third_phase_combined<Input, WithIf>(p, b, b_size, a, a_size, map, nested_parall_regions,
-                                                          threads_num);
+            first_and_third_phase_combined<Input, WithIf, WithWait>(p, b, b_size, a, a_size, map, nested_parall_regions,
+                                                                    threads_num);
             fill_permutation_ba(&p, &matrix, a_size, b_size);
             return;
         }
@@ -381,7 +381,7 @@ namespace semi_local {
             //phase 2
             auto top_edge = m;
             for (int j = 0; j < offset; ++j) {
-                anti_diagonal_computation<Input, WithIf>(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
+                anti_diagonal_computation<Input, WithIf, WithWait>(strand_map, a_reverse, b, m, 0, top_edge, 0, j);
                 top_edge++;
             }
 
@@ -570,7 +570,7 @@ namespace semi_local {
      * @param threads_num
      */
     template<class Input, bool WithIf>
-    void semi_local_down_to_top(
+    void hybrid_iterative(
             AbstractPermutation &perm, const Input *a, int m, const Input *b, int n,
             PrecalcMap &map, int small_m, int small_n, int threads_num = 1) {
 
@@ -578,13 +578,14 @@ namespace semi_local {
         using distance_unit_monge_product::steady_ant::staggered_sticky_multiplication;
 
 
+        int cols_per_block = n / small_n;
+        int rows_per_block = m / small_m;
+
+
         int num_tasks = small_m * small_n;
 
         auto tasks = new AbstractPermutation *[num_tasks];
         auto tasks_next_iter = new AbstractPermutation *[num_tasks];
-
-        int cols_per_block = ceil(1.0 * n / small_n);
-        int rows_per_block = ceil(1.0 * m / small_m);
 
 
 #pragma omp parallel  master taskloop num_threads(threads_num)
@@ -594,6 +595,13 @@ namespace semi_local {
 
             int start_row = (i / small_n) * rows_per_block;
             int end_row = std::min(start_row + rows_per_block, m);
+
+            // the edge blocks may need do extra work
+            if ((i % small_n) == small_n - 1) end_col = n;
+
+
+            if ((i / small_n) == small_m - 1) end_row = m;
+
 
             int size_block_b = end_col - start_col;
             int size_block_a = end_row - start_row;
@@ -722,6 +730,58 @@ namespace semi_local {
         delete[] tasks;
         delete[] tasks_next_iter;
 
+    }
+
+    template<bool WithIf>
+    void
+    hybrid_iterative_wrapper(AbstractPermutation &perm, const unsigned short *a, int m, const unsigned short *b, int n,
+                             PrecalcMap &map, int threads_num = 1) {
+
+
+
+        /**
+         * Heuristic for spliting is as follows.
+         * Set as small as possible blocks in one dimenstion bounded by either 32000 or m.
+         * If m is greater then  small_m is  m / 32k
+         *
+         * For other dimenstion. We split equally work among threads. So they get same task with same length
+         */
+
+        int cols_per_block = 32000;
+        int rows_per_block = 32000;
+
+        int m_small;
+        int n_small;
+
+        // if m is less then bound then n_small would be 1
+        if (rows_per_block >= m) {
+            rows_per_block = m;
+            m_small = 1;
+        } else {
+            // else we check how many blocks in row we need with size rows_per_block
+            // and adjust rows_per_block to equal partion
+            int nums = int(ceil((1.0 * m) / rows_per_block));
+            rows_per_block = int(ceil(1.0 * m / nums));
+            m_small = ceil((m * 1.0) / rows_per_block);
+        }
+
+
+        // if fits then equally split between threads
+        if (cols_per_block >= n) {
+            cols_per_block = int(ceil((n * 1.0) / threads_num));
+            n_small = threads_num;
+        } else {
+            int cols_per_thread = int(ceil((1.0 * n) / threads_num));
+            int rest = (64000 - rows_per_block);
+
+            if (cols_per_thread < rest) {
+                n_small = threads_num;
+            } else {
+                n_small = threads_num * ceil(1.0 * cols_per_thread / rest);
+            }
+        }
+
+        hybrid_iterative<unsigned short, WithIf>(perm, a, m, b, n, map, m_small, n_small, threads_num);
     }
 
 
