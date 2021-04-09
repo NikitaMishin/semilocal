@@ -15,15 +15,14 @@ SINGLE_THREADED_SOLUTIONS = [
 ]
 
 MULTI_THREADED_SOLUTIONS = [
-    'prefix_lcs_semi_bit_parallel_1form',
-    'prefix_lcs_semi_bit_parallel_2form',
-    'prefix_lcs_semi_bit_parallel_old',
+    'semi_local_hybrid_iterative'
+
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
 
-default_logger = Logger('fig8910_log.txt')
-build_logger = Logger('fig8910_build_log.txt')
+default_logger = Logger('fig9_log.txt')
+build_logger = Logger('fig9_build_log.txt')
 
 
 def boolean_string(s):
