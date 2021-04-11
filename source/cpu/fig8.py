@@ -56,11 +56,15 @@ if __name__ == '__main__':
 
     tests = []
 
+    dup = {}
+
     for i in range(len(test_cases)):
         for j in range(len(test_cases)):
             x, y = test_cases[i], test_cases[j]
             if x[1] != y[1] and (x[0], y[0]) in tests_pairs:
-                tests.append((x[0], CombingTest(x[1], y[1])))
+                if not (x[0], y[0])  in dup:
+                    tests.append((x[0], CombingTest(x[1], y[1])))
+                    dup[(x[0], y[0])] = True
 
     tests.sort(key=lambda x: x[0])
 
