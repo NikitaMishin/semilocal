@@ -11,12 +11,12 @@ from utils.tests import CombingTest
 CXX_COMPILER_PATH = '/usr/bin/g++'
 
 SINGLE_THREADED_SOLUTIONS = [
-    'semi_local_parallel_iterative',
-    'semi_local_parallel_hybrid'
+    # 'semi_local_parallel_iterative',
+
 ]
 
 MULTI_THREADED_SOLUTIONS = [
-
+    'semi_local_parallel_hybrid'
 ]
 
 SOLUTIONS_FOLDER = 'combing_solutions'  # where we put our ready to run implementations
@@ -34,6 +34,8 @@ def boolean_string(s):
 
 if __name__ == '__main__':
     arg_parser = ArgumentParser()
+
+    arg_parser.add_argument('max_thds', type=int, help='Threads')
     arg_parser.add_argument('tests', type=str, help='Path to dataset with *.fna files, our specific format')
 
     arg_parser.add_argument('resultcsvfile', type=str, help='csv file')
@@ -43,7 +45,7 @@ if __name__ == '__main__':
                             help='tests is real data')
     args = arg_parser.parse_args()
 
-    runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, 1, 1, CombingRunner,
+    runners = compile_programs(SINGLE_THREADED_SOLUTIONS, MULTI_THREADED_SOLUTIONS, 0, args.max_thds + 1, CombingRunner,
                                build_logger, SOLUTIONS_FOLDER, CXX_COMPILER_PATH)
 
     test_cases = []

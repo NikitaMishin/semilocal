@@ -15,7 +15,8 @@ SINGLE_THREADED_SOLUTIONS = [
 ]
 
 MULTI_THREADED_SOLUTIONS = [
-    'semi_local_hybrid_iterative'
+    # 'semi_local_hybrid_iterative'
+    'semi_local_parallel_iterative'
 
 ]
 

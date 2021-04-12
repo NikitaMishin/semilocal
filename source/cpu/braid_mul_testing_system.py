@@ -6,7 +6,7 @@ from utils.testing import run_tests, compile_programs
 from utils.tests import BraidMulTest
 
 # /usr/bin/g++-10
-CXX_COMPILER_PATH = '/usr/bin/g++-10'
+CXX_COMPILER_PATH = '/usr/bin/g++'
 
 SINGLE_THREADED_SOLUTIONS = [
     'braid_multiplication_sequential_non_optimized',
