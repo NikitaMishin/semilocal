@@ -43,7 +43,7 @@ namespace semi_local {
                 auto left_strand = strand_map[left_edge + k];
                 auto right_strand = strand_map[top_edge + k];
 
-                bool r = a[offset_a + k] == b[offset_b + k] || (left_strand > right_strand);
+                auto r = (a[offset_a + k] == b[offset_b + k]) || (left_strand > right_strand);
 
                 if (WithIf) {
                     if (r) {
@@ -51,8 +51,13 @@ namespace semi_local {
                         strand_map[left_edge + k] = right_strand;
                     }
                 } else {
-                    strand_map[left_edge + k] = (left_strand & (r - 1)) | ((-r) & right_strand);
-                    strand_map[top_edge + k] = (right_strand & (r - 1)) | ((-r) & left_strand);
+                    auto r_minus = (r - 1);
+                    auto minus_r = -r;
+                    auto l_new = (left_strand & r_minus) | (minus_r  & right_strand);
+                    auto r_new = (right_strand & r_minus) | (minus_r & left_strand);
+
+                    strand_map[left_edge + k] = l_new;
+                    strand_map[top_edge + k] = r_new;
                 }
             }
 
