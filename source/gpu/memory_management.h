@@ -56,6 +56,10 @@ namespace memory_management {
     void synchronize_with_gpu() {
         cudaDeviceSynchronize();
     }
+    template<class Input>
+    void copy_from_cpu_to_cpu(Input * src, Input * dst, int elems) {
+        for (int i = 0; i < elems; i++) dst[i] = src[i];
+    }
 
 
 }
