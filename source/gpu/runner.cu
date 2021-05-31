@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <iostream>
 #include "memory_management.h"
+#include "cpu/semi_local.h"
 
 //#include "first_iteration/transposition_network_4symbol_gpu.cu"
 //#include "first_iteration/semi_local.cu"
@@ -12,21 +13,33 @@
 //#include "kawanami.cuh"
 //#include "types.h"
 //#include "utils/transformers.h"
-#include "semi_local/algorithms.cuh"
+//#include "semi_local/algorithms.cuh"
 //using namespace memory_management;
 
+#include "cpu_routines/cpu_routines.h"
+#include "gpu_routines/gpu_routines.cuh"
 
-
-
-int kawanami_host() {
-
-
-}
+#include "semi_local/algorithms.cuh"
+#include "utils/sequence_generators.h"
 
 
 int main() {
+    int a_size = 1305;
+    int b_size = 1000;
 
-    std::cout<<"hello";
+    auto seq_a = gen_array(a_size,23);
+    auto seq_b = gen_array(b_size,23);
+
+
+    auto strategy = SemiLocalAntiDiagonalStrategy<int,true,false,false>(4,128,400,300);
+    auto should = Permutation(a_size + b_size, a_size + b_size);
+    auto actual = Permutation(a_size + b_size, a_size + b_size);
+
+    strategy.compute(actual,seq_a,a_size,seq_b,b_size);
+
+    semi_local::sticky_braid_mpi<int,true,true>(should,seq_a,a_size,seq_b,b_size,4);
+
+    std::cout<<should.is_equal_to(actual);
 
 
 //    typedef unsigned long long wordType ;

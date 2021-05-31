@@ -8,110 +8,13 @@
 #include "utils/types.h"
 
 #include "monge/matrices.h"
+#include "cpu_routines/memory_management_cpu.h"
+#include "gpu_routines/memory_management_gpu.h"
+#include "cpu_routines/cpu_routines.h"
+#include "gpu_routines/gpu_routines.cuh"
 
 
 namespace semi_local {
-    namespace gpu {
-
-
-        /**
-         *
-         *  Consider an example: We have  4 threads, a_size < b_size and we process some antidiagonal of size a_size:
-         *  _______________________________________
-         *  - - - - - - - - ...  - 1 - - - - - - -|
-         *  - - - - - - - - ...  0 - - - - - - - -|
-         *  - - - - - - - - ...  - - - - - - - - -|
-         *  - - - - - - - 2 ...  - - - - - - - - -|
-         *  - - - - - - 1 - ...  - - - - - - - - -|
-         *  - - - - - 0 - - ...  - - - - - - - - -|
-         *  - - - - 3 - - - ...  - - - - - - - - -|
-         *  - - - 2 - - - - ...  - - - - - - - - -|
-         *  - - 1 - - - - - ...  - - - - - - - - -|
-         *  - 0 - - - - - - ...  - - - - - - - - -|
-         * @param a
-         * @param a_size
-         * @param b
-         * @param b_size
-         * @param raw_kernel
-         * @param offset_a
-         * @param offset_b
-         */
-
-        /**
-         *
-         * @tparam CellsPerThread
-         * @param a
-         * @param a_size
-         * @param b
-         * @param b_size
-         * @param left_strands
-         * @param top_strands
-         * @param raw_kernel
-         * @param offset_a
-         * @param offset_b
-         */
-        template<bool WithIf, bool WithMul>
-        __global__ void process_antidiagonal(const int *a, int a_size, const int *b, int b_size, int *left_strands,
-                                             int *top_strands, int offset_a, int offset_b, int cells_per_thread) {
-
-            int total_threads = blockDim.x * gridDim.x;;
-            int global_thread_id = threadIdx.x + blockIdx.x * blockDim.x;
-            int row = offset_a + global_thread_id;
-            int col = offset_b + global_thread_id;
-
-#pragma unroll
-            for (int i = 0; i < cells_per_thread; i++, row += total_threads, col += total_threads) {
-
-                if (row < a_size && col < b_size) {
-                    int l_strand = left_strands[row];
-                    int t_strand = top_strands[col];
-                    int symbol_a = a[row];
-                    int symbol_b = b[col];
-                    int cond = (symbol_a == symbol_b) || (l_strand > t_strand);
-
-                    if (WithIf) {
-                        if (cond) {
-                            top_strands[col] = t_strand;
-                            left_strands[row] = l_strand;
-                        }
-                    } else {
-                        if (WithMul) {
-                            // l * cond + t - t * cond = cond * (l  -  t) + t; -- possible overflow for 2^{32-1}
-                            top_strands[col] = cond * (l_strand - t_strand) + t_strand;
-                            left_strands[row] = cond * (t_strand - l_strand) + l_strand;
-                        } else {
-                            int r_minus = (cond - 1);
-                            int minus_r = -cond;
-                            left_strands[row] = (l_strand & r_minus) | (minus_r & t_strand);
-                            top_strands[col] = (t_strand & r_minus) | (minus_r & l_strand);
-                        }
-                    }
-                }
-            }
-        }
-
-        template<bool WithIf, bool WithMul>
-        void
-        process_antidiagonal_wrapper(const GpuInt *a, int a_size, const GpuInt *b, int b_size, GpuInt *left_strands,
-                                     GpuInt *top_strands, int offset_a, int offset_b, int cells_per_thread,
-                                     int threads_per_block, int diag_len) {
-
-            //setup configuration
-            dim3 per_block_thds(std::min(threads_per_block, diag_len), 1, 1);
-            dim3 per_grid_blocks(std::ceil(diag_len / per_block_thds.x), 1, 1);
-            process_antidiagonal<WithIf, WithMul><<<per_block_thds, per_grid_blocks>>>(a, a_size, b, b_size,
-                                                                                       left_strands, top_strands,
-                                                                                       offset_a, offset_b);
-
-        }
-
-    }
-
-
-    namespace implementation {
-
-
-    }
 
 
 }
@@ -120,61 +23,174 @@ namespace semi_local {
 template<class Input>
 class SemiLocalStrategy {
 public:
-    virtual void compute(AbstractPermutation &permutation, const Input *a, int a_size, const Input *b, int b_size) = 0;
+    virtual void compute(AbstractPermutation &permutation,  Input const *a, int a_size,  Input const *b, int b_size) = 0;
 };
 
 template<class Input>
 class GPUSemiLocalStrategy : public SemiLocalStrategy<Input> {
 };
 
-template<class Input, bool WithIf, bool WithMul>
-class GpuSemiLocalAntiDiagonal : public GPUSemiLocalStrategy<Input> {
+
+
+/**
+ *
+ * @tparam Input
+ * @tparam WithIf
+ * @tparam WithMul
+ */
+template<class Input,bool GPUEnable, bool WithIf, bool WithMul>
+class SemiLocalAntiDiagonalStrategy : public GPUSemiLocalStrategy<Input> {
 private:
-    int thread_per_block;
+    int thds_per_block_gpu;
+    int cpu_lower_bound;
+    int cpu_threads_count;
+    int cells_per_thds_threshold;
 
 public:
-    explicit GpuSemiLocalAntiDiagonal(int thds_per_block) : thread_per_block(thds_per_block) {}
+
+    explicit SemiLocalAntiDiagonalStrategy(int cpu_threads_count,int threads_per_block_gpu = 512,
+                                           int len_to_switch_to_gpu = 1000, int cells_per_thds_gpu_threshold = 15000): cpu_threads_count(cpu_threads_count),
+                                                                             thds_per_block_gpu(threads_per_block_gpu),
+                                                                             cpu_lower_bound(len_to_switch_to_gpu),
+                                                                             cells_per_thds_threshold(cells_per_thds_gpu_threshold){}
 
 
-    void compute(AbstractPermutation &permutation, const Input *a, int a_size, const Input *b, int b_size) override {
-        using namespace semi_local::gpu;
-        using namespace memory_management;
 
-        auto host_a = allocate_1D_array_aligned_on_cpu<Input>(a_size);
-        copy_from_cpu_to_cpu(a, host_a, a_size);
-        auto host_b = allocate_1D_array_aligned_on_cpu<Input>(b_size);
-        copy_from_cpu_to_cpu(b, host_b, b_size);
+    void compute(AbstractPermutation &permutation,  Input const * a, int a_size, Input  const*b, int b_size) override {
+        if (a_size > b_size){
+            auto tmp = Permutation(a_size+b_size,a_size+b_size);
+            compute(tmp,b,b_size,a,a_size);
+            fill_permutation_ba(&tmp, &permutation, a_size, b_size);
+            return;
+        }
+        // now a_size <= b_size
 
         auto host_l_strands = allocate_1D_array_aligned_on_cpu<Input>(a_size);
         auto host_t_strands = allocate_1D_array_aligned_on_cpu<Input>(b_size);
 
-        for (int i = 0; i < a_size; i++) host_l_strands[i] = i;
-        for (int i = 0; i < b_size; i++) host_t_strands[i] = a_size + i;
-
-
-        auto device_a = allocate_1D_array_aligned_on_gpu<Input>(a_size);
-        auto device_b = allocate_1D_array_aligned_on_gpu<Input>(b_size);
-        auto device_l_strands = allocate_1D_array_aligned_on_cpu<Input>(a_size);
-        auto device_t_strands = allocate_1D_array_aligned_on_cpu<Input>(b_size);
-
-        copy_from_cpu_to_gpu_sync(host_a, device_a, a_size);
-        copy_from_cpu_to_gpu_sync(host_b, device_b, b_size);
-        copy_from_cpu_to_gpu_sync(host_l_strands, device_l_strands, a_size);
-        copy_from_cpu_to_gpu_sync(host_t_strands, device_t_strands, b_size);
-
-
-        // phase 1
-        auto size_len = 1;
-        int offset_a, offset_b, cells_per_thread;
-        for (int i = 0; i < std::min(a_size, b_size) - 1; i++, size_len++) {
-            process_antidiagonal_wrapper<WithIf, WithMul>(device_a, a_size, device_b, b_size, device_l_strands,
-                                                          device_t_strands, offset_a, offset_b, cells_per_thread,
-                                                          thread_per_block, size_len);
+        auto host_b = allocate_1D_array_aligned_on_cpu<Input>(b_size);
+        copy_from_cpu_to_cpu(b, host_b, b_size);
+        auto host_a_rev = allocate_1D_array_aligned_on_cpu<Input>(a_size);
+        #pragma omp parallel num_threads(cpu_threads_count)
+        {
+            fill_a_reverse_cpu(a,host_a_rev,a_size);
+            initialization_cpu(host_l_strands, host_t_strands, a_size, b_size);
         }
 
 
-    }
+        #pragma omp parallel num_threads(cpu_threads_count)
+        for (int i = 1; i < std::min(a_size, cpu_lower_bound); i++) {
+            anti_diagonal_computation_cpu<Input,WithIf,true>(host_l_strands, host_t_strands, host_a_rev, host_b,
+                                                                 i, a_size - i, 0);
+        }
 
+        Input * device_a_rev;
+        Input * device_b;
+        Input * device_l_strands;
+        Input * device_t_strands;
+
+        // we switch to gpu computation if GPU enabled and lower bound is hit
+        bool should_switch = a_size >= cpu_lower_bound;
+
+        if (GPUEnable && should_switch) {
+            device_a_rev = allocate_1D_array_aligned_on_gpu<Input>(a_size);
+            device_b = allocate_1D_array_aligned_on_gpu<Input>(b_size);
+            device_l_strands = allocate_1D_array_aligned_on_gpu<Input>(a_size);
+            device_t_strands = allocate_1D_array_aligned_on_gpu<Input>(b_size);
+
+            copy_from_cpu_to_gpu_sync(host_a_rev, device_a_rev, a_size);
+            copy_from_cpu_to_gpu_sync(host_b, device_b, b_size);
+            copy_from_cpu_to_gpu_sync(host_l_strands, device_l_strands, a_size);
+            copy_from_cpu_to_gpu_sync(host_t_strands, device_t_strands, b_size);
+        }
+
+
+        //rest of first phase
+        if(!GPUEnable) {
+            #pragma omp parallel num_threads(cpu_threads_count)
+            for (int i = std::min(a_size, cpu_lower_bound); i < a_size; i++) {
+                anti_diagonal_computation_cpu<Input, WithIf, true>(host_l_strands, host_t_strands, host_a_rev, host_b,
+                                                                   i, a_size - i, 0);
+            }
+        } else {
+            for (int i = std::min(a_size, cpu_lower_bound); i < a_size; i++) {
+                int cell_per_thds = int(ceil(double(i) / cells_per_thds_threshold));
+                process_antidiagonal_wrapper<WithIf, WithMul>(device_a_rev, a_size, device_b, b_size, device_l_strands,
+                                                              device_t_strands, a_size - i, 0,
+                                                              cell_per_thds, thds_per_block_gpu, i);
+                synchronize_with_gpu();
+            }
+        }
+
+        // second phase
+        auto second_phase_len = b_size  - (a_size - 1);
+        auto len = a_size;
+        int cell_per_thds = int(ceil(double(len) / cells_per_thds_threshold));
+
+        if (!GPUEnable) {
+            #pragma omp parallel num_threads(cpu_threads_count)
+            for (int i = 0; i < second_phase_len; i++) {
+                anti_diagonal_computation_cpu<Input, WithIf, true>(host_l_strands, host_t_strands, host_a_rev, host_b,
+                                                                   len, 0, i);
+            }
+        } else {
+            for (int i = 0; i < second_phase_len; i++) {
+                process_antidiagonal_wrapper<WithIf, WithMul>(device_a_rev, a_size, device_b, b_size, device_l_strands,
+                                                              device_t_strands, 0, i,
+                                                              cell_per_thds, thds_per_block_gpu, len);
+                synchronize_with_gpu();
+            }
+        }
+
+        int offset = second_phase_len;
+        //third phase
+        if (!GPUEnable) {
+            #pragma omp parallel num_threads(cpu_threads_count)
+            for (int diag_len = a_size - 2; diag_len >= 0; --diag_len) {
+                anti_diagonal_computation_cpu<Input, WithIf, true>(host_l_strands,host_t_strands,host_a_rev,host_b,
+                                                                   diag_len+1,0, offset);
+                offset++;
+            }
+        } else {
+            for (int diag_len = a_size - 2; diag_len > cpu_lower_bound; --diag_len ) {
+                process_antidiagonal_wrapper<WithIf, WithMul>(device_a_rev, a_size, device_b, b_size, device_l_strands,
+                                                              device_t_strands, 0, offset, cell_per_thds,
+                                                              thds_per_block_gpu, diag_len + 1);
+                synchronize_with_gpu();
+                offset++;
+            }
+
+            if (GPUEnable && should_switch) {
+                copy_from_gpu_to_cpu_sync(device_t_strands,host_t_strands,b_size);
+                copy_from_gpu_to_cpu_sync(device_l_strands,host_l_strands,a_size);
+
+                free_1D_array_gpu(device_l_strands);
+                free_1D_array_gpu(device_t_strands);
+                free_1D_array_gpu(device_b);
+                free_1D_array_gpu(device_a_rev);
+            }
+
+            #pragma omp parallel num_threads(cpu_threads_count)
+            for (int diag_len = cpu_lower_bound; diag_len >= 0; --diag_len ) {
+                anti_diagonal_computation_cpu<Input, WithIf, true>(host_l_strands,host_t_strands,host_a_rev,host_b,
+                                                                   diag_len+1,0, offset);
+                offset++;
+            }
+        }
+        //end of third phase
+
+
+        #pragma omp parallel num_threads(cpu_threads_count)
+        {
+            construct_permutation_cpu(permutation, host_l_strands, host_t_strands, false, a_size, b_size);
+        }
+
+        free_1D_array_cpu(host_a_rev);
+        free_1D_array_cpu(host_b);
+        free_1D_array_cpu(host_l_strands);
+        free_1D_array_cpu(host_t_strands);
+
+    }
 };
 
 

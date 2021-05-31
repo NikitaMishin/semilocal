@@ -1,6 +1,6 @@
 #include <cooperative_groups.h>
 #include <cmath>
-#include "../memory_management.h"
+#include "memory_management.h"
 
 using namespace cooperative_groups; // or...
 using cooperative_groups::thread_group; // etc.
