@@ -1,1 +1,3 @@
 # semilocal
+
+see CPU README
