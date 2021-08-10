@@ -1,7 +1,7 @@
 //
 // Created by nikita on 15.10.2020.
 //
-
+#include "smawk.h"
 #ifndef CPU_STEADY_ANT_H
 #define CPU_STEADY_ANT_H
 

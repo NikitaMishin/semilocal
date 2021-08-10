@@ -3,7 +3,7 @@ project(cpu)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_library(cpu semi_local.h  semi_local.cpp prefix_lcs/bitwise/transposition_network_binary_alphabet.h prefix_lcs/bitwise/transposition_network_4symbol_alphabet_bit.h)
+add_library(cpu semi_local.h  semi_local.cpp prefix_lcs/bitwise/transposition_network_binary_alphabet.h prefix_lcs/bitwise/transposition_network_4symbol_alphabet_bit.h unit_monge_mult/smawk.h approximate_matching/CompleteAMatch.h approximate_matching/ScoringScheme.h)
 #add_subdirectory(Google_tests)
 
 # disable vectorization: -fno-tree-vectorize
