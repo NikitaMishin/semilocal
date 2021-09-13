@@ -3,7 +3,10 @@ project(cpu)
 
 set(CMAKE_CXX_STANDARD 11)
 
-add_library(cpu semi_local.h  semi_local.cpp prefix_lcs/bitwise/transposition_network_binary_alphabet.h prefix_lcs/bitwise/transposition_network_4symbol_alphabet_bit.h unit_monge_mult/smawk.h approximate_matching/CompleteAMatch.h approximate_matching/ScoringScheme.h)
+add_library(cpu semi_local.h
+        semi_local.cpp prefix_lcs/bitwise/transposition_network_binary_alphabet.h
+        prefix_lcs/bitwise/transposition_network_4symbol_alphabet_bit.h
+        unit_monge_mult/smawk.h approximate_matching/CompleteAMatch.h)
 #add_subdirectory(Google_tests)
 
 # disable vectorization: -fno-tree-vectorize
@@ -77,3 +80,14 @@ add_executable(braid_multiplication_sequential_memory cpu_impl/braid_multiplicat
 ##
 add_executable(braid_multiplication_sequential_precompute cpu_impl/braid_multiplication_sequential_precompute.cpp)
 #
+
+find_package(GTest REQUIRED )
+include_directories(${GTEST_INCLUDE_DIRS})
+
+add_executable(
+        ApproximateMatchingTest
+        test/ApproximateMatchingTest.cpp
+)
+target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )
+target_include_directories(ApproximateMatchingTest  PUBLIC cpu ${GTEST_INCLUDE_DIRS}  )
+

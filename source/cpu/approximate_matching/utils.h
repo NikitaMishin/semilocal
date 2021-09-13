@@ -132,9 +132,9 @@ namespace approximate_matching {
 
         };
 
-        class AbstarctScoringScheme {
+        class AbstractScoringScheme {
         public:
-            AbstarctScoringScheme() = default;;
+            AbstractScoringScheme() = default;;
 
             virtual Fraction getNormalizedMatchScore() = 0;
 
@@ -150,12 +150,12 @@ namespace approximate_matching {
 
             virtual double getOriginalScoreFunc(double value, int m, int i, int j) = 0;
 
-            ~AbstarctScoringScheme() = default;
+            ~AbstractScoringScheme() = default;
         };
 
-        class RegularScoringScheme : public AbstarctScoringScheme {
+        class RegularScoringScheme : public AbstractScoringScheme {
         public:
-            explicit RegularScoringScheme(Fraction frac) : mismatch(frac), AbstarctScoringScheme() {
+            explicit RegularScoringScheme(Fraction frac) : mismatch(frac), AbstractScoringScheme() {
                 if (frac.toDouble() > 1.0 || frac.toDouble() < -1.0) std::runtime_error("Could not be higher then 1");
             };
 
@@ -182,8 +182,8 @@ namespace approximate_matching {
         };
 
 
-        class FixedScoringScheme : public AbstarctScoringScheme {
-
+        class FixedScoringScheme : public AbstractScoringScheme {
+        public:
             FixedScoringScheme(Fraction match, Fraction mismatch, Fraction gap) : _match(match), _mismatch(mismatch),
                                                                                   _gap(gap),
                                                                                   normalizedMismatch(
@@ -212,6 +212,15 @@ namespace approximate_matching {
             Fraction _mismatch;
             Fraction _gap;
             Fraction normalizedMismatch;
+        };
+
+
+        struct Interval {
+            int start;
+            int end;
+            double score;
+
+            Interval(int start_, int end_,int score_):start(start_),end(end_),score(score_){}
         };
 
 

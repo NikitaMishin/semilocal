@@ -7,9 +7,28 @@
 
 #include <functional>
 #include <stack>
+#include "matrices.h"
+
+/**
+ * Provides implementations for computing row minima, row maxima, col minima col maxima for matrices, expecially for monge ones
+ */
+class SMAWK {
+public:
+    void colMinima(std::vector<std::pair<int,double>>&);
+    void rowMinima(std::vector<std::pair<int,double>>&);
+    void colMin(std::vector<std::pair<int,double>>&);
+    void colMax(std::vector<std::pair<int,double>>&);
+};
+
+class ImplicitMongeSMAWK:SMAWK{
+
+    ImplicitMongeSMAWK(AbstractPermutation&);
+
+private:
+};
 
 
-// todo add linear
+
 class RowMinima {
 public:
     RowMinima(std::function<double(int, int)> accessor) : _accessor(accessor) {};
