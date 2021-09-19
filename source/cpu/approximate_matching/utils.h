@@ -46,6 +46,14 @@ namespace approximate_matching {
                 }
             };
 
+            int getNumerator(){
+                return _numerator;
+            }
+
+            int getDenominator(){
+                return _denominator;
+            }
+
             double toDouble() const {
                 return sign * double(_numerator) / _denominator;
             }

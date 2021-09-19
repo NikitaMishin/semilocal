@@ -4,12 +4,11 @@
 // functions calculate value in adjacent cells in O(1) time.
 //
 
-#include "matrices.h"
+
 
 #ifndef CPU_DOMINANCE_SUMS_QUERIES_H
 #define CPU_DOMINANCE_SUMS_QUERIES_H
-
-#endif //CPU_DOMINANCE_SUMS_QUERIES_H
+#include "matrices.h"
 
 /**
  * Namespace contains functions that implements different incremental dominance sum queries
@@ -117,3 +116,4 @@ namespace dominance_sum_counting {
     }
 
 };
+#endif //CPU_DOMINANCE_SUMS_QUERIES_H
