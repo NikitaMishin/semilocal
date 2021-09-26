@@ -7,9 +7,23 @@
 
 #include <string>
 #include <string_view>
-
+#include "interalTree/interval_tree.h"
+#define SPECIAL_SYMBOL -1
 namespace approximate_matching {
     namespace utils {
+
+
+
+
+        template<class Integer>
+        void  blownup(Integer * string,int string_size, int v, int mu,Integer *result) {
+            auto index = 0;
+            for (int k = 0; k< string_size; k++) {
+                auto character = string[k];
+                for(int i = 0;i < mu; i++,index++) result[index] = SPECIAL_SYMBOL;
+                for(int i = 0;i < v - mu; i++,index++) result[index] = character;
+            }
+        }
 
         int gcd(int g, int e) {
             auto a = abs(g);
@@ -212,7 +226,7 @@ namespace approximate_matching {
             Fraction getGapScore() override { return _gap; }
 
             double getOriginalScoreFunc(double value, int m, int i, int j) override {
-                return value * (_match - _gap * 2).toDouble() + ((m + j - i)) * _gap.toDouble();  //- ()//gap.toDouble()
+                return value * (_match - (_gap * 2)).toDouble() + ((m + j - i)) * _gap.toDouble();
             }
 
         private:
@@ -228,7 +242,12 @@ namespace approximate_matching {
             int end;
             double score;
 
+            Interval(){};
             Interval(int start_, int end_,int score_):start(start_),end(end_),score(score_){}
+
+            inline int len() const{
+                return end-start;
+            }
         };
 
 

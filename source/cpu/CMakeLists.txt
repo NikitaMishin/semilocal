@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(cpu)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 add_library(cpu semi_local.h
         semi_local.cpp prefix_lcs/bitwise/transposition_network_binary_alphabet.h

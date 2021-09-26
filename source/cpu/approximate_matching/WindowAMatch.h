@@ -8,6 +8,7 @@
 #include "../approximate_matching/CompleteAMatch.h"
 #include "../unit_monge_mult/matrices.h"
 #include "../unit_monge_mult/dominance_sum_queries.h"
+#include "ApproximateMatching.h"
 template<class Integer>
 class IThresholdAWindowProblem {
 public:
