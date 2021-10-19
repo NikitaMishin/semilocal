@@ -116,6 +116,7 @@ public:
     void static find(T *p, int p_size, T *text, int text_size, double k,
                      std::vector<approximate_matching::utils::Interval> &result) {
         using namespace approximate_matching::utils;
+        auto scheme = FixedScoringScheme(Fraction(0, 1), Fraction(-1, 1), Fraction(-1, 1));
 
         int v = 2;
         int mu = 1;
@@ -134,95 +135,48 @@ public:
 
 
         auto w = int(p_size / k);
-        auto left_w = int(p_size * k);
+        auto left_w = int(p_size * k) - 1;//for offset
         auto kdi = p_size * (1 / k + 1) * (1 - k * k);
 
-        auto maxPossibleScore = 0;
 
         semi_local::sticky_braid_sequential<T, false>(perm, p_blown, p_blown_size, text_blown, text_blown_size);
-        std::cout << std::endl;
 
-        auto dominanceSumRandom = [&](int i, int j) {
-            i += p_size;
-            i *= v;
-            j *= v;
-            int rangeSum = 0;
-            for (int row = 0; row < perm.row_size; row++) {
-                auto col = perm.get_col_by_row(row);
-                if (row >= i && col < j) {
-                    rangeSum++;
-                }
-            }
-            return rangeSum;
-        };
+        auto wrapper = SemiLocalStringSubstringWrapper(&perm,&scheme,p_size,v);
 
-        auto dominanceSumForMoveUp = [&](int i, int j, int value, int steps) {
-            i += p_size;
-            i *= v;
-            j *= v;
+        auto dominanceSumDiag = wrapper.dominanceSumRandom(text_size - w, text_size); //<-- start of last column
 
-            for (int l = 0; l < steps; ++l) {
-                value = dominance_sum_counting::top_right_arrow::up_move(i, j, value, &perm);
-                i--;
-            }
-            return value;
-        };
+        auto stacks = std::vector<Interval>(w - left_w);
 
-        auto dominanceSumForMoveDown = [&](int i, int j, int value, int steps) {
-            i += p_size;
-            i *= v;
-            j *= v;
+        auto windowMaxima = calculateTriangle(stacks, text_size - w, dominanceSumDiag, left_w, w, wrapper);
 
-            for (int l = 0; l < steps; ++l) {
-                value = dominance_sum_counting::top_right_arrow::down_move(i, j, value, &perm);
-                i++;
-            }
-            return value;
-        };
+        auto windowDist = wrapper.originalScore(text_size - w, text_size, dominanceSumDiag);
 
-        auto dominanceSumForMoveLeft = [&](int i, int j, int value, int v) {
-            i += p_size;
-            i *= v;
-            j *= v;
-            for (int l = 0; l < v; ++l) {
-                value = dominance_sum_counting::top_right_arrow::left_move(i, j, value, &perm);
-                j--;
-            }
-            return value;
-        };
-
-        auto canonicalDecompositionWithKnown = [&](int i, int j, int v, int pattern_size, int rangeSum) {
-            i += p_size;
-            return j - (i - pattern_size) - double(rangeSum) / v;
-        };
-
-        auto scheme = FixedScoringScheme(Fraction(0, 1), Fraction(-1, 1), Fraction(-1, 1));
+        std::map<long long,Interval> setW2;
 
 
-        auto originalScore = [&](int i, int j, int dominanceSum, int v, int pattern_size) {
-            return scheme.getOriginalScoreFunc(canonicalDecompositionWithKnown(i, j, v, p_size, dominanceSum), p_size,
-                                               i, j);
-        };
+        if(windowDist >= -kdi)setW2.insert({buildKey(windowMaxima.start,windowMaxima.end),windowMaxima});
+        dominanceSumDiag = wrapper.dominanceSumForMoveLeft(text_size - w - 1,text_size,
+                                                           wrapper.dominanceSumForMoveUp(text_size-w,text_size,dominanceSumDiag));
+        int head = 1;
 
-        auto dominanceSumDiag = dominanceSumRandom(text_size - w, text_size); //<-- start of last column
-//        todo add calcukatuon of last triangle
-
-        int head = 0;
-        auto stacks = std::vector<Interval>(w);
-        for (int start = 0; start <= text_size - w; ++start) {
+        for (int start = 1; start <= text_size - w; ++start) {
+            head = head % (w - left_w);
+            stacks[head] = Interval(0,0,NEG_INF);
             int i = text_size - w - start;
             int j = text_size - start;
-            auto dist = originalScore(i, j, dominanceSumDiag, v, p_size);
-            auto localMaxima = Interval(0, 0, NEG_INF);
-            auto windowDist = dist;
+            windowDist = wrapper.originalScore(i, j, dominanceSumDiag);
+
             auto dominanceSumRow = dominanceSumDiag;
             int l = i;
             int r = j;
 
-            for (int m = 0; m < w - left_w; ++m) {
+            dominanceSumRow = wrapper.dominanceSumForMoveLeft(l, r, dominanceSumRow);
+            r--;
+
+            for (int m = 1; m < w - left_w; ++m) {
                 auto &interval = stacks[(head + m) % (w - left_w)];
 
-                dist = originalScore(l, r, dominanceSumRow, v, p_size);
+                auto dist = wrapper.originalScore(l, r, dominanceSumRow);
                 if (dist > interval.score) {
                     interval.start = l;
                     interval.end = r;
@@ -234,7 +188,7 @@ public:
                         localMaxima.end = interval.end;
                     }
                 }
-                dominanceSumRow = dominanceSumForMoveLeft(l, r, dominanceSumRow, v);
+                dominanceSumRow = wrapper.dominanceSumForMoveLeft(l, r, dominanceSumRow);
                 r--;
             }
 
@@ -258,6 +212,8 @@ public:
         std::cout << "value:" << value << std::endl;
         std::cout << "reg:" << originalScore(20, 27, dominanceSumStart, v, p_size) << std::endl;
 
+
+
 //        std::cout<<canonicalDecomposition(text_size - p_size + p_size, text_size, v, p_size);
 //        size from 1 to 3
 //   0  1 2 3 4    [1,2]                              (0,1),(0,2),(0,3)
@@ -272,19 +228,6 @@ public:
 // 0,3 вниз 3
 //  обработали (3,4)
 //  0,3 all
-//  1 -4
-        std::pair<int, int> point;
-        while (point.first > 0 && point.second > 0) {
-
-
-        }
-
-
-
-
-
-
-
 
 //        //last comparator refers big one or a small one
 //        std::vector<Interval> setW3;
@@ -309,6 +252,51 @@ public:
 //        }
 
 
+    }
+
+    static long long buildKey(int l,int r){
+        long long key = l;
+        return  (key<<32) | r;
+    }
+    approximate_matching::utils::Interval
+    static calculateTriangle(std::vector<approximate_matching::utils::Interval>&intervals,int offset,int rangeSum,int l,int r, approximate_matching::utils::SemiLocalStringSubstringWrapper& wrapper){
+        for (int i = 0; i < r - l ; ++i) {
+            intervals[i].start = 0;
+            intervals[i].end = 0;
+            intervals[i].score = NEG_INF;
+        }
+        approximate_matching::utils::Interval windowMaxima;
+        windowMaxima.score = NEG_INF;
+
+        int substringSize = r;
+        for (int k = 0; k <  r - l; ++k, substringSize--) {
+            int j = offset + substringSize;
+            int i = offset;
+            int rangeSumColumn = rangeSum;
+            //shift left
+            rangeSum = wrapper.dominanceSumForMoveLeft(i, j, rangeSum);
+
+            auto& columnInterval = intervals[k];
+
+            for (int t = 0; t < substringSize; ++t) {
+                auto dist = wrapper.originalScore(i + t, j, rangeSumColumn);
+
+                if(dist > columnInterval.score ||(dist==columnInterval.score && j - i - t  > columnInterval.len())) {
+                    columnInterval.score = dist;
+                    columnInterval.start = i + t;
+                    columnInterval.end = j;
+                }
+                // shift down
+                wrapper.dominanceSumForMoveDown(i + t, j, rangeSumColumn);
+            }
+
+            if (columnInterval.score > windowMaxima.score || (columnInterval.score==windowMaxima.score&& columnInterval.len() > windowMaxima.len())){
+                windowMaxima.score = columnInterval.score;
+                windowMaxima.start = columnInterval.start;
+                windowMaxima.end = columnInterval.end;
+            }
+        }
+        return windowMaxima;
     }
 
 

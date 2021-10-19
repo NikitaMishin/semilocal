@@ -7,7 +7,9 @@
 
 #include <string>
 #include <string_view>
-#include "interalTree/interval_tree.h"
+#include "../unit_monge_mult/matrices.h"
+#include "../unit_monge_mult/dominance_sum_queries.h"
+
 #define SPECIAL_SYMBOL -1
 namespace approximate_matching {
     namespace utils {
@@ -250,6 +252,81 @@ namespace approximate_matching {
             }
         };
 
+
+        class SemiLocalStringSubstringWrapper {
+        public:
+
+            int p_size;
+            int v;
+            Permutation*perm;
+            AbstractScoringScheme *scheme;
+            SemiLocalStringSubstringWrapper(Permutation *permutation,AbstractScoringScheme*scheme_,
+                                            int pattern_size,int v_value):perm(permutation), p_size(pattern_size), v(v_value),scheme(scheme_) {}
+
+
+            int dominanceSumRandom(int i, int j) {
+                i += p_size;
+                i *= v;
+                j *= v;
+                int rangeSum = 0;
+                for (int row = 0; row < perm->row_size; row++) {
+                    auto col = perm->get_col_by_row(row);
+                    if (row >= i && col < j) {
+                        rangeSum++;
+                    }
+                }
+                return rangeSum;
+            };
+
+            int dominanceSumForMoveUp(int i, int j, int value) {
+                i += p_size;
+                i *= v;
+                j *= v;
+
+                for (int l = 0; l < v; ++l) {
+                    value = dominance_sum_counting::top_right_arrow::up_move(i, j, value, perm);
+                    i--;
+                }
+                return value;
+            };
+
+            int dominanceSumForMoveDown(int i, int j, int value) {
+                i += p_size;
+                i *= v;
+                j *= v;
+
+                for (int l = 0; l < v; ++l) {
+                    value = dominance_sum_counting::top_right_arrow::down_move(i, j, value, perm);
+                    i++;
+                }
+
+                return value;
+            };
+
+            int dominanceSumForMoveLeft(int i, int j, int value) {
+                i += p_size;
+                i *= v;
+                j *= v;
+                for (int l = 0; l < v; ++l) {
+                    value = dominance_sum_counting::top_right_arrow::left_move(i, j, value, perm);
+                    j--;
+                }
+                return value;
+            };
+
+            double  canonicalDecompositionWithKnown(int i, int j, int rangeSum) {
+                i += p_size;
+                return j - (i - p_size) - double(rangeSum) / v;
+            };
+
+
+            double originalScore(int i, int j, int dominanceSum) {
+                return scheme->getOriginalScoreFunc(canonicalDecompositionWithKnown(i, j,  dominanceSum), p_size,
+                                                   i, j);
+            };
+
+
+        };
 
     }
 
