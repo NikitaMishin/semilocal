@@ -7,6 +7,7 @@
 
 #include <string>
 #include <string_view>
+#include <cmath>
 #include "../unit_monge_mult/matrices.h"
 #include "../unit_monge_mult/dominance_sum_queries.h"
 
@@ -15,15 +16,13 @@ namespace approximate_matching {
     namespace utils {
 
 
-
-
         template<class Integer>
-        void  blownup(Integer * string,int string_size, int v, int mu,Integer *result) {
+        void blownup(Integer *string, int string_size, int v, int mu, Integer *result) {
             auto index = 0;
-            for (int k = 0; k< string_size; k++) {
+            for (int k = 0; k < string_size; k++) {
                 auto character = string[k];
-                for(int i = 0;i < mu; i++,index++) result[index] = SPECIAL_SYMBOL;
-                for(int i = 0;i < v - mu; i++,index++) result[index] = character;
+                for (int i = 0; i < mu; i++, index++) result[index] = SPECIAL_SYMBOL;
+                for (int i = 0; i < v - mu; i++, index++) result[index] = character;
             }
         }
 
@@ -62,11 +61,11 @@ namespace approximate_matching {
                 }
             };
 
-            int getNumerator(){
+            int getNumerator() {
                 return _numerator;
             }
 
-            int getDenominator(){
+            int getDenominator() {
                 return _denominator;
             }
 
@@ -231,6 +230,10 @@ namespace approximate_matching {
                 return value * (_match - (_gap * 2)).toDouble() + ((m + j - i)) * _gap.toDouble();
             }
 
+            double getReverseScore(double originalValue, int m, int i, int j) {
+                return (originalValue - (m + j - i) * _gap.toDouble()) / ((_match - (_gap * 2)).toDouble());
+            }
+
         private:
             Fraction _match;
             Fraction _mismatch;
@@ -244,11 +247,12 @@ namespace approximate_matching {
             int end;
             double score;
 
-            Interval(){};
-            Interval(int start_, int end_,int score_):start(start_),end(end_),score(score_){}
+            Interval() {};
 
-            inline int len() const{
-                return end-start;
+            Interval(int start_, int end_, int score_) : start(start_), end(end_), score(score_) {}
+
+            inline int len() const {
+                return end - start;
             }
         };
 
@@ -258,10 +262,12 @@ namespace approximate_matching {
 
             int p_size;
             int v;
-            Permutation*perm;
+            Permutation *perm;
             AbstractScoringScheme *scheme;
-            SemiLocalStringSubstringWrapper(Permutation *permutation,AbstractScoringScheme*scheme_,
-                                            int pattern_size,int v_value):perm(permutation), p_size(pattern_size), v(v_value),scheme(scheme_) {}
+
+            SemiLocalStringSubstringWrapper(Permutation *permutation, AbstractScoringScheme *scheme_,
+                                            int pattern_size, int v_value) : perm(permutation), p_size(pattern_size),
+                                                                             v(v_value), scheme(scheme_) {}
 
 
             int dominanceSumRandom(int i, int j) {
@@ -314,16 +320,32 @@ namespace approximate_matching {
                 return value;
             };
 
-            double  canonicalDecompositionWithKnown(int i, int j, int rangeSum) {
+            double canonicalDecompositionWithKnown(int i, int j, int rangeSum) {
                 i += p_size;
                 return j - (i - p_size) - double(rangeSum) / v;
             };
+            // 5 - 2.5 =2.5
+            //
 
 
             double originalScore(int i, int j, int dominanceSum) {
-                return scheme->getOriginalScoreFunc(canonicalDecompositionWithKnown(i, j,  dominanceSum), p_size,
-                                                   i, j);
+                return scheme->getOriginalScoreFunc(canonicalDecompositionWithKnown(i, j, dominanceSum), p_size,
+                                                    i, j);
             };
+
+            int getRangeSumFromReverse(int i, int j, double result) {
+                // original flow:
+                // t =  j - i - rangeSum / v
+                // result = t* ( a - 2b) + (m+j-i)b
+                // backward flow:
+                // rangeSum = v(j - i - t)
+                // t = (result - (m + j - i)b ) / (a - 2b)
+                // substitution
+                // rangeSum = v (j-i - (result - (m+j-i)b)/(a-2b)  )
+                auto a = scheme->getMatchScore().toDouble();
+                auto b = scheme->getGapScore().toDouble();
+                return std::round(v * (j - i - (result - (p_size + j - i) * b) / (a - 2 * b)));
+            }
 
 
         };
