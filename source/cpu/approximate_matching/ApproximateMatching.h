@@ -4,7 +4,7 @@
 
 #ifndef CPU_APPROXIMATEMATCHING_H
 #define CPU_APPROXIMATEMATCHING_H
-#define NEG_INF -10000000
+#define NEG_INF (-10000000)
 
 #include "../semi_local.h"
 #include "unordered_set"
@@ -44,15 +44,83 @@ struct DuplicateSearch {
             curRow = tmp;
         }
 
-        return -prevRow[b_size];
-//        * (0 - 2 * (-1)) + (a_size + b_size) * (-1);
+
+        auto value = -prevRow[b_size];
+
+        delete[] prevRow;
+        delete[] curRow;
+        return value;
+    }
+
+
+    template<class T>
+    Interval findClosestLongestSubstring(T *p, int p_size, T *substring, int min_size, int max_size, int offset,
+                                         std::unordered_map<long long, double> &precalc, double kdi) {
+        Interval interval = Interval(0, 0, NEG_INF);
+/*
+        //iterative over row backward starting from largest
+        for (int length = max_size; length >= min_size ; length--) {
+            int j = length;
+            //iterate  over column from top to bottom
+            for (int i = 0; i <= length - min_size; ++i) {
+                double edit;
+                auto key = buildKey(i+offset,offset + j);
+                if(precalc.count(key)){
+                    edit = precalc[key];
+                } else {
+                    edit = editDistance(p,p_size, substring + i, j - i);
+                    precalc[key] = edit;
+                }
+                auto potential = Interval(i + offset, offset + j, edit);
+                if(compare(potential,interval)){
+                    interval = Interval(potential.start,potential.end,potential.score);
+                }
+            }
+        }*/
+
+///*
+        for (int length = min_size; length <= max_size; length++) {
+            for (int end = length; end < max_size + 1;) {
+                double edit;
+                int i = end - length;
+                int j = end;
+                auto key = buildKey(i + offset, offset + j);
+                if (precalc.count(key)) {
+                    edit = precalc[key];
+                } else {
+                    edit = editDistance(p, p_size, substring + i, j -  i);
+                    precalc[key] = edit;
+                }
+                auto potential = Interval(i + offset, offset + j, edit);
+                if (compareUPD(potential, interval)) {
+                    interval = Interval(potential.start, potential.end, potential.score);
+                }
+                if (edit < interval.score - 1) {
+                    end += std::max(1, int((abs(edit) - abs(interval.score)) / 2));
+                } else {
+                    ++end;
+                }
+            }
+
+        }
+//        */
+
+
+        return interval;
     }
 
     bool static compare(Interval &w1, Interval &w2) {
         if (w1.score > w2.score) return true;
         if (w1.score < w2.score) return false;
-        return (w1.end - w1.start) > (w2.end - w2.start);
+        return (w1.len()) > (w2.len());
     }
+
+    bool static compareUPD(Interval &w1, Interval &w2) {
+        if (w1.score > w2.score) return true;
+        if (w1.score < w2.score) return false;
+        return (w1.len()) >= (w2.len());
+    }
+
 
     static long long buildKey(int l, int r) {
         long long key = l;
@@ -80,15 +148,16 @@ struct DuplicateSearch {
         windowMaxima.score = NEG_INF;
 
         int substringSize = r;
+        //iterate over row left
         for (int k = 0; k < r - l; ++k, substringSize--) {
-            int j = offset + substringSize;
             int i = offset;
+            int j = offset + substringSize;
             int rangeSumColumn = rangeSum;
 
             auto &columnInterval = intervals[k];
 
             //iterate over column down
-            for (int t = 0; t < substringSize; ++t) {
+            for (int t = 0; t < substringSize - l; ++t) {
                 auto dist = wrapper.originalScore(i + t, j, rangeSumColumn);
 
                 if (dist > columnInterval.score || (dist == columnInterval.score && j - i - t > columnInterval.len())) {
@@ -99,6 +168,7 @@ struct DuplicateSearch {
                 // shift down
                 rangeSumColumn = wrapper.dominanceSumForMoveDown(i + t, j, rangeSumColumn);
             }
+
 
             if (columnInterval.score > windowMaxima.score ||
                 (columnInterval.score == windowMaxima.score && columnInterval.len() > windowMaxima.len())) {
@@ -136,37 +206,44 @@ struct DuplicateSearch {
 class InteractiveDuplicateSearch : public DuplicateSearch {
 public:
     template<class T>
-    void static find(T *p, int p_size, T *text, int text_size, double k, std::vector<Interval> &result) {
+    void find(T *p, int p_size, T *text, int text_size, double k, std::vector<Interval> &result) {
         auto w = int(p_size / k);
-        auto kdi = p_size * (1 / k + 1) * (1 - k * k);
+        auto kdi = -(p_size * (1 / k + 1) * (1 - k * k));
+        auto left_w = int(p_size * k);
+
+        auto precalc = std::unordered_map<long long, double>();
+
 
         //phase one
         auto setW1 = std::vector<Interval>();
-        for (int end = w; end < text_size + 1; ++end) {
+        for (int end = w; end < text_size + 1;) {
             auto dist = editDistance(text + (end - w), w, p, p_size);
-            if (dist >= -kdi) {
-                setW1.push_back(Interval(end - w, end, dist));
+            precalc[buildKey(end - w, end)] = dist;
+            if (dist >= kdi) setW1.push_back(Interval(end - w, end, dist));
+
+            if (dist < kdi - 1) {
+                end += std::max(1, int((abs(dist) - abs(kdi)) / 2));
+            } else {
+                ++end;
             }
         }
 
         auto setW2Hash = std::unordered_set<long long>();
         auto setW2 = std::vector<Interval>();
         //phase 2
+        int position = 0;
         for (auto &clone :setW1) {
-            auto w_stroke = clone;
-            // iterated over all sizes
-            for (int l = int(p_size * k); l <= w; l++) {
-                for (int end = l + clone.start; end <= clone.end; end++) {
-                    auto w2 = Interval(end - l, end, editDistance(p, p_size, text + (end - l), l));
-                    if (compare(w2, w_stroke)) {
-                        w_stroke = w2;
-                    }
-                }
-            }
+            auto w_stroke = findClosestLongestSubstring(p, p_size, text + clone.start, left_w, w, clone.start, precalc,
+                                                        kdi);
             long long composite_key = buildKey(w_stroke.start, w_stroke.end);
-            if (setW2Hash.count(composite_key) == 0)
+            if (setW2Hash.count(composite_key) == 0) {
+                setW2Hash.insert(composite_key);
                 setW2.push_back(Interval(w_stroke.start, w_stroke.end, w_stroke.score));
+            }
+
+            position++;
         }
+
         phase3(setW2, result);
     }
 
@@ -177,15 +254,19 @@ public:
     template<class T>
     void find(T *p, int p_size, T *text, int text_size, double k, std::vector<Interval> &result) {
         auto w = int(p_size / k);
-        auto kdi = p_size * (1 / k + 1) * (1 - k * k);
-        auto left_w = int(p_size * k) - 1;//for offset
+        auto kdi = -(p_size * (1 / k + 1) * (1 - k * k));
+        auto left_w = int(p_size * k) -1;//for offset
 
         //phase one
         auto setW1 = std::vector<Interval>();
-        for (int end = w; end < text_size + 1; ++end) {
+        for (int end = w; end < text_size + 1;) {
             auto dist = editDistance(text + (end - w), w, p, p_size);
-            if (dist >= -kdi) {
-                setW1.push_back(Interval(end - w, end, dist));
+            if (dist >= kdi) setW1.push_back(Interval(end - w, end, dist));
+
+            if (dist < kdi - 1) {
+                end += std::max(1, int((abs(dist) - abs(kdi)) / 2));
+            } else {
+                ++end;
             }
         }
 
@@ -205,11 +286,13 @@ public:
 
         auto stack = std::vector<Interval>(w - left_w);
 
+
         //blown pattern string
         approximate_matching::utils::blownup(p, p_size, v, mu, p_blown);
 
 
-        for (auto clone :setW1) {
+        int position = 0;
+        for (auto &clone :setW1) {
             approximate_matching::utils::blownup(text + clone.start, w, v, mu, substring);
             semi_local::sticky_braid_sequential<T, false>(perm, p_blown, p_blown_size, substring, substring_size);
             auto wrapper = SemiLocalWrapper(&perm, &scheme, p_size, v);
@@ -217,10 +300,12 @@ public:
             auto coolClone = calculateTriangle(stack, 0, rangeSum, left_w, w, wrapper);
             coolClone.start += clone.start;
             coolClone.end += clone.start;
-//            std::cout<<coolClone.score<<","<<coolClone.start<<":"<<coolClone.end<<std::endl;
             long long composite_key = buildKey(coolClone.start, coolClone.end);
-            if (setW2Hash.count(composite_key) == 0)
+            if (setW2Hash.count(composite_key) == 0) {
+                setW2Hash.insert(composite_key);
                 setW2.push_back(coolClone);
+            }
+
 
             perm.unset_all();
         }
@@ -272,8 +357,8 @@ public:
         auto setW2 = std::vector<Interval>();
 
         if (windowDist >= kdi) {
-            setW2.push_back(Interval(windowMaxima.start,windowMaxima.end,windowMaxima.score));
-            setW2Hash.insert(buildKey(windowMaxima.start,windowMaxima.end));
+            setW2.push_back(Interval(windowMaxima.start, windowMaxima.end, windowMaxima.score));
+            setW2Hash.insert(buildKey(windowMaxima.start, windowMaxima.end));
         };
 
         //shift to the right corner of the next from the end triangle
@@ -289,46 +374,57 @@ public:
             int i = text_size - w - start;
             int j = text_size - start; // (i,j) corresponds to loc
             windowDist = wrapper.originalScore(i, j, dominanceSumDiag); // diagonal score
+
             auto dominanceSumRow = dominanceSumDiag;
             int l = i;
             int r = j;
 
-//            dominanceSumRow = wrapper.dominanceSumForMoveLeft(l, r, dominanceSumRow);
-//            r--;
-            windowMaxima = Interval(0,0,NEG_INF);
-            for (int m = 0; m < w - left_w; ++m) {
-                auto &interval = stacks[(head + m) % (w - left_w)];
 
+            windowMaxima = Interval(0, 0, NEG_INF);
+            for (int m = 0; m < w - left_w; ++m, r--) {
+                auto &interval = stacks[(head + m) % (w - left_w)];
                 auto dist = wrapper.originalScore(l, r, dominanceSumRow);
-                if (dist > interval.score) {
-                    interval.start = l;
-                    interval.end = r;
-                    interval.score = dist;
-                    if (interval.score > windowMaxima.score ||
-                        (interval.score == windowMaxima.score && interval.len() > windowMaxima.len())) {
-                        windowMaxima.score = interval.score;
-                        windowMaxima.start = interval.start;
-                        windowMaxima.end = interval.end;
-                    }
+                auto potential = Interval(l, r, dist);
+                if (compare(potential, interval)) {
+                    interval.start = potential.start;
+                    interval.end = potential.end;
+                    interval.score = potential.score;
+                }
+                if (compare(interval, windowMaxima)) {
+                    windowMaxima.score = interval.score;
+                    windowMaxima.start = interval.start;
+                    windowMaxima.end = interval.end;
                 }
                 dominanceSumRow = wrapper.dominanceSumForMoveLeft(l, r, dominanceSumRow);
-                r--;
             }
 
-            if (windowDist >= kdi && setW2Hash.count(buildKey(windowMaxima.start,windowMaxima.end))==0) {
+            if (windowDist >= kdi && setW2Hash.count(buildKey(windowMaxima.start, windowMaxima.end)) == 0) {
                 setW2.push_back(windowMaxima);
-                setW2Hash.insert(buildKey(windowMaxima.start,windowMaxima.end));
+                setW2Hash.insert(buildKey(windowMaxima.start, windowMaxima.end));
             }
 
             //shift to position
             dominanceSumDiag = wrapper.dominanceSumForMoveLeft(i, j, dominanceSumDiag);
-            dominanceSumDiag = wrapper.dominanceSumForMoveUp(i,j - 1,dominanceSumDiag);
+            dominanceSumDiag = wrapper.dominanceSumForMoveUp(i, j - 1, dominanceSumDiag);
 
         }
 
-        std::reverse(setW2.begin(),setW2.end());
+        std::reverse(setW2.begin(), setW2.end());
 
-        phase3(setW2,result);
+
+        phase3(setW2, result);
+        delete[] p_blown;
+        delete[] text_blown;
+    }
+
+
+    template<class T>
+    void print(T *string, int start, int end) {
+        std::cout << "\"";
+        for (int i = start; i < end; ++i) {
+            std::cout << char(string[i]);
+        }
+        std::cout << "\"" << std::endl;
     }
 
 

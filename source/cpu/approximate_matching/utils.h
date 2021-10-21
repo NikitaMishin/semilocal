@@ -254,6 +254,14 @@ namespace approximate_matching {
             inline int len() const {
                 return end - start;
             }
+
+            bool operator==(const Interval &other) const {
+                return other.start == start && other.end == end && other.score == score;
+            }
+
+            friend auto operator<<(std::ostream &os, Interval const &m) -> std::ostream & {
+                return os << m.score << "," << m.start << ":" << m.end;
+            }
         };
 
 
