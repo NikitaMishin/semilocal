@@ -21,7 +21,7 @@ struct DuplicateSearch {
         auto curRow = new double[b_size + 1];
 
         double match = 0.0;
-        double substitution = 1.0;
+        double substitution = 2.0;
         double indel = 1.0;
 
         for (int i = 0; i < b_size + 1; ++i) {
@@ -273,9 +273,10 @@ public:
         auto setW2Hash = std::unordered_set<long long>();
         auto setW2 = std::vector<Interval>();
 
-        auto scheme = FixedScoringScheme(Fraction(0, 1), Fraction(-1, 1), Fraction(-1, 1));
-        int v = 2;
-        int mu = 1;
+        auto scheme = FixedScoringScheme(Fraction(0, 1), Fraction(-2, 1), Fraction(-1, 1));
+        int v = scheme.getNormalizedMismatchScore().getDenominator();
+        int mu = scheme.getNormalizedMismatchScore().getNumerator();
+
 
         auto p_blown_size = p_size * v;
         T p_blown[p_blown_size];
@@ -296,7 +297,7 @@ public:
             approximate_matching::utils::blownup(text + clone.start, w, v, mu, substring);
             semi_local::sticky_braid_sequential<T, false>(perm, p_blown, p_blown_size, substring, substring_size);
             auto wrapper = SemiLocalWrapper(&perm, &scheme, p_size, v);
-            auto rangeSum = wrapper.originalScore(0, w, clone.score);
+            auto rangeSum = wrapper.getRangeSumFromReverse(0,w,clone.score);
             auto coolClone = calculateTriangle(stack, 0, rangeSum, left_w, w, wrapper);
             coolClone.start += clone.start;
             coolClone.end += clone.start;
@@ -323,11 +324,11 @@ public:
         using namespace approximate_matching::utils;
         auto scheme = FixedScoringScheme(
                 Fraction(0, 1),
-                Fraction(-1, 1),
+                Fraction(-2, 1),
                 Fraction(-1, 1));
 
-        int v = 2;
-        int mu = 1;
+        int v = scheme.getNormalizedMismatchScore().getDenominator();
+        int mu = scheme.getNormalizedMismatchScore().getNumerator();
 
         auto w = int(p_size / k);
         auto left_w = int(p_size * k) - 1;//for offset
