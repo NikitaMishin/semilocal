@@ -88,6 +88,7 @@ int prefix_lcs_sequential(int *a, int a_size, int *b, int b_size) {
 }
 
 
+
 int prefix_lcs_sequential_skewed(int *a, int a_size, int *b, int b_size) {
 //    check special case 2x2
     if (a_size > b_size) {

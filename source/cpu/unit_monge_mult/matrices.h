@@ -203,8 +203,6 @@ public:
         delete[] row_to_col;
         delete[] col_to_row;
     };
-
-
 };
 
 
@@ -372,7 +370,6 @@ inline void copy(AbstractPermutation &from, AbstractPermutation &to) {
         to.set_point(i, col);
     }
 }
-
 
 
 #endif //CPU_MATRICES_H
