@@ -119,7 +119,18 @@ namespace common {
             std::fill(colToRow.begin(),colToRow.end(),NOPOINT);
         };
 
+
+        bool operator==(const Permutation &other) const {
+            if (other.rows != rows || other.cols != cols) return false;
+            for (int i = 0; i < rows; ++i) if (getColByRow(i) != other.getColByRow(i)) return false;
+            for (int i = 0; i < cols; ++i) if (getRowByCol(i) != other.getRowByCol(i)) return false;
+            return true;
+        }
+
+
         void fromPoints(const std::vector<std::pair<int, int>> &points) {
+            rows  = points.size();
+            cols = points.size();
             rowToCol.resize(points.size());
             colToRow.resize(points.size());
             for (auto &point: points) {
@@ -128,11 +139,8 @@ namespace common {
             }
         }
 
-        bool operator==(const Permutation &other) const {
-            if (other.rows != rows || other.cols != cols) return false;
-            for (int i = 0; i < rows; ++i) if (getColByRow(i) != other.getColByRow(i)) return false;
-            for (int i = 0; i < cols; ++i) if (getRowByCol(i) != other.getRowByCol(i)) return false;
-            return true;
+        void fromHash() {
+
         }
 
         /**

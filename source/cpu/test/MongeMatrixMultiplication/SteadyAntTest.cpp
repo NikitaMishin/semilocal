@@ -26,19 +26,26 @@ protected:
 TEST_F(SteadyAntTest, A_LOT_OF_GENERATED_TESTS) {
     using namespace common;
 
-    for (int size = 100; size < 500; ++size) {
+    NaiveBraidMultiplication solver;
+
+    PrecalcMap map;
+    PrecalcMap emptyMap;
+    NaiveBraidMultiplication tmpSolver;
+    StickyBraidMultiplication::buildPrecalcMap(&tmpSolver, map, 5);
+
+    for (int size = 100; size < 300; ++size) {
         Permutation P(size, size);
         Permutation Q(size, size);
         Permutation expected(size, size);
         Permutation actual(size, size);
         fillPermutationMatrix(P, size, size);
         fillPermutationMatrix(Q, size, size);
-        NaiveBraidMultiplication solver;
-        solver.multiply(P, Q, expected);
 
-        PrecalcMap emptyMap;
-        SimpleStickyBraidMultiplication stickySolver(emptyMap);
+        solver.multiply(P, Q, expected);
+        SimpleStickyBraidMultiplication stickySolver(map);
+
         stickySolver.multiply(P, Q, actual);
+
 
         ASSERT_EQ(expected, actual);
 

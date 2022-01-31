@@ -11,8 +11,7 @@ namespace common {
     * Data structure that contains pre calced product for pair of matrices i.e
     * For matrices p,q of size n it contains its product
     */
-    typedef std::unordered_map<int, std::unordered_map<int64_t, std::unordered_map<int64_t, std::vector<std::pair<int, int>>>>> PrecalcMap;
-
+    typedef std::unordered_map<int64_t, std::unordered_map<int64_t, std::unordered_map<int64_t, int64_t>>> PrecalcMap;
 
     class BraidMultiplicationStrategy {
     public:
@@ -62,27 +61,88 @@ namespace common {
     };
 
 
+    /**
+    * Non optimized version of steady ant algorithm that allocated new memory on each recursion step and
+    * uses  precomputed if have
+    * @param p
+    * @param q
+    * @param map
+    * @return
+    */
     class StickyBraidMultiplication : public BraidMultiplicationStrategy {
     public:
 
         StickyBraidMultiplication(PrecalcMap precalcMap) : BraidMultiplicationStrategy(), map(std::move(precalcMap)) {}
 
 
+        /**
+        * For each size n (1,2,3...max_size) function compute
+        * for all possible permutations p of size n  (n!) and all possible permutations of size n (n!)
+        * it computes its distance product.
+        * For example, map[3][hash_p][hash_q] will store product of permutation matrices p and q of size 3x3
+        * @param precalcMap
+        * @param max_size
+        */
+        static void buildPrecalcMap(BraidMultiplicationStrategy *solver, PrecalcMap &precalcMap, int max_size) {
+            int p_arr[max_size];
+            int q_arr[max_size];
+            auto empty_map = PrecalcMap();
+            for (int size = 1; size < max_size + 1; size++) {
+                for (int i = 0; i < size; ++i) p_arr[i] = i;
+
+                do {
+                    for (int i = 0; i < size; ++i) q_arr[i] = i;
+                    do {
+                        auto p = Permutation(size, size);
+                        for (int i = 0; i < size; ++i) p.set(i, p_arr[i]);
+
+                        auto q = Permutation(size, size);
+                        for (int i = 0; i < size; ++i) q.set(i, q_arr[i]);
+
+                        auto hash_p = encode(p);
+                        auto hash_q = encode(q);
+                        Permutation r(size, size);
+                        solver->multiply(p, q, r);
+                        auto points = std::vector<std::pair<int, int>>();
+                        if (precalcMap[size][hash_p].count(hash_q) > 0) {
+                            std::cout << " Some error";
+                            return;
+                        }
+                        r.toPoints(points);
+                        precalcMap[size][hash_p][hash_q] = encode(r);
+                    } while (std::next_permutation(q_arr, q_arr + size));
+
+                } while (std::next_permutation(p_arr, p_arr + size));
+            }
+        }
+
+
     protected:
         PrecalcMap map;
+
 
         /**
         * We encode permutation matrices naively. It only works till specified size (around 7-8).
         * Idea is simple, we embedded cols position in each row of non-zero entires in 32(64) bit word
         */
-        int64_t hasher(const Permutation &k) {
-            size_t sum = 0;
-            auto bits_per_symbol = int(std::ceil(log2(k.rows)));
+        static int64_t encode(const Permutation &k) {
+            int64_t sum = 0;
+            auto bitsPerSymbol = int(std::ceil(log2(k.rows)));
 
             for (int i = 0; i < k.rows; ++i) {
-                sum = (sum << bits_per_symbol) + k.getColByRow(i);
+                sum = (sum << bitsPerSymbol) + k.getColByRow(i);
             }
             return sum;
+        }
+
+        static void decode(int64_t encoded, Permutation &k) {
+            int64_t sum = 0;
+            auto bitsPerSymbol = int(std::ceil(log2(k.rows)));
+            auto mask = (1 << bitsPerSymbol) - 1;
+
+            for (int row = k.rows - 1; row >= 0; row--, encoded >>= bitsPerSymbol) {
+                k.set(row, encoded & mask);
+            }
         }
 
         /**
@@ -250,7 +310,7 @@ namespace common {
         void multiply(const Permutation &p, const Permutation &q, Permutation &res) override {
             auto pCopy = p;
             auto qCopy = q;
-            res = mul(pCopy,qCopy);
+            res = mul(pCopy, qCopy);
         }
 
     private:
@@ -259,9 +319,9 @@ namespace common {
             auto n = p.cols;
 
             if (n <= this->map.size()) {
-                const auto &pts = this->map[n][this->hasher(p)][this->hasher(q)];
-                Permutation res;
-                res.fromPoints(pts);
+                const auto &pts = this->map[n][encode(p)][encode(q)];
+                Permutation res(n, n);
+                decode(pts, res);
                 return res;
             }
 
