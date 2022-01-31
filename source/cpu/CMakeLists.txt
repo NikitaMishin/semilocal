@@ -81,13 +81,24 @@ add_executable(braid_multiplication_sequential_memory cpu_impl/braid_multiplicat
 add_executable(braid_multiplication_sequential_precompute cpu_impl/braid_multiplication_sequential_precompute.cpp)
 #
 
+
 find_package(GTest REQUIRED )
 include_directories(${GTEST_INCLUDE_DIRS})
 
-add_executable(
-        ApproximateMatchingTest
-        test/ApproximateMatchingTest.cpp
-)
-target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )
-target_include_directories(ApproximateMatchingTest  PUBLIC cpu ${GTEST_INCLUDE_DIRS}  )
+
+
+function(generateTest testName executableName files)
+
+    add_executable(${executableName} ${files})
+    target_include_directories(${executableName} PUBLIC ${PROJECT_NAME} ${GTEST_INCLUDE_DIRS})
+    target_link_libraries(${executableName} GTest::gtest GTest::gtest_main ${PROJECT_NAME})
+    add_test(${testName} ${executableName})
+endfunction()
+
+generateTest(ApproximateMatching ApproximateMatchingTest test/ApproximateMatchingTest.cpp)
+
+generateTest(StradyAnt StradyAntTest test/MongeMatrixMultiplication/SteadyAntTest.cpp)
+
+#target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )
+#target_include_directories(ApproximateMatchingTest  PUBLIC cpu ${GTEST_INCLUDE_DIRS}  )
 

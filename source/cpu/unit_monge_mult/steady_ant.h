@@ -281,8 +281,7 @@ namespace distance_unit_monge_product {
 
 
             if (n <= map.size()) {
-                auto precalced = new Permutation(n, n, map[n][std::hash<AbstractPermutation>()(
-                        *p)][std::hash<AbstractPermutation>()(*q)]);
+                auto precalced = new Permutation(n, n, map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
                 return precalced;
             }
 
