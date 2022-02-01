@@ -32,8 +32,8 @@ namespace common {
          * @param permMatrix
          * @return
          */
-        template<Arrow arrow, Move moveAction>
-        static int move(int row, int col, int sum, const Permutation &permMatrix) noexcept {
+        template<Arrow arrow, Move moveAction,typename T>
+        static int move(int row, int col, int sum, const T &permMatrix) noexcept {
             if constexpr(arrow == TOP_LEFT) {
                 if constexpr(moveAction == LEFT) {
                     if (col == 0) return sum;
@@ -138,7 +138,7 @@ namespace common {
                     auto col_pos_point = m.getColByRow(row_pos_point);
                     if (col_pos_point == NOPOINT) continue;
                     if (func(row_pos_point, col_pos_point, row, col) == true)
-                        outputDominanceMatrix.set_element_at(row, col, outputDominanceMatrix.getElementAt(row, col) + 1);
+                        outputDominanceMatrix.setElementAt(row, col, outputDominanceMatrix.getElementAt(row, col) + 1);
                 }
             }
         }

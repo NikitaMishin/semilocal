@@ -139,10 +139,6 @@ namespace common {
             }
         }
 
-        void fromHash() {
-
-        }
-
         /**
         *
         * Fills input vector with position pairs of non-zero entries in the current matrix aka (row_i,col_i)
@@ -199,28 +195,32 @@ namespace common {
     */
     class Matrix  {
     private:
-        int *arr;
-        int rows;
-        int cols;
+        std::vector<int> arr;
     public:
 
         Matrix(int row_size, int col_size) {
             rows = row_size;
             cols = col_size;
-            arr = new int[row_size * col_size];
-            for (int i = 0; i < row_size * col_size; ++i) arr[i] = 0;
+            arr.resize(row_size * col_size, 0);
         }
 
-        int getElementAt(int row, int col) const { return arr[row *cols + col]; }
+        int getElementAt(int row, int col) const { return arr[row * cols + col]; }
 
-        inline void set_element_at(int row, int col, int value) { arr[row * cols + col] = value; }
+        inline void setElementAt(int row, int col, int value) { arr[row * cols + col] = value; }
 
-
-        //
-
-        ~Matrix() {
-            if(arr!= nullptr) delete[] arr;
+        void getCrossDiffPermutation(Permutation &perm){
+            perm = Permutation(rows - 1, cols - 1);
+            for (int i = 0; i < rows - 1; ++i) {
+                for (int j = 0; j < cols - 1; ++j) {
+                    auto crossDiff = (getElementAt(i, j + 1) + getElementAt(i + 1, j)) - (getElementAt(i, j) + getElementAt(i + 1, j + 1));
+                    if (crossDiff == 1) perm.set(i, j);
+                }
+            }
         }
+
+
+        int rows;
+        int cols;
     };
 
     /**

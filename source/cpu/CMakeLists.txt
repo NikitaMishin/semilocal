@@ -97,6 +97,8 @@ endfunction()
 
 generateTest(ApproximateMatching ApproximateMatchingTest test/ApproximateMatchingTest.cpp)
 
+generateTest(SemiLocalLCS SemiLocalLCSTest test/SemiLocalLCS/SemiLocalLCSTest.cpp)
+
 generateTest(StradyAnt StradyAntTest test/MongeMatrixMultiplication/SteadyAntTest.cpp)
 
 #target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )

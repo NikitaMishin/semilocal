@@ -1,8 +1,9 @@
 
 #include <gtest/gtest.h>
+#include <omp.h>
 #include "../../common/include/Permutations/Matrices.h"
 #include "../../common/include/Permutations/MongeMultuplicationStrategy.h"
-
+#include "../../include/semiLocal/SemiLocalLCS.h"
 class SteadyAntTest : public ::testing::Test {
 public:
 
@@ -21,54 +22,73 @@ protected:
     int mediumSize = 10000;
     int largeSize = 1000000;
     int seed = 0;
+
+
+    void compareTest(common::BraidMultiplicationStrategy & solver1, common::BraidMultiplicationStrategy & solver2,int start,int end,int step) {
+        using namespace common;
+        for (int size = start; size < end;size+=step) {
+            Permutation P(size, size);
+            Permutation Q(size, size);
+            Permutation expected;
+            Permutation actual;
+            fillPermutationMatrix(P, size, size);
+            fillPermutationMatrix(Q, size, size);
+
+            solver1.multiply(P, Q, expected);
+            solver2.multiply(P, Q, actual);
+            ASSERT_EQ(expected, actual);
+        }
+    }
 };
 
-TEST_F(SteadyAntTest, A_LOT_OF_GENERATED_TESTS) {
+TEST_F(SteadyAntTest, NaiveVsSimpleSticky) {
     using namespace common;
-
     NaiveBraidMultiplication solver;
-
-    PrecalcMap map;
     PrecalcMap emptyMap;
-    NaiveBraidMultiplication tmpSolver;
-    StickyBraidMultiplication::buildPrecalcMap(&tmpSolver, map, 5);
+    SimpleStickyBraidMultiplication tmpSolver(emptyMap);
 
-    for (int size = 100; size < 300; ++size) {
-        Permutation P(size, size);
-        Permutation Q(size, size);
-        Permutation expected(size, size);
-        Permutation actual(size, size);
-        fillPermutationMatrix(P, size, size);
-        fillPermutationMatrix(Q, size, size);
+    for(int i =0;i<5;i++) {
+        PrecalcMap map;
+        StickyBraidMultiplication::buildPrecalcMap(&tmpSolver, map, i);
 
-        solver.multiply(P, Q, expected);
-        SimpleStickyBraidMultiplication stickySolver(map);
-
-        stickySolver.multiply(P, Q, actual);
-
-
-        ASSERT_EQ(expected, actual);
-
-
+        NaiveBraidMultiplication solver1;
+        SimpleStickyBraidMultiplication solver2(map);
+        compareTest(solver1, solver2, 100, 300, 1);
     }
 }
 
 
-TEST_F(SteadyAntTest, MultiplicatonCorrecntess) {
+TEST_F(SteadyAntTest, SimpleStickyVsMemory) {
     using namespace common;
-    Permutation P(smallSize, smallSize);
-    Permutation Q(smallSize, smallSize);
-    Permutation R(smallSize, smallSize);
-    fillPermutationMatrix(P, smallSize, smallSize);
-    fillPermutationMatrix(Q, smallSize, smallSize);
-    NaiveBraidMultiplication solver;
-    solver.multiply(P, Q, R);
+    PrecalcMap map;
+    NaiveBraidMultiplication tmpSolver;
+    StickyBraidMultiplication::buildPrecalcMap(&tmpSolver, map, 5);
 
-    PrecalcMap emptyMap;
-    SimpleStickyBraidMultiplication stickySolver(emptyMap);
-    Permutation R2(smallSize, smallSize);
-    stickySolver.multiply(P, Q, R2);
-
-    ASSERT_EQ(R2, R);
-
+    SimpleStickyBraidMultiplication solver1(map);
+    SequentialMemoryOptimizedStickBraidMultiplication solver2(map);
+    compareTest(solver1,solver2,1000,30000,111);
 }
+
+TEST_F(SteadyAntTest, SimpleStickyVsMemoryLong) {
+    using namespace common;
+    PrecalcMap map;
+    NaiveBraidMultiplication tmpSolver;
+    StickyBraidMultiplication::buildPrecalcMap(&tmpSolver, map, 5);
+
+    SimpleStickyBraidMultiplication solver1(map);
+    SequentialMemoryOptimizedStickBraidMultiplication solver2(map);
+    compareTest(solver1,solver2,1000000,1000001,100);
+}
+
+TEST_F(SteadyAntTest, StickyOptMemVsOpenMPLong) {
+    using namespace common;
+    PrecalcMap map;
+    NaiveBraidMultiplication tmpSolver;
+    StickyBraidMultiplication::buildPrecalcMap(&tmpSolver, map, 5);
+
+    SequentialMemoryOptimizedStickBraidMultiplication solver1(map);
+    OpenMPStickyBraid solver2(2,map);
+    omp_set_nested(true);
+    compareTest(solver1,solver2,1000000,1000001,100);
+}
+

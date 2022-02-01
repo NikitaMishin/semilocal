@@ -7,6 +7,7 @@
 
 namespace common {
 
+    class StaggeredStickyBraidMultiplication;
     /**
     * Data structure that contains pre calced product for pair of matrices i.e
     * For matrices p,q of size n it contains its product
@@ -45,18 +46,10 @@ namespace common {
                     auto tmp = INT_MAX;
                     for (int j = 0; j < (p.cols + 1); ++j)
                         tmp = std::min(dominanceM.getElementAt(i, j) + dominanceN.getElementAt(j, k), tmp);
-                    dominanceC.set_element_at(i, k, tmp);
+                    dominanceC.setElementAt(i, k, tmp);
                 }
             }
-
-            for (int i = 0; i < p.rows; ++i) {
-                for (int j = 0; j < q.cols; ++j) {
-                    auto crossDiff =
-                            (dominanceC.getElementAt(i, j + 1) + dominanceC.getElementAt(i + 1, j)) -
-                            (dominanceC.getElementAt(i, j) + dominanceC.getElementAt(i + 1, j + 1));
-                    if (crossDiff == 1) res.set(i, j);
-                }
-            }
+            dominanceC.getCrossDiffPermutation(res);
         }
     };
 
@@ -125,7 +118,8 @@ namespace common {
         * We encode permutation matrices naively. It only works till specified size (around 7-8).
         * Idea is simple, we embedded cols position in each row of non-zero entires in 32(64) bit word
         */
-        static int64_t encode(const Permutation &k) {
+        template<class T>
+        static int64_t encode(const T &k) {
             int64_t sum = 0;
             auto bitsPerSymbol = int(std::ceil(log2(k.rows)));
 
@@ -135,7 +129,8 @@ namespace common {
             return sum;
         }
 
-        static void decode(int64_t encoded, Permutation &k) {
+        template<class T>
+        static void decode(int64_t encoded, T &k) {
             int64_t sum = 0;
             auto bitsPerSymbol = int(std::ceil(log2(k.rows)));
             auto mask = (1 << bitsPerSymbol) - 1;
@@ -149,7 +144,8 @@ namespace common {
         * see theorem 5.21
         * Allows get P_{b,a} when you have P_{a,b}
         */
-        void fillPermBA(common::Permutation &ab, common::Permutation &ba, int m, int n) {
+        template<class T>
+        void fillPermBA(T &ab, T &ba, int m, int n) {
             ba.resetAll();
             for (int i = 0; i < ab.rows; ++i) {
                 auto col = ab.getColByRow(i);
@@ -165,7 +161,8 @@ namespace common {
         * @param colEndExcl exclusive index of end of slice
         * @return mapping of row_{i+1} -> row_{i} and p_{i+1}, mapping of col_{i+1} -> col_{i} implicit via offset start_inclusive
         */
-        void getVerticalSlice(const Permutation &pI, int colStartIncl, int colEndExcl, int *curRowToPrevRowMapping, Permutation &succPi) {
+        template<class T>
+        void getVerticalSlice(const T &pI, int colStartIncl, int colEndExcl, int *curRowToPrevRowMapping, T &succPi) {
             auto ptr = 0;
             for (int row = 0; row < pI.rows; ++row) {
                 auto col = pI.getColByRow(row);
@@ -186,7 +183,8 @@ namespace common {
         * @param rowEndExcl exclusive index of end of slice
         * @return mapping of col_{i+1} -> col_{i} and p_{i+1}, mapping of row_{i+1} -> row_{i} implicit via offset start_inclusive
         */
-        void getHorizontalSlice(const Permutation &qI, int rowStartIncl, int rowEndExcl, int *curColToPrevColMapping, Permutation &succPi) {
+        template<class T>
+        void getHorizontalSlice(const T &qI, int rowStartIncl, int rowEndExcl, int *curColToPrevColMapping, T &succPi) {
             auto ptr = 0;
             for (int col = 0; col < qI.cols; ++col) {
                 auto row = qI.getRowByCol(col);
@@ -206,7 +204,8 @@ namespace common {
          * @param colMapper
          * @param flattened
          */
-        inline void inverseMapping(const Permutation &shrinked, const int *rowMapper, const int *colMapper, Permutation &flattened) {
+        template<class T>
+        inline void inverseMapping(const T &shrinked, const int *rowMapper, const int *colMapper, T &flattened) {
             //could be parallelized
             flattened.resetAll();
 
@@ -227,10 +226,8 @@ namespace common {
         * @param col_mapper
         * @param flattened
         */
-        inline void
-        inverseMappingWithoutPreClearing(Permutation &shrinked, const int *row_mapper,
-                                         const int *col_mapper,
-                                         Permutation &flattened) {
+        template<class T>
+        inline void inverseMappingWithoutPreClearing(T &shrinked, const int *row_mapper, const int *col_mapper, T &flattened) {
 
             //#pragma omp parallel for
             for (int curCol = 0; curCol < shrinked.cols; ++curCol) {
@@ -243,7 +240,8 @@ namespace common {
         }
 
 
-        inline void antPassage(Permutation &rLo, Permutation &rHi, int n, std::vector<int> &goodRowPos, std::vector<int> &goodColPos) {
+        template<class T>
+        inline void antPassage(const T &rLo, const T &rHi, int n, std::vector<int> &goodRowPos, std::vector<int> &goodColPos) {
 
             //ant passage
             auto endRow = -1;
@@ -300,6 +298,28 @@ namespace common {
             }
             // end ant passage
         }
+
+
+        template<class T>
+        inline void restoreMatrixInRlo(T &rLo, const T &rHi, int n) {
+            std::vector<int> goodRowPos;
+            std::vector<int> goodColPos;
+            this->antPassage(rLo, rHi, n, goodRowPos, goodColPos);
+
+            // merge r_hi to r_lo
+            for (int i = 0; i < n; ++i) {
+                auto col = rHi.getColByRow(i);
+                if (col == NOPOINT) continue;
+                rLo.set(i, col);
+            }
+
+            // add good points
+            for (int i = 0; i < goodColPos.size(); ++i) {
+                auto col = goodColPos[i];
+                auto row = goodRowPos[i];
+                rLo.set(row, col);
+            }
+        }
     };
 
     class SimpleStickyBraidMultiplication : public StickyBraidMultiplication {
@@ -338,58 +358,313 @@ namespace common {
             int spliter = p.cols / 2;
             auto sz = p.cols - spliter;
 
-            auto p_lo_row_mapper = new int[spliter];
-            auto p_lo = Permutation(spliter, spliter);
+            auto pLoRowMapper = new int[spliter];
+            auto pLo = Permutation(spliter, spliter);
 
-            this->getVerticalSlice(p, 0, spliter, p_lo_row_mapper, p_lo);
+            this->getVerticalSlice(p, 0, spliter, pLoRowMapper, pLo);
 
-            auto p_hi_row_mapper = new int[sz];
-            auto p_hi = Permutation(sz, sz);
+            auto pHiRowMapper = new int[sz];
+            auto pHi = Permutation(sz, sz);
 
-            this->getVerticalSlice(p, spliter, p.cols, p_hi_row_mapper, p_hi);
+            this->getVerticalSlice(p, spliter, p.cols, pHiRowMapper, pHi);
 
 
-            auto q_lo_col_mapper = new int[spliter];
-            auto q_lo = Permutation(spliter, spliter);
-            this->getHorizontalSlice(q, 0, spliter, q_lo_col_mapper, q_lo);
+            auto qLoColMapper = new int[spliter];
+            auto qLo = Permutation(spliter, spliter);
+            this->getHorizontalSlice(q, 0, spliter, qLoColMapper, qLo);
 
-            auto &r_lo = p; // reuse since we no need to use p further
-            auto product = this->mul(p_lo, q_lo);
-            this->inverseMapping(product, p_lo_row_mapper, q_lo_col_mapper, r_lo);
+            auto &rLo = p; // reuse since we no need to use p further
+            auto product = this->mul(pLo, qLo);
+            this->inverseMapping(product, pLoRowMapper, qLoColMapper, rLo);
 
-            auto q_hi_col_mapper = new int[sz];
-            auto q_hi = Permutation(sz, sz);
-            this->getHorizontalSlice(q, spliter, q.rows, q_hi_col_mapper, q_hi);
-            auto r_hi = q;
-            product = this->mul(p_hi, q_hi);
+            auto qHiColMapper = new int[sz];
+            auto qHi = Permutation(sz, sz);
+            this->getHorizontalSlice(q, spliter, q.rows, qHiColMapper, qHi);
+            auto rHi = q;
+            product = this->mul(pHi, qHi);
 
-            this->inverseMapping(product, p_hi_row_mapper, q_hi_col_mapper, r_hi);
+            this->inverseMapping(product, pHiRowMapper, qHiColMapper, rHi);
 
-            delete[] p_lo_row_mapper;
-            delete[] q_lo_col_mapper;
-            delete[] p_hi_row_mapper;
-            delete[] q_hi_col_mapper;
+            delete[] pLoRowMapper;
+            delete[] qLoColMapper;
+            delete[] pHiRowMapper;
+            delete[] qHiColMapper;
 
-            std::vector<int> good_row_pos;
-            std::vector<int> good_col_pos;
-            this->antPassage(r_lo, r_hi, n, good_row_pos, good_col_pos);
+            restoreMatrixInRlo(rLo, rHi, n);
 
-            // merge r_lo to r_hi
-            for (int i = 0; i < n; ++i) {
-                auto col = r_lo.getColByRow(i);
-                if (col == NOPOINT) continue;
-                r_hi.set(i, col);
-            }
-
-            // add good points
-            for (int i = 0; i < good_col_pos.size(); ++i) {
-                auto col = good_col_pos[i];
-                auto row = good_row_pos[i];
-                r_hi.set(row, col);
-            }
-
-            return r_hi;
+            return rLo;
         }
     };
 
+
+    class MemoryOptimizedStickBraidMultiplication : public StickyBraidMultiplication {
+    public:
+        friend StaggeredStickyBraidMultiplication;
+        MemoryOptimizedStickBraidMultiplication(PrecalcMap precalcMap) : StickyBraidMultiplication(std::move(precalcMap)) {}
+
+    protected:
+        /**
+        * For directly managing raw block of memories
+        */
+        class PermutationPreAllocated {
+
+        public:
+
+            int *rowToCol;
+            int *colToRow;
+            int rows;
+            int cols;
+
+            inline void set(int row, int col) {
+                rowToCol[row] = col;
+                colToRow[col] = row;
+            }
+
+            inline void reset(int row, int col) {
+                if (rowToCol[col] == col) {
+                    rowToCol[col] = NOPOINT;
+                    colToRow[row] = NOPOINT;
+                }
+            }
+
+            inline void resetAll() {
+                for (int i = 0; i < rows; ++i) rowToCol[i] = NOPOINT;
+                for (int i = 0; i < cols; ++i) colToRow[i] = NOPOINT;
+            }
+
+
+            inline int getRowByCol(int col) const { return colToRow[col]; }
+
+            inline int getColByRow(int row) const { return rowToCol[row]; }
+
+
+            void toPoints(std::vector<std::pair<int, int>> &result) const {
+                for (int i = 0; i < cols; ++i) {
+                    auto col = getColByRow(i);
+                    if (col != NOPOINT) result.emplace_back(i, col);
+                }
+            }
+
+            PermutationPreAllocated() = default;
+
+            PermutationPreAllocated(const PermutationPreAllocated &other) {
+                rows = other.rows;
+                cols = other.cols;
+                rowToCol = other.rowToCol;
+                colToRow = other.colToRow;
+            }
+
+            PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row) : rowToCol(row_to_col), colToRow(col_to_row), rows(row), cols(col) {};
+
+            PermutationPreAllocated(int row, int col, int *row_to_col, int *col_to_row,
+                                    std::vector<std::pair<int, int>> &points) : PermutationPreAllocated(row, col, row_to_col, col_to_row) {
+                for (int i = 0; i < rows; ++i) row_to_col[i] = NOPOINT;
+                for (int i = 0; i < cols; ++i) col_to_row[i] = NOPOINT;
+                for (auto &point: points) {
+                    row_to_col[point.first] = point.second;
+                    col_to_row[point.second] = point.first;
+                }
+            }
+        };
+
+        template<class F, class T>
+        inline void copy(const F &from, T &to) {
+            for (int i = 0; i < from.rows; ++i) {
+                auto col = from.getColByRow(i);
+                to.set(i, col);
+            }
+        }
+
+        using P = PermutationPreAllocated;
+        struct MemoryBlocks {
+            int *matrices;
+            int *freeSpaceMatrices;
+            int *indices;
+        };
+
+        bool initialPart(int n, const P &p, const P &q, MemoryBlocks mem, int *&pLoRowMapper, P &pLo, int *&qLoColMapper, P &qLo, int *&pHiRowMapper, P &pHi,
+                         int *&qHiColMapper, P &qHi) {
+            if (n <= map.size()) {
+                auto precalced = PermutationPreAllocated(n, n, mem.matrices, mem.matrices + n);
+                decode(map[n][encode(p)][encode(q)], precalced);//rewrite memory
+                return true;
+            }
+
+            int spliter = n / 2;
+
+
+            pLoRowMapper = mem.indices;
+            pLo = PermutationPreAllocated(spliter, spliter, mem.freeSpaceMatrices, mem.freeSpaceMatrices + spliter);
+            getVerticalSlice(p, 0, spliter, pLoRowMapper, pLo);
+
+            qLoColMapper = mem.indices + spliter;
+            qLo = PermutationPreAllocated(spliter, spliter, mem.freeSpaceMatrices + 2 * spliter, mem.freeSpaceMatrices + 3 * spliter);
+            getHorizontalSlice(q, 0, spliter, qLoColMapper, qLo);
+
+            pHiRowMapper = mem.indices + 2 * spliter;
+            pHi = PermutationPreAllocated(n - spliter, n - spliter, mem.freeSpaceMatrices + 4 * spliter, mem.freeSpaceMatrices + 4 * spliter + (n - spliter));
+            getVerticalSlice(p, spliter, n, pHiRowMapper, pHi);
+
+
+            qHiColMapper = mem.indices + 2 * spliter + (n - spliter);
+            qHi = PermutationPreAllocated(n - spliter, n - spliter,
+                                          mem.freeSpaceMatrices + 4 * spliter + 2 * (n - spliter),
+                                          mem.freeSpaceMatrices + 4 * spliter + 3 * (n - spliter));
+            getHorizontalSlice(q, spliter, q.rows, qHiColMapper, qHi);
+            return false;
+        }
+
+
+        std::pair<MemoryBlocks, int> allocate(int k, bool parallel) {
+            int nearest2Degree = pow(2, int(ceil(log2(2 * k))));
+
+            // then we need to use O(nlogn) memory if parallel for indices
+            int memOnIndices = (parallel) ? int(log2(nearest2Degree)) * nearest2Degree : k * 8;
+            int *memoryBlock;
+            memoryBlock = new int[k * 8 + memOnIndices];
+            auto freeBlock1 = memoryBlock;
+            auto freeBlock2 = memoryBlock + 4 * k;
+            auto freeIndicesBlock = memoryBlock + 8 * k;
+
+            return {{.matrices=freeBlock1, .freeSpaceMatrices=freeBlock2, .indices=freeIndicesBlock}, memOnIndices};
+
+        }
+    };
+
+    class SequentialMemoryOptimizedStickBraidMultiplication : public MemoryOptimizedStickBraidMultiplication {
+    public:
+
+        SequentialMemoryOptimizedStickBraidMultiplication(PrecalcMap precalcMap) : MemoryOptimizedStickBraidMultiplication(std::move(precalcMap)) {}
+
+        void multiply(const Permutation &p, const Permutation &q, Permutation &res) override {
+            int k = p.rows;
+            auto[memory, _] = allocate(p.rows, false);
+
+            auto pRed = PermutationPreAllocated(k, k, memory.matrices, memory.matrices + k);
+            auto qRed = PermutationPreAllocated(k, k, memory.matrices + 2 * k, memory.matrices + 3 * k);
+            copy(p, pRed);
+            copy(q, qRed);
+            steadyAntWithPrecalcAndMemory(pRed, qRed, memory);
+            res = Permutation(p.rows, q.cols);
+            copy(pRed, res);
+            delete memory.matrices;
+        }
+
+    private:
+
+        void
+        steadyAntWithPrecalcAndMemory(PermutationPreAllocated &p, PermutationPreAllocated &q, MemoryBlocks mem) {
+            auto n = p.rows;
+            int *pLoRowMapper, *qLoColMapper, *pHiRowMapper, *qHiColMapper;
+            P pLo, qLo, pHi, qHi;
+            auto baseCase = initialPart(n, p, q, mem, pLoRowMapper, pLo, qLoColMapper, qLo, pHiRowMapper, pHi, qHiColMapper, qHi);
+            if (baseCase) return;
+            int spliter = n / 2;
+
+            // hack
+            auto rLo = p;
+            auto rHi = q;
+
+            MemoryBlocks loMem{.matrices = mem.freeSpaceMatrices, .freeSpaceMatrices = mem.matrices, .indices = mem.indices + 2 * n};
+            steadyAntWithPrecalcAndMemory(pLo, qLo, loMem);
+            MemoryBlocks hiMem{.matrices = mem.freeSpaceMatrices + 4 * spliter,
+                    .freeSpaceMatrices = mem.matrices + 4 * spliter,
+                    .indices = mem.indices + 2 * n};
+            steadyAntWithPrecalcAndMemory(pHi, qHi, hiMem);
+
+            inverseMapping(pLo, pLoRowMapper, qLoColMapper, rLo);
+            inverseMapping(pHi, pHiRowMapper, qHiColMapper, rHi);
+
+            restoreMatrixInRlo(rLo, rHi, n);
+        }
+    };
+
+
+    class OpenMPStickyBraid : public MemoryOptimizedStickBraidMultiplication {
+
+    public:
+        OpenMPStickyBraid(int nestedParallRegions, PrecalcMap precalcMap) : MemoryOptimizedStickBraidMultiplication(std::move(precalcMap)),
+                                                                            parallelizationFactor(nestedParallRegions) {}
+
+        void multiply(const Permutation &p, const Permutation &q, Permutation &res) override {
+            int k = p.rows;
+            auto[memory, total] = allocate(p.rows, true);
+
+            auto p_red = PermutationPreAllocated(k, k, memory.matrices, memory.matrices + k);
+            auto q_red = PermutationPreAllocated(k, k, memory.matrices + 2 * k, memory.matrices + 3 * k);
+            copy(p, p_red);
+            copy(q, q_red);
+            parall(p_red, q_red, memory, total, parallelizationFactor);
+            res = Permutation(p.rows, q.cols);
+            copy(p_red, res);
+            delete memory.matrices;
+        }
+
+    private:
+        int parallelizationFactor;
+
+        void parall(P &p, P &q, MemoryBlocks mem, int totalMemory, int nestedParallRegions = 2) {
+            auto n = p.rows;
+            int *pLoRowMapper, *qLoColMapper, *pHiRowMapper, *qHiColMapper;
+            P pLo, qLo, pHi, qHi;
+            auto baseCase = initialPart(n, p, q, mem, pLoRowMapper, pLo, qLoColMapper, qLo, pHiRowMapper, pHi, qHiColMapper, qHi);
+            if (baseCase) return;
+            int spliter = n / 2;
+
+            // hack
+            auto rLo = p;
+            auto rHi = q;
+
+            int on_parts = (totalMemory - 2 * n) / 2;
+            if (nestedParallRegions > 0) {
+
+#pragma omp parallel num_threads(2)
+                {
+#pragma omp single nowait
+                    {
+
+#pragma omp task depend(in: on_parts)
+                        parall(pLo, qLo,
+                               MemoryBlocks{.matrices = mem.freeSpaceMatrices, .freeSpaceMatrices = mem.matrices, .indices=mem.indices + 2 * n}, on_parts,
+                               nestedParallRegions - 1);
+#pragma omp task depend(in: on_parts)
+                        parall(pHi, qHi, MemoryBlocks{.matrices = mem.freeSpaceMatrices + 4 * spliter,
+                                       .freeSpaceMatrices = mem.matrices + 4 * spliter, .indices=mem.indices + 2 * n + on_parts}, on_parts,
+                               nestedParallRegions - 1);
+
+#pragma omp task depend(out: on_parts)
+                        {
+                            inverseMapping(pLo, pLoRowMapper, qLoColMapper, rLo);
+                            inverseMapping(pHi, pHiRowMapper, qHiColMapper, rHi);
+                            restoreMatrixInRlo(rLo, rHi, n);
+                        }
+//#pragma omp taskwait
+                    };
+                }
+
+            } else {
+                parall(pLo, qLo,
+                       MemoryBlocks{.matrices = mem.freeSpaceMatrices, .freeSpaceMatrices = mem.matrices, .indices=mem.indices + 2 * n}, on_parts,
+                       nestedParallRegions);
+                parall(pHi, qHi, MemoryBlocks{.matrices = mem.freeSpaceMatrices + 4 * spliter, .freeSpaceMatrices = mem.matrices + 4 * spliter,
+                        .indices=mem.indices + 2 * n + on_parts}, on_parts, nestedParallRegions);
+                inverseMapping(pLo, pLoRowMapper, qLoColMapper, rLo);
+                inverseMapping(pHi, pHiRowMapper, qHiColMapper, rHi);
+                restoreMatrixInRlo(rLo, rHi, n);
+
+            }
+        }
+
+
+    };
+
+    class StaggeredStickyBraidMultiplication{
+    public:
+
+        template<bool RowGlue, bool UseParallel>
+        void staggered_sticky_multiplication();
+
+        template<bool UseParallel>
+        void glueing_part_to_whole();
+    };
 }
