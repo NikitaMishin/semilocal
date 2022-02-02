@@ -8,7 +8,7 @@ namespace semi_local {
     template<class Input>
     class SemiLocalStrategy {
     public:
-        virtual void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel);
+        virtual void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel) noexcept;
     };
 
     template<class Input>
@@ -16,7 +16,7 @@ namespace semi_local {
     public:
         DummyPrefixLCSStrategy(Input wildCardSymbol) : matchAny(wildCardSymbol) {}
 
-        void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel) override {
+        void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel) noexcept override  {
             auto customLCS = [a, aSize, this](Input *bSymbol, int ii, int jj) {
                 auto m = aSize + 1;
                 auto bExt = bSymbol + ii;
@@ -64,9 +64,9 @@ namespace semi_local {
     };
 
     template<class Input, bool WithIf>
-    class SimpleIterativeCombingStrategy : public SemiLocalStrategy<Input> {
+    class SimpleIterativeCombing : public SemiLocalStrategy<Input> {
     public:
-        void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel) override {
+        void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel) noexcept override {
             auto m = aSize;
             auto n = bSize;
 
@@ -126,74 +126,75 @@ namespace semi_local {
         }
     };
 
-    template<class Input, bool WithIf,bool Parallel>
-    class AntidiagonalIterativeCombingStrategy : public SemiLocalStrategy<Input> {
+    template<class Input, bool WithIf>
+    class AntidiagonalIterativeCombing : public SemiLocalStrategy<Input> {
     public:
 
 
     protected:
 
         /**
- *
- * @tparam Input
- * @tparam WithIf weather or not to use approach with if rather then  the branchless one @param strand_map
- * @param a
- * @param b
- * @param upper_bound
- * @param left_edge
- * @param top_edge
- * @param offset_a
- * @param offset_b
- */
+         *
+         * @tparam Input
+         * @tparam WithIf weather or not to use approach with if rather then  the branchless one @param strandMap
+         * @param a
+         * @param b
+         * @param upperBound
+         * @param leftEdge
+         * @param topEdge
+         * @param offsetA
+         * @param offsetB
+         */
+        template<bool Parallel>
         inline void
-        anti_diagonal_computation(Input *strand_map, const Input *a, const Input *b, int upper_bound, int left_edge,
-                                  int top_edge, int offset_a, int offset_b) {
+        antiDiagonalComputation(Input *strandMap, const Input *a, const Input *b, int upperBound, int leftEdge,
+                                int topEdge, int offsetA, int offsetB) noexcept {
 
-#pragma omp for simd schedule(static) aligned(a, b, strand_map:sizeof(Input)*8) nowait
-            for (int k = 0; k < upper_bound; ++k) {
+#pragma omp for simd schedule(static) aligned(a, b, strandMap:sizeof(Input)*8) nowait
+            for (int k = 0; k < upperBound; ++k) {
 
-                auto left_strand = strand_map[left_edge + k];
-                auto right_strand = strand_map[top_edge + k];
+                auto left_strand = strandMap[leftEdge + k];
+                auto right_strand = strandMap[topEdge + k];
 
-                auto r = (a[offset_a + k] == b[offset_b + k]) || (left_strand > right_strand);
+                auto r = (a[offsetA + k] == b[offsetB + k]) || (left_strand > right_strand);
 
-                if (WithIf) {
+                if constexpr(WithIf) {
                     if (r) {
-                        strand_map[top_edge + k] = left_strand;
-                        strand_map[left_edge + k] = right_strand;
+                        strandMap[topEdge + k] = left_strand;
+                        strandMap[leftEdge + k] = right_strand;
                     }
                 } else {
                     auto r_minus = (r - 1);
                     auto minus_r = -r;
-                    auto l_new = (left_strand & r_minus) | (minus_r  & right_strand);
+                    auto l_new = (left_strand & r_minus) | (minus_r & right_strand);
                     auto r_new = (right_strand & r_minus) | (minus_r & left_strand);
 
-                    strand_map[left_edge + k] = l_new;
-                    strand_map[top_edge + k] = r_new;
+                    strandMap[leftEdge + k] = l_new;
+                    strandMap[topEdge + k] = r_new;
                 }
             }
 
-            if (Parallel) {
+            if constexpr(Parallel) {
 #pragma omp barrier
             }
         }
 
 
-        inline void initialization(Input *strand_map, int m, int n) {
+        inline void initialization(Input *strandMap, int m, int n) noexcept {
 #pragma omp for simd schedule(static)
             for (int k = 0; k < m; ++k) {
-                strand_map[k] = k;
+                strandMap[k] = k;
             }
 
 #pragma omp for simd schedule(static)
             for (int l = 0; l < n; ++l) {
-                strand_map[l + m] = l + m;
+                strandMap[l + m] = l + m;
             }
 
         }
 
         inline void
-        construct_permutation(common::Permutation &matrix, Input *strand_map, bool is_reverse, int m, int n) {
+        constructPermutation(common::Permutation &matrix, Input *strand_map, bool is_reverse, int m, int n) noexcept {
             if (!is_reverse) {
 #pragma omp for simd schedule(static)
                 for (int r = m; r < m + n; r++) {
@@ -220,15 +221,90 @@ namespace semi_local {
 
         }
 
-        inline void fill_a_reverse(const Input *a, Input *a_reverse, int m) {
+        inline void fillAReverse(const Input *a, Input *aReverse, int m) noexcept {
 #pragma omp  for simd schedule(static)
             for (int i = 0; i < m; ++i) {
-                a_reverse[i] = a[m - 1 - i];
+                aReverse[i] = a[m - 1 - i];
             }
         }
     };
 
+    template<class Input, bool WithIf>
+    class OpenMPIterativeCombing : public AntidiagonalIterativeCombing<Input, WithIf> {
+    public:
 
-//    class
+        OpenMPIterativeCombing(int numThreads) : AntidiagonalIterativeCombing<Input, WithIf>(), threadsNum(numThreads) {}
+
+
+        void compute(const Input *a, int aSize, const Input *b, int bSize, common::Permutation &kernel) noexcept override {
+            if(threadsNum > 1) {
+                stickyBraidMpi<true>(kernel, a, aSize, b, bSize);
+            } else {
+                stickyBraidMpi<false>(kernel,a,aSize,b,bSize);
+            }
+        }
+
+    private:
+        int threadsNum;
+
+        template<bool Parallel>
+        void stickyBraidMpi(common::Permutation &matrix, const Input *a, int aSize, const Input *b, int bSize, bool isReverse = false) noexcept {
+
+            if (aSize > bSize) {
+                stickyBraidMpi<Parallel>(matrix, b, bSize, a, aSize, !isReverse);
+                return;
+            }
+
+            auto m = aSize;
+            auto n = bSize;
+            matrix = common::Permutation(m+n,m+n);
+
+            auto size = m + n;
+            auto *strand_map = new Input[size];
+
+            auto numDiag = m + n - 1;
+            auto totalSameLengthDiag = numDiag - (m - 1) - (m - 1);
+            auto *aReverse = new Input[m];
+
+
+#pragma omp parallel num_threads(threadsNum)  default(none) shared(aReverse, a, b, isReverse, strand_map, matrix, totalSameLengthDiag, size, m, n)
+            {
+                int leftEdge, topEdge;
+                //    init phase
+                this->initialization(strand_map, m, n);
+                this->fillAReverse(a, aReverse, m);
+
+                //    phase one
+                topEdge = m;
+                leftEdge = m - 1;
+                for (int curDiagLen = 0; curDiagLen < m - 1; ++curDiagLen) {
+                    this->template antiDiagonalComputation<Parallel>(strand_map, aReverse, b, curDiagLen + 1, leftEdge, topEdge, leftEdge, 0);
+                    leftEdge--;
+                }
+
+                //phase 2
+                topEdge = m;
+                for (int j = 0; j < totalSameLengthDiag; ++j) {
+                    this-> template antiDiagonalComputation<Parallel>(strand_map, aReverse, b, m, 0, topEdge, 0, j);
+                    topEdge++;
+                }
+
+                //// phase 3
+                auto startJ = totalSameLengthDiag;
+                topEdge = startJ + m;
+                for (int diagLen = m - 2; diagLen >= 0; --diagLen, startJ++) {
+                    this->template antiDiagonalComputation<Parallel>(strand_map, aReverse, b, diagLen + 1, 0, topEdge, 0, startJ);
+                    topEdge++;
+                }
+
+                this->constructPermutation(matrix, strand_map, isReverse, m, n);
+            }
+
+            delete[] aReverse;
+            delete[] strand_map;
+        }
+
+    };
+
 
 }

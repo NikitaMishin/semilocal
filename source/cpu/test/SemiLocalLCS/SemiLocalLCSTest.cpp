@@ -48,9 +48,37 @@ TEST_F(SemiLocalLCSTest, DummyVsNaiveCorrectness) {
     int step = 1;
     int high = 5;
     DummyPrefixLCSStrategy<int> solver1(-2);
-    SimpleIterativeCombingStrategy<int, true> solver2;
-    SimpleIterativeCombingStrategy<int, true> solver3;
-
+    SimpleIterativeCombing<int, true> solver2;
     compareTestEqualStrings(solver1, solver2, start, end, step, high);
+}
 
+TEST_F(SemiLocalLCSTest, NaiveVsOpenMPCorrectness) {
+    int start = 4900;
+    int end = 5000;
+    int step = 11;
+    int high = 11;
+    SimpleIterativeCombing<int, false> solver1;
+
+    for (int i = 1; i <  5; ++i) {
+        OpenMPIterativeCombing<int,false> solver2(i);
+        compareTestEqualStrings(solver1, solver2, start, end, step, high);
+    }
+ }
+
+TEST_F(SemiLocalLCSTest, OpenMPSpeedIf) {
+    int start = 100000;
+    int end = 100001;
+    int step = 11;
+    int high = 150;
+    OpenMPIterativeCombing<int, true> solver1(1);
+    compareTestEqualStrings(solver1, solver1, start, end, step, high);
+}
+
+TEST_F(SemiLocalLCSTest, OpenMpSpeedNoIf) {
+    int start = 100000;
+    int end = 100001;
+    int step = 11;
+    int high = 150;
+    OpenMPIterativeCombing<int, false> solver1(1);
+    compareTestEqualStrings(solver1, solver1, start, end, step, high);
 }

@@ -400,6 +400,7 @@ namespace common {
     class MemoryOptimizedStickBraidMultiplication : public StickyBraidMultiplication {
     public:
         friend StaggeredStickyBraidMultiplication;
+
         MemoryOptimizedStickBraidMultiplication(PrecalcMap precalcMap) : StickyBraidMultiplication(std::move(precalcMap)) {}
 
     protected:
@@ -658,13 +659,130 @@ namespace common {
 
     };
 
-    class StaggeredStickyBraidMultiplication{
+    class StaggeredStickyBraidMultiplication {
     public:
+        StaggeredStickyBraidMultiplication(MemoryOptimizedStickBraidMultiplication *stickyBraidSolver) : solver(stickyBraidSolver) {}
 
-        template<bool RowGlue, bool UseParallel>
-        void staggered_sticky_multiplication();
+        template<bool RowGlue>
+        void staggeredStickyMultiplication(const Permutation &p, Permutation &q, int k, Permutation &product) {
+            if (k == p.rows && k == q.cols) {
+                std::cout << "This function should not be called for this case, handled separately";
+                return;
+            }
+            //TODO dont forget to init
+            //TODO create callback with common fillment
 
-        template<bool UseParallel>
-        void glueing_part_to_whole();
+            if (k == 0) {
+                for (int i = 0; i < p.rows; ++i) {
+                    auto col = p.getColByRow(i);
+                    if constexpr(RowGlue) {
+                        if (col != NOPOINT) product.set(i + q.rows, col + q.cols);
+                    } else {
+                        if (col != NOPOINT) product.set(i, col);
+                    }
+                }
+                for (int i = 0; i < q.rows; ++i) {
+                    auto col = q.getColByRow(i);
+                    if constexpr(RowGlue) {
+                        if (col != NOPOINT) product.set(i, col);
+                    } else {
+                        if (col != NOPOINT) product.set(i + p.rows, col + p.cols);
+                    }
+                }
+                return;
+            }
+
+            auto pRed = Permutation(k, k);
+            auto qRed = Permutation(k, k);
+            auto mapping_row = new int[k];
+            auto mapping_col = new int[k];
+
+            if constexpr(RowGlue) {
+                // take first k columns from P and last k rows from Q, multiply and to bottom left corner of extended matrix
+                solver->getVerticalSlice(p, 0, k, mapping_row, pRed);
+                solver->getHorizontalSlice(q, q.rows - k, q.rows, mapping_col, qRed);
+            } else {
+                // take last k columns from P and first k rows from Q, multiply
+                solver->getVerticalSlice(p, p.rows - k, p.rows, mapping_row, pRed);
+                solver->getHorizontalSlice(q, 0, k, mapping_col, qRed);
+            }
+            Permutation res;
+            solver->multiply(pRed, qRed, res);
+
+            for (int i = 0; i < res.rows; i++) {
+                auto old_col = res.getColByRow(i);
+                auto cur_col = mapping_col[old_col];
+                auto cur_row = mapping_row[i];
+                if (RowGlue) {
+                    product.set(q.rows - k + cur_row, cur_col);
+                } else {
+                    product.set(cur_row, cur_col + p.cols - k);
+                }
+            }
+
+            if constexpr (RowGlue) {
+                for (int j = k; j < p.cols; j++) {
+                    auto row = p.getRowByCol(j);
+                    if (row != NOPOINT) product.set(row + q.rows - k, j + q.cols - k);
+                }
+                for (int i = 0; i < q.rows - k; i++) {
+                    auto col = q.getColByRow(i);
+                    if (col != NOPOINT) product.set(i, col);
+                }
+            } else {
+                for (int j = 0; j < p.cols - k; j++) {
+                    auto row = p.getRowByCol(j);
+                    if (row != NOPOINT) product.set(row, j);
+                }
+                for (int i = k; i < q.rows; i++) {
+                    auto col = q.getColByRow(i);
+                    if (col != NOPOINT) product.set(i - k + p.rows, p.cols - k + col);//here
+                }
+            }
+            delete[] mapping_col;
+            delete[] mapping_row;
+        }
+
+        void glueingPartToWhole(Permutation &whole, Permutation &part, int offsetL, int offset_r, Permutation &product) {
+            if (part.rows != (whole.rows - offsetL - offset_r)) {
+                throw std::runtime_error("Dimensions not match");
+            }
+            auto k = whole.rows - offset_r - offsetL;
+
+            // first offset_l strands goes inact
+            for (int col = 0; col < offsetL; ++col) {
+                auto row = whole.getColByRow(col);
+                product.set(row, col);
+            }
+            // last offset_r strands goes inact
+            for (int col = whole.rows - offset_r; col < whole.rows; ++col) {
+                auto row = whole.getRowByCol(col);
+                product.set(row, col);
+            }
+
+            auto wholeRed = Permutation(k, k);
+            auto partCopy = Permutation(k, k);
+
+            auto mappingRow = new int[k];
+            // get strands that insersects  with part braid  (its strands that hit border with part braid)
+            solver->getVerticalSlice(whole, offsetL, k + offsetL, mappingRow, wholeRed);
+            solver->copy(part, partCopy);
+
+            Permutation res;
+            solver->multiply(wholeRed, partCopy, res);
+            for (int i = 0; i < res.rows; i++) {
+                auto oldCol = res.getColByRow(i);
+                auto curCol = oldCol;
+                auto curRow = mappingRow[i];
+                product.set(curRow, curCol + offsetL);
+            }
+
+            delete[] mappingRow;
+        };
+
+    private:
+        MemoryOptimizedStickBraidMultiplication *solver;
     };
+
+
 }
