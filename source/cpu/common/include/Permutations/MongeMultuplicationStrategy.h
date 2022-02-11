@@ -8,6 +8,7 @@
 namespace common {
 
     class StaggeredStickyBraidMultiplication;
+
     /**
     * Data structure that contains pre calced product for pair of matrices i.e
     * For matrices p,q of size n it contains its product
@@ -487,7 +488,19 @@ namespace common {
                          int *&qHiColMapper, P &qHi) {
             if (n <= map.size()) {
                 auto precalced = PermutationPreAllocated(n, n, mem.matrices, mem.matrices + n);
-                decode(map[n][encode(p)][encode(q)], precalced);//rewrite memory
+                decode(map[n].at(encode(p)).at(encode(q)), precalced);//rewrite memory
+                return true;
+            }
+            if (n == 1) {
+                //base case when common dimension is one
+                auto row = p.getRowByCol(0);
+                auto col = q.getColByRow(0);
+                auto precalced = PermutationPreAllocated(1, 1, mem.matrices, mem.matrices + 1);
+                precalced.set(row, col);
+                return true;
+            }
+            if (n == 1) {
+
                 return true;
             }
 
@@ -548,7 +561,7 @@ namespace common {
             steadyAntWithPrecalcAndMemory(pRed, qRed, memory);
             res = Permutation(p.rows, q.cols);
             copy(pRed, res);
-            delete memory.matrices;
+            delete[] memory.matrices;
         }
 
     private:
@@ -598,7 +611,7 @@ namespace common {
             parall(p_red, q_red, memory, total, parallelizationFactor);
             res = Permutation(p.rows, q.cols);
             copy(p_red, res);
-            delete memory.matrices;
+            delete[] memory.matrices;
         }
 
     private:
@@ -667,10 +680,11 @@ namespace common {
         void staggeredStickyMultiplication(const Permutation &p, Permutation &q, int k, Permutation &product) {
             if (k == p.rows && k == q.cols) {
                 std::cout << "This function should not be called for this case, handled separately";
+                abort();
                 return;
             }
-            //TODO dont forget to init
-            //TODO create callback with common fillment
+            product = Permutation(p.rows + q.rows - k, p.cols + q.cols - k);
+
 
             if (k == 0) {
                 for (int i = 0; i < p.rows; ++i) {
@@ -743,19 +757,21 @@ namespace common {
             delete[] mapping_row;
         }
 
-        void glueingPartToWhole(Permutation &whole, Permutation &part, int offsetL, int offset_r, Permutation &product) {
-            if (part.rows != (whole.rows - offsetL - offset_r)) {
+        void glueingPartToWhole(const Permutation &whole, const Permutation &part, int offsetL, int offsetR, Permutation &product) {
+            if (part.rows != (whole.rows - offsetL - offsetR)) {
                 throw std::runtime_error("Dimensions not match");
             }
-            auto k = whole.rows - offset_r - offsetL;
+            auto k = whole.rows - offsetR - offsetL;
+
+            product = Permutation(whole.rows, whole.cols);
 
             // first offset_l strands goes inact
             for (int col = 0; col < offsetL; ++col) {
-                auto row = whole.getColByRow(col);
+                auto row = whole.getRowByCol(col);
                 product.set(row, col);
             }
             // last offset_r strands goes inact
-            for (int col = whole.rows - offset_r; col < whole.rows; ++col) {
+            for (int col = whole.rows - offsetR; col < whole.rows; ++col) {
                 auto row = whole.getRowByCol(col);
                 product.set(row, col);
             }
@@ -768,7 +784,8 @@ namespace common {
             solver->getVerticalSlice(whole, offsetL, k + offsetL, mappingRow, wholeRed);
             solver->copy(part, partCopy);
 
-            Permutation res;
+            common::Permutation res;
+
             solver->multiply(wholeRed, partCopy, res);
             for (int i = 0; i < res.rows; i++) {
                 auto oldCol = res.getColByRow(i);
