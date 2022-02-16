@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../common/include/Permutations/MongeMultuplicationStrategy.h"
-#include "../LCS/LCS.h"
 
 namespace semi_local {
 

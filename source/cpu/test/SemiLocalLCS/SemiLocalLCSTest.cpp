@@ -2,7 +2,7 @@
 #include <omp.h>
 #include "../../common/include/Permutations/Matrices.h"
 #include "../../common/include/Permutations/MongeMultuplicationStrategy.h"
-#include "../../include/semiLocal/SemiLocalLCS.h"
+#include "../../include/SemiLocal/SemiLocalLCS.h"
 
 
 using namespace semi_local;
@@ -114,7 +114,6 @@ TEST_F(SemiLocalLCSTest, OpenMpVsHybridRecursive) {
 }
 
 
-
 TEST_F(SemiLocalLCSTest, OpenMpVsHybridIterative) {
     int start = 100000;
     int end = 100001;
@@ -122,12 +121,12 @@ TEST_F(SemiLocalLCSTest, OpenMpVsHybridIterative) {
     int high = 150;
     common::PrecalcMap empty;
 
-    SimpleIterativeCombing<int32_t , false> solver1{};
+    SimpleIterativeCombing<int32_t, false> solver1{};
 
-    OpenMPIterativeCombing<int32_t , false> solver3(1);
+    OpenMPIterativeCombing<int32_t, false> solver3(1);
     common::SequentialMemoryOptimizedStickBraidMultiplication braidGluer(empty);
     common::StaggeredStickyBraidMultiplication staggered(&braidGluer);
-    OpenMPHybridIterative<int32_t ,false> solver2(1,32000,32000, &staggered, &solver3);
+    OpenMPHybridIterative<int32_t, false> solver2(1, 32000, 32000, &staggered, &solver3);
     compareTestEqualStrings(solver2, solver3, start, end, step, high);
 }
 

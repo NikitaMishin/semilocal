@@ -101,6 +101,9 @@ generateTest(SemiLocalLCS SemiLocalLCSTest test/SemiLocalLCS/SemiLocalLCSTest.cp
 
 generateTest(StradyAnt StradyAntTest test/MongeMatrixMultiplication/SteadyAntTest.cpp)
 
+
+generateTest(LCS LCSTest test/LCS/LCSTest.cpp)
+
 #target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )
 #target_include_directories(ApproximateMatchingTest  PUBLIC cpu ${GTEST_INCLUDE_DIRS}  )
 
