@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <omp.h>
+#include "../../include/BitwiseLCS/BitParalellLCS.h"
 #include "../../common/include/Permutations/Matrices.h"
 #include "../../common/include/Permutations/MongeMultuplicationStrategy.h"
 #include "../../include/SemiLocal/SemiLocalLCS.h"
@@ -74,6 +75,18 @@ TEST_F(LCSTest, DummyVsAntidiagonal) {
     int high = 50;
     DummyLCS<int> solver1{};
     OpenMPSIMDAntidiagonalLCS<int> solver2{};
+
+    compareTestEqualStrings(solver1, solver2, start, end, step, high);
+}
+
+
+TEST_F(LCSTest, MemDummyVsHyyroSimple) {
+    int start = 16;
+    int end = 600;
+    int step = 1;
+    int high = 50;
+    SequentialMemLCS<int> solver1{};
+    bit_parallel::lcs::Hyyro<uint32_t ,int>solver2{};
 
     compareTestEqualStrings(solver1, solver2, start, end, step, high);
 }
