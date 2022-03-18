@@ -1,3 +1,3 @@
-# semilocal
+# C++emiAlgo library
 
-see CPU README
+TODO
