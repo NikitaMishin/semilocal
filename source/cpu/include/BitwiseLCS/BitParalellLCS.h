@@ -6,6 +6,57 @@
 namespace bit_parallel::lcs {
 
     struct AlphabetConverter {
+        template<class MachineWordType>
+        struct ConversionDetails {
+            int initalNumSymbols;
+            int bitsPerSymbol;
+            int machineWordSize;
+
+
+            std::optional<std::pair<int, int>> getNthPositionOfSymbol(int i) {
+                auto machineWordId = i / getNumberOfEmbeddingsInWord();
+                if (machineWordId >= getCompressedSizeInWords()) return std::nullopt;
+
+                auto withinWordId = i % getNumberOfEmbeddingsInWord();
+                return std::make_pair(machineWordId, withinWordId);
+            }
+
+
+            inline int getNumberOfEmbeddingsInWord() const { return machineWordSize / bitsPerSymbol; }
+
+            inline MachineWordType getPaddingMaskOfLastWord(bool isLSB) const {
+                auto activeEmbeddingsInLastWord = initalNumSymbols % getNumberOfEmbeddingsInWord();
+                if (activeEmbeddingsInLastWord == 0) return MachineWordType(0);
+                auto paddingNum = getNumberOfEmbeddingsInWord() - activeEmbeddingsInLastWord;
+                if (isLSB) {
+                    MachineWordType mask = (MachineWordType(1) << activeEmbeddingsInLastWord) - 1;
+                    return ~mask;
+                } else {
+                    MachineWordType mask = (MachineWordType(1) << paddingNum) - 1;
+                    return mask;
+                }
+
+
+            }
+
+            inline int getPaddingOfLastWordInSymbols() const {
+                auto activeEmbeddingsInLastWord = initalNumSymbols % getNumberOfEmbeddingsInWord();
+                if (activeEmbeddingsInLastWord == 0) return activeEmbeddingsInLastWord;
+                return getNumberOfEmbeddingsInWord() - activeEmbeddingsInLastWord;
+            }
+
+            inline int getPaddingWithinWordInBits() const { return machineWordSize - getNumberOfEmbeddingsInWord() * bitsPerSymbol; }
+
+
+            inline int getCompressedSizeInWords() const {
+                return int(std::ceil(initalNumSymbols * 1.0 / getNumberOfEmbeddingsInWord()));
+            }
+
+            inline int getCompressedSizeInBytes() const {
+                return getCompressedSizeInWords() * (machineWordSize / sizeof(MachineWordType));
+            }
+
+        };
 
         using Number = int;
         template<class Input>
@@ -34,6 +85,56 @@ namespace bit_parallel::lcs {
             return {mapperForward, mapperReverse};
         }
 
+        template<class Input, class Output, bool IS_LSB_ENCODING, bool PACK_REVERSE>
+        std::pair<Output *, ConversionDetails<Output>> packSequence(const Input *a, int size, Map<Input> mapperForward, int alphabetSize) {
+            ConversionDetails<Output> conversionDetails{.initalNumSymbols=size,
+                    .bitsPerSymbol=std::max(1, int(std::ceil(log2(alphabetSize)))),
+                    .machineWordSize=sizeof(Output) * 8};
+
+            auto bytesNeeded = conversionDetails.getCompressedSizeInBytes();
+            auto bitsetArray = static_cast<Output *> (aligned_alloc(sizeof(Output), bytesNeeded));
+
+            auto residue = conversionDetails.getPaddingWithinWordInBits(); //TODO
+            auto total = 0;
+            auto symbolsInWord = conversionDetails.getNumberOfEmbeddingsInWord();
+            auto bitsPerSymbol = conversionDetails.bitsPerSymbol;
+            auto n = conversionDetails.getCompressedSizeInWords();
+
+            for (int i = 0; i < n; ++i, total += symbolsInWord) {
+                Output word = 0;
+                for (int symbol = 0; symbol < symbolsInWord; symbol++) {
+                    auto character = (total + symbol < size) ? mapperForward[a[i * symbolsInWord + symbol]] : Output(0);
+                    if constexpr(IS_LSB_ENCODING) {
+//                        std::cout<<"CHAR_LSB"<<character<<std::endl;
+                        auto offset = (bitsPerSymbol * symbol + residue);
+                        word |= (total + symbol < size) ? Output(character) << offset : Output(0) << offset;
+                    } else {
+//                        std::cout<<"CHAR_MBS"<<character<<std::endl;
+
+//                        if (total + symbol < size) {
+//                            auto offset = (bitsPerSymbol * (symbolsInWord - 1 - symbol) + residue);
+//                            word |= Output(character) << offset;
+//                        } else {
+//                            auto singleOffset = bitsPerSymbol;
+//                            auto offset = (bitsPerSymbol * (symbolsInWord - 1 - symbol) + residue);
+//                            word |= (Output(0)  << offset);
+//                        }
+                        auto offset = (bitsPerSymbol * (symbolsInWord - 1 - symbol) + residue);
+                        word |= Output(character) << offset;
+                    }
+                }
+                if constexpr(!PACK_REVERSE) {
+                    bitsetArray[i] = word;
+                } else {
+                    bitsetArray[n - 1 - i] = word;
+                }
+
+            }
+
+            return {bitsetArray, conversionDetails};
+        }
+
+
         /**
         * Encode given sequence with Input type symbols to bit array packed in Output type
          * according to alphabet_mapping and amount of bits per symbol
@@ -44,7 +145,7 @@ namespace bit_parallel::lcs {
          */
         template<class Input, class Output>
         std::pair<Output *, int> packSequenceLSB(const Input *a, int size, Map<Input> mapperForward, int alphabetSize) {
-            auto bitsPerSymbol = std::max(1,int(std::ceil(log2(alphabetSize))));
+            auto bitsPerSymbol = std::max(1, int(std::ceil(log2(alphabetSize))));
             auto shift = bitsPerSymbol;
             auto wordSizeInBits = sizeof(Output) * 8;
             auto symbolsInWord = int(wordSizeInBits / shift);
@@ -54,22 +155,20 @@ namespace bit_parallel::lcs {
             auto bitsetArray = static_cast<Output *> (aligned_alloc(sizeof(Output), bytesNeeded));
             auto n = bytesNeeded / sizeof(Output);
 
-            auto residue = wordSizeInBits % bitsPerSymbol;
+            auto residue = wordSizeInBits % bitsPerSymbol; //TODO
 
             //    fill bitset
-            for (int i = 0; i < n - 1; ++i) {
+            auto total = 0;
+            for (int i = 0; i < n; ++i, total += symbolsInWord) {
                 Output word = 0;
                 for (int symbol = 0; symbol < symbolsInWord; symbol++) {
-                    word |= Output(mapperForward[a[i * symbolsInWord + symbol]]) << (shift * symbol + residue);
-                }
-                bitsetArray[i] = word;
-            }
-
-            //    fill last
-            for (int i = n - 1; i < n; ++i) {
-                Output word = 0;
-                for (int symbol = 0; i * symbolsInWord + symbol < size; symbol++) {
-                    word |= Output(mapperForward[a[i * symbolsInWord + symbol]]) << (shift * symbol + residue);
+                    auto offset = (shift * symbol + residue);
+                    if (total + symbol < size) {
+                        auto character = mapperForward[a[i * symbolsInWord + symbol]];
+                        word |= Output(character) << offset;
+                    } else {
+                        word |= Output(0) << offset;
+                    }
                 }
                 bitsetArray[i] = word;
             }
@@ -85,9 +184,9 @@ namespace bit_parallel::lcs {
         * @return (packed array, amount of packed elements)
         */
         template<class Input, class Output>
-        std::pair<Output *, int> packMSBReverse(const Input *a, int size, Map<Input> &mapperForward, int alphabetSize) {
+        std::pair<Output *, int> packMSBReverse(const Input *a, int size, Map<Input> &mapperForward, int alphabetSize, bool isDefaultZero = true) {
 
-            auto bitsPerSymbol = std::max(1,int(std::ceil(log2(alphabetSize))));
+            auto bitsPerSymbol = std::max(1, int(std::ceil(log2(alphabetSize))));
             auto shift = bitsPerSymbol;
             auto wordSizeInBits = sizeof(Output) * 8;
             auto symbolsInWord = int(wordSizeInBits / shift);
@@ -99,21 +198,25 @@ namespace bit_parallel::lcs {
             auto residue = wordSizeInBits % bitsPerSymbol;
 
 
+            auto defaultMachineWord = (isDefaultZero) ? Output(0) : ~Output(0);
 
             // fill first guy
             for (int i = 0; i < n - 1; ++i) {
                 Output word = Output(0);
                 for (int symbol = 0; symbol < symbolsInWord; symbol++) {
-                    word |= Output(mapperForward[a[(i * symbolsInWord + symbol)]]) << (bitsPerSymbol * (symbolsInWord - symbol - 1) + residue);
+                    auto character = mapperForward[a[(i * symbolsInWord + symbol)]];
+                    auto offset = (bitsPerSymbol * (symbolsInWord - symbol - 1) + residue);
+                    word |= Output(character) << offset;
                 }
                 bitsetArray[n - 1 - i] = word;
             }
 
             //    fill last
             for (int i = n - 1; i < n; ++i) {
-                Output word = 0;
+                Output word = Output(0);
                 for (int symbol = 0; (n - 1) * symbolsInWord + symbol < size; symbol++) {
-                    word |= Output(mapperForward[a[(i * symbolsInWord + symbol)]]) << (bitsPerSymbol * (symbolsInWord - symbol - 1) + residue);
+                    auto character = mapperForward[a[(i * symbolsInWord + symbol)]];
+                    word |= Output(character) << (bitsPerSymbol * (symbolsInWord - symbol - 1) + residue);
                 }
                 bitsetArray[n - 1 - i] = word;
             }
@@ -670,15 +773,19 @@ namespace bit_parallel::lcs {
             auto converter = AlphabetConverter();
             std::unordered_set<InputType> alphabet;
             for (int i = 0; i < aSize; ++i) alphabet.insert(a[i]);
+            for (int i = 0; i < bSize; ++i) alphabet.insert(b[i]);
             auto[forwardMapper, inverseMapper] = converter.encodeAlphabet(alphabet);
-            auto[packedRevA, packedSizeA] = converter.packMSBReverse<InputType, UnsignedMachineWord>(a, aSize, forwardMapper, alphabet.size());
-            auto[packedB, packedSizeB] = converter.packSequenceLSB<InputType, UnsignedMachineWord>(b, bSize, forwardMapper, alphabet.size());
+            for (auto[k, v]: forwardMapper) {
+//                std::cout<<k<<"->"<<v<<std::endl;
+            }
+            auto[packedRevA, packedADetails] = converter.packSequence<InputType, UnsignedMachineWord, false, true>(a, aSize, forwardMapper, alphabet.size());
+            auto[packedB, packedBDetails] = converter.packSequence<InputType, UnsignedMachineWord, true, false>(b, bSize, forwardMapper, alphabet.size());
             int res = 0;
             if constexpr(IS_ONLY_BINARY_ALPHABET) {
                 if constexpr(USE_NAIVE_LAYOUT) {
-                    res = llcs2SymbolNaiveCombing(packedRevA, packedSizeA, packedB, packedSizeB, aSize, threadsNum);
+                    res = llcs2SymbolNaiveCombing(packedRevA, packedADetails, packedB, packedBDetails, threadsNum);
                 } else {
-                    res = llcs2SymbolSmartCombing<USE_FAST_FORMULA>(packedRevA, packedSizeA, packedB, packedSizeB, aSize, threadsNum);
+                    res = llcs2SymbolSmartCombing<USE_FAST_FORMULA>(packedRevA, packedADetails, packedB, packedBDetails, threadsNum);
                 }
             } else {
                 throw std::runtime_error("Not implemented yet");
@@ -709,24 +816,34 @@ namespace bit_parallel::lcs {
          * @param threads_num
          * @return
          */
-        int llcs2SymbolNaiveCombing(UnsignedMachineWord *aReverse, int aSize, UnsignedMachineWord *b, int bSize, int aTotalSymbols, int thdsNum) {
+        int llcs2SymbolNaiveCombing(UnsignedMachineWord *aReverse, AlphabetConverter::ConversionDetails<UnsignedMachineWord> aDetails,
+                                    UnsignedMachineWord *b, AlphabetConverter::ConversionDetails<UnsignedMachineWord> bDetails, int thdsNum) {
             // also stored in the reverse order
-            auto *lStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), sizeof(UnsignedMachineWord) * aSize));
-            auto *tStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), sizeof(UnsignedMachineWord) * bSize));
+            auto *lStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), aDetails.getCompressedSizeInBytes()));
+            auto *tStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), bDetails.getCompressedSizeInBytes()));
 
-            auto m = aSize, n = bSize;
-
+            auto m = aDetails.getCompressedSizeInWords(), n = bDetails.getCompressedSizeInWords();
             // total amount of strands that at the end hit right border of grid
             int disBraid = 0;
+
 
             auto numDiag = m + n - 1;
 
             auto totalSameLengthDiag = numDiag - (m) - (m - 1);
 
-#pragma omp parallel num_threads(thdsNum)  default(none) shared(lStrands, tStrands, aReverse, b, m, n, disBraid, totalSameLengthDiag)
+            auto[bottom, right] =  getPreciseBottomBorder(aDetails, bDetails);
+
+            auto bBorderStart = *bDetails.getNthPositionOfSymbol(bottom.first);
+            auto bBorderEnd = *bDetails.getNthPositionOfSymbol(bottom.second - 1);
+            auto rBorder = *aDetails.getNthPositionOfSymbol(right.second);
+
+            auto bitsPerChar = aDetails.bitsPerSymbol;
+            lStrands[0] = ~aDetails.getPaddingMaskOfLastWord(false);
+            tStrands[n - 1] = bDetails.getPaddingMaskOfLastWord(true);
+
+#pragma omp parallel num_threads(thdsNum)  default(none) shared(lStrands, tStrands, aReverse, b, m, n, disBraid, totalSameLengthDiag, aDetails, bDetails, rBorder, bBorderStart, bBorderEnd)
             {
                 initStep(lStrands, m, tStrands, n);
-
 
                 UnsignedMachineWord mask;
                 auto upperBound = (sizeof(UnsignedMachineWord) * 8) - 1;
@@ -840,30 +957,65 @@ namespace bit_parallel::lcs {
 
                 }
 
-                auto countOnes = this->countOnes(lStrands, m);
+                int ones = (m < n) ? countOnes(lStrands, rBorder.first + 1, m) : countOnes(tStrands, bBorderStart.first + 1, bBorderEnd.first);
+
 #pragma omp atomic update
-                disBraid += countOnes;
+                disBraid += ones;
+
             }
+
+            if ((m < n)) {
+                disBraid += countOnesInWord(lStrands[0], bitsPerChar * (rBorder.second));
+                disBraid += countOnesInWord(tStrands[n - 1], bBorderEnd.second * bitsPerChar + 1);
+                disBraid = aDetails.initalNumSymbols - disBraid + bDetails.getPaddingOfLastWordInSymbols();
+            } else {
+                if (bBorderStart.first == bBorderEnd.first) {
+                    disBraid += countOnesInWord(tStrands[bBorderStart.first], bBorderStart.second * bitsPerChar, (bBorderEnd.second) * bitsPerChar + 1);
+                } else {
+                    disBraid += countOnesInWord(tStrands[bBorderStart.first], bBorderStart.second * bitsPerChar);
+                    disBraid += countOnesInWord(tStrands[bBorderEnd.first], 0, bBorderEnd.second * bitsPerChar + 1);
+                }
+                disBraid += countOnesInWord(lStrands[0], 0, bitsPerChar * (rBorder.second)); // offset
+            }
+
             delete[] lStrands;
             delete[] tStrands;
 
-            return aTotalSymbols - disBraid;
+            return disBraid;
+        }
+
+        std::pair<std::pair<int, int>, std::pair<int, int>> getPreciseBottomBorder(AlphabetConverter::ConversionDetails<UnsignedMachineWord> &aDetails,
+                                                                                   AlphabetConverter::ConversionDetails<UnsignedMachineWord> &bDetails) {
+            auto extCharSizeA = aDetails.getNumberOfEmbeddingsInWord() * aDetails.getCompressedSizeInWords();//wrt to added paddings
+            auto extCharSizeB = bDetails.getNumberOfEmbeddingsInWord() * bDetails.getCompressedSizeInWords();
+
+            auto lStart = aDetails.getPaddingOfLastWordInSymbols();
+            auto lEnd = std::min(lStart + bDetails.initalNumSymbols, extCharSizeB);
+            auto rEnd = 0;
+            if (lEnd == extCharSizeB) {
+                rEnd = std::max(lStart + bDetails.initalNumSymbols, extCharSizeB) - lEnd;
+            }
+            return std::make_pair(std::make_pair(lStart, lEnd), std::make_pair(0, rEnd));
         }
 
 
-        template<bool USE_FAST_COND,bool CONSIDER_BOUNDS_CASE = false>
-        int llcs2SymbolSmartCombing(UnsignedMachineWord *aReverse, int aSize, UnsignedMachineWord *b, int bSize, int aTotalSymbols, int thdsNum) {
+        template<bool USE_FAST_COND, bool CONSIDER_BOUNDS_CASE = false>
+        int llcs2SymbolSmartCombing(UnsignedMachineWord *aReverse, AlphabetConverter::ConversionDetails<UnsignedMachineWord> aDetails,
+                                    UnsignedMachineWord *b, AlphabetConverter::ConversionDetails<UnsignedMachineWord> bDetails, int thdsNum) {
 
             // also stored in the reverse order
-            auto *lStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), sizeof(UnsignedMachineWord) * aSize));
-            auto *tStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), sizeof(UnsignedMachineWord) * bSize));
+            auto *lStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), aDetails.getCompressedSizeInBytes()));
+            auto *tStrands = static_cast<UnsignedMachineWord *> (aligned_alloc(sizeof(UnsignedMachineWord), bDetails.getCompressedSizeInBytes()));
 
-            auto m = aSize, n = bSize;
-
+            auto m = aDetails.getCompressedSizeInWords(), n = bDetails.getCompressedSizeInWords();
             // total amount of strands that at the end hit right border of grid
             int disBraid = 0;
 
+
             auto numDiag = m + n - 1;
+
+            lStrands[0] = ~aDetails.getPaddingMaskOfLastWord(false);
+            tStrands[n - 1] = bDetails.getPaddingMaskOfLastWord(true);
 
             auto totalSameLengthDiag = numDiag - (m - 1) - (m - 1);
 #pragma omp parallel num_threads(thdsNum)  default(none) shared(lStrands, tStrands, aReverse, b, m, n, disBraid, totalSameLengthDiag, std::cout)
@@ -899,33 +1051,81 @@ namespace bit_parallel::lcs {
                     startJ++;
                 }
 
-                auto countOnes = this->countOnes(lStrands, m);
+                auto countOnes = this->countOnes(lStrands, 0, m);
 #pragma omp atomic update
                 disBraid += countOnes;
             }
 
+
+            auto[bottom, right] =  getPreciseBottomBorder(aDetails, bDetails);
+            auto[bottomWordIdStart, bitIdStart]  =  *bDetails.getNthPositionOfSymbol(bottom.first);
+            auto[bottomWordIdSEnd, bitIdEnd]  =  *bDetails.getNthPositionOfSymbol(bottom.second - 1);
+
+            auto bitsPerChar = aDetails.bitsPerSymbol;
+            auto newRes = 0;
+            newRes += countOnes(tStrands, bottomWordIdStart + 1, bottomWordIdSEnd);
+//            std::cout<<"R1,"<<newRes<<std::endl;
+            if (bottomWordIdStart == bottomWordIdSEnd) {
+//                std::cout<<"a,b,exoi->"<<aDetails.initalNumSymbols<<","<<bDetails.initalNumSymbols<<","<<aDetails.machineWordSize<<","<<bottomWordIdStart<<std::endl;
+//                std::cout<<"number"<<std::bitset<64>(tStrands[bottomWordIdSEnd])<<","<<countOnesInWord(tStrands[bottomWordIdSEnd], bitIdStart * bitsPerChar, (bitIdEnd) * bitsPerChar+1)<<std::endl;
+
+//                std::cout<<"countOnesInWord(tStrands[bottomWordIdSEnd], bitIdStart * bitsPerChar, (bitIdEnd) * bitsPerChar+1);->"<<bottomWordIdSEnd<<","<<bitIdStart<<","<<(bitIdEnd) * bitsPerChar+1<<std::endl;
+                newRes += countOnesInWord(tStrands[bottomWordIdSEnd], bitIdStart * bitsPerChar, (bitIdEnd) * bitsPerChar + 1);
+//                std::cout<<"R2,"<<newRes<<std::endl;
+            } else {
+//                std::cout<<"a,b,wordSize->"<<aDetails.initalNumSymbols<<","<<bDetails.initalNumSymbols<<","<<aDetails.machineWordSize<<std::endl;
+//                std::cout<<bottomWordIdStart<<","<<bitIdStart*bitsPerChar<<","<<bitIdEnd * bitsPerChar + 1<<","<<bottomWordIdSEnd<<std::endl;
+//                std::cout<<"countOnes(tStrands, bottomWordIdStart + 1, bottomWordIdSEnd)->"<<bottomWordIdStart+1<<","<<bottomWordIdSEnd<<std::endl;
+//                std::cout<<"0, bitIdStart * bitsPerChar)->"<<bitIdStart<<std::endl;
+//                std::cout<<"bitIdEnd * bitsPerChar + 1->"<<bitIdEnd+1<<std::endl;
+                newRes += countOnesInWord(tStrands[bottomWordIdStart], bitIdStart * bitsPerChar);
+                newRes += countOnesInWord(tStrands[bottomWordIdSEnd], 0, bitIdEnd * bitsPerChar + 1);
+//                std::cout<<"R3,"<<newRes<<std::endl;
+            }
+//            padding + (totalSymbInWOrd-id)
+
+            auto[rightWordIdSEnd, rightIdEnd]  =  *aDetails.getNthPositionOfSymbol(right.second);
+
+//            std::cout<<"HUI"<<rightWordIdSEnd<<","<<right.second<<","<<rightIdEnd<<","<<bitsPerChar*(rightIdEnd)<<std::endl;
+            newRes += countOnesInWord(lStrands[0], 0, bitsPerChar * (rightIdEnd)); // offset
+//            std::cout<<"R4,"<<newRes<<std::endl;
+            int result;
+            result = disBraid;
             delete[] lStrands;
             delete[] tStrands;
-            return aTotalSymbols - disBraid;
+
+            if (result != newRes) {
+//                std::cout<<"OLD BAD:"<<result<<","<<newRes<<std::endl;
+                return newRes;
+                exit(-1);
+            }
+
+
+            return newRes;
+
+//            delete[] lStrands;
+//            delete[] tStrands;
+//
+//            return aDetails.initalNumSymbols - disBraid;
         }
 
         void initStep(UnsignedMachineWord *lStrands, int m, UnsignedMachineWord *tStrands, int n) {
             // Initialization step, strands that hit the left grid border all have number 1; strands that hit top grid border are 0.
 #pragma omp  for simd schedule(static) aligned(lStrands:sizeof(UnsignedMachineWord)*8)
-            for (int k = 0; k < m; ++k) lStrands[k] = ~UnsignedMachineWord(0);
+            for (int k = 1; k < m; ++k) lStrands[k] = ~UnsignedMachineWord(0);
 #pragma omp  for simd schedule(static) aligned(tStrands:sizeof(UnsignedMachineWord)*8)
-            for (int k = 0; k < n; ++k) tStrands[k] = UnsignedMachineWord(0);
+            for (int k = 0; k < n - 1; ++k) tStrands[k] = UnsignedMachineWord(0);
 
         }
 
-        int countOnes(UnsignedMachineWord *lStrands, int m) {
+        int countOnes(UnsignedMachineWord *strands, int safe_interval_from, int safe_interval_to) {
             auto ones = 0;
             int localSum = 0;
-#pragma omp for  simd schedule(static)  aligned(lStrands:sizeof(UnsignedMachineWord)*8)
-            for (int i1 = 0; i1 < m; ++i1) {
+#pragma omp for  simd schedule(static)  aligned(strands:sizeof(UnsignedMachineWord)*8)
+            for (int i1 = safe_interval_from; i1 < safe_interval_to; ++i1) {
                 //  Brian Kernighan’s Algorithm
                 int counter = 0;
-                UnsignedMachineWord number = lStrands[i1];
+                UnsignedMachineWord number = strands[i1];
                 //  LogNumber
                 while (number) {
                     number &= (number - 1);
@@ -934,6 +1134,32 @@ namespace bit_parallel::lcs {
                 localSum += counter;
             }
             return localSum;
+        }
+
+        int countOnesInWord(UnsignedMachineWord number, int fromInclusive, int toExclusive = sizeof(UnsignedMachineWord) * 8) {
+
+            if (fromInclusive == toExclusive) {
+                return 0;
+            }
+            if (fromInclusive > toExclusive) {
+                std::cout << "fromInclusive > toExclusive" << fromInclusive << ">" << toExclusive << std::endl;
+//                exit(-1);
+                return 0;
+            }
+            UnsignedMachineWord maskTakeAllFrom = ~UnsignedMachineWord(0);
+            if (fromInclusive != 0) maskTakeAllFrom &= ~((UnsignedMachineWord(1) << (fromInclusive)) - 1);
+            UnsignedMachineWord maskTakeAllTo = ~UnsignedMachineWord(0);
+            if (toExclusive != sizeof(UnsignedMachineWord) * 8) maskTakeAllTo &= (UnsignedMachineWord(1) << (toExclusive)) - 1;
+//            std::cout<<"number"<<std::bitset<8>(number)<<","<<std::endl;
+            number = number & maskTakeAllFrom & maskTakeAllTo;
+//            std::cout<<std::bitset<8>(maskTakeAllFrom)<<","<<std::bitset<8>(maskTakeAllTo)<<","<<fromInclusive<<","<<toExclusive<<std::endl;
+//            std::cout<<std::bitset<8>(number)<<","<<std::endl;
+            auto counter = 0;
+            while (number) {
+                number &= (number - 1);
+                counter++;
+            }
+            return counter;
         }
 
 

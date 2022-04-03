@@ -46,8 +46,10 @@ protected:
                 auto res2 = solver2.compute(A, sizeA, B, sizeB);
                 if (res1 != res2) {
                     std::cout << sizeA << "," << sizeB << std::endl;
+                    std::cout<<"Seq A:";
                     for (int i = 0; i < sizeA; ++i) std::cout << A[i];
                     std::cout << std::endl;
+                    std::cout<<"Seq B:";
                     for (int i = 0; i < sizeB; ++i) std::cout << B[i];
                     ASSERT_EQ(res1, res2);
                 }
@@ -60,7 +62,7 @@ protected:
 
     template<typename T,bool useNaive, bool formula1>
     void testOur(int start_, int end_, int alphabetSize, int thds = 4,bool justPerformance = false) {
-        auto bits = 8 * sizeof(T);
+        auto bits = 1;//8 * sizeof(T);
         int start = start_ * bits;
         int end = end_ * bits + 1;
         int step = bits;
@@ -70,8 +72,10 @@ protected:
             if constexpr(useNaive) {
                 return bit_parallel::lcs::BitSemiLocalSticky<T, int, true, true, true>(thds);
             } else if constexpr (formula1) {
+//                return bit_parallel::lcs::BitSemiLocalSticky<T, int, true, true, true>(thds);
                 return bit_parallel::lcs::BitSemiLocalSticky<T, int, true, true, false, false>(thds);
             } else {
+//                return bit_parallel::lcs::BitSemiLocalSticky<T, int, true, true, true>(thds);
                 return bit_parallel::lcs::BitSemiLocalSticky<T, int, true, true, false, true>(thds);
             }
         };
@@ -134,25 +138,26 @@ TEST_F(LCSTest, MemDummyVsHyyroSimple) {
 }
 
 TEST_F(LCSTest, MemDummyVsBitwiseBinary) {
-    auto ts1 = std::chrono::high_resolution_clock::now();
-    testOur<uint8_t,false, false>(1, 32, 2);
-    testOur<uint16_t,false, false>(1, 32, 2);
-    testOur<uint32_t,false, false>(1, 32, 2);
-    testOur<uint64_t,false, false>(1, 32, 2);
-    auto ts2 = std::chrono::high_resolution_clock::now();
-    testOur<uint8_t,true, true>(1, 32, 2);
-    testOur<uint16_t,true, true>(1, 32, 2);
-    testOur<uint32_t,true, true>(1, 32, 2);
-    testOur<uint64_t,true, true>(1, 32, 2);
-    auto ts3 = std::chrono::high_resolution_clock::now();
-    testOur<uint8_t,true, false>(1, 32, 2);
-    testOur<uint16_t,true, false>(1, 32, 2);
-    testOur<uint32_t,true, false>(1, 32, 2);
-    testOur<uint64_t,true, false>(1, 32, 2);
-    auto ts4 = std::chrono::high_resolution_clock::now();
-    std::cout << (ts2 - ts1).count() << std::endl;
-    std::cout << (ts3 - ts2).count() << std::endl;
-    std::cout << (ts4 - ts3).count() << std::endl;
+//    auto ts1 = std::chrono::high_resolution_clock::now();
+//    testOur<uint8_t,false, false>(1, 324, 2);
+//    testOur<uint16_t,false, false>(1, 324, 2);
+//    testOur<uint32_t,false, false>(1, 324, 2);
+//    testOur<uint64_t,false, false>(1, 324, 2);
+//    std::cout<<"PASSED 1 out of 3"<<sizeof(uint64_t)*8<<std::endl;
+//    auto ts2 = std::chrono::high_resolution_clock::now();
+//    testOur<uint8_t, false, true>(1, 324, 2);
+//    testOur<uint16_t,false, true>(1, 324, 2);
+//    testOur<uint32_t,false, true>(1, 324, 2);
+//    testOur<uint64_t,false, true>(1, 324, 2);
+//    auto ts3 = std::chrono::high_resolution_clock::now();
+    testOur<uint8_t,true, false>(1, 329, 2);
+    testOur<uint16_t,true, false>(1, 230, 2);
+    testOur<uint32_t,true, false>(1, 302, 2);
+    testOur<uint64_t,true, false>(1, 399, 2);
+//    auto ts4 = std::chrono::high_resolution_clock::now();
+//    std::cout << (ts2 - ts1).count() << std::endl;
+//    std::cout << (ts3 - ts2).count() << std::endl;
+//    std::cout << (ts4 - ts3).count() << std::endl;
 }
 
 
