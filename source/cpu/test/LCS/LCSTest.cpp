@@ -139,18 +139,18 @@ TEST_F(LCSTest, MemDummyVsHyyroSimple) {
 
 TEST_F(LCSTest, MemDummyVsBitwiseBinary) {
 //    auto ts1 = std::chrono::high_resolution_clock::now();
-    testOur<uint8_t,false, false>(1, 69, 2,2);
-//    testOur<uint16_t,false, false>(1, 160, 4);
-//    testOur<uint32_t,false, false>(1, 324, 4);
-//    testOur<uint64_t,false, false>(1, 324, 4);
+    testOur<uint64_t ,false, false>(1, 42, 4,2);
+//    testOur<uint16_t,false, false>(1, 64, 4);
+//    testOur<uint32_t,false, false>(1, 128, 4);
+//    testOur<uint64_t,false, false>(1, 256, 4);
 //    std::cout<<"PASSED 1 out of 3"<<sizeof(uint64_t)*8<<std::endl;
 //    auto ts2 = std::chrono::high_resolution_clock::now();
-    testOur<uint8_t, false, true>(1, 69, 2,1);
+//    testOur<uint8_t, false, true>(1, 128, 2,1);
 //    testOur<uint16_t,false, true>(1, 160, 4);
 //    testOur<uint32_t,false, true>(1, 324, 4);
 //    testOur<uint64_t,false, true>(1, 324, 4);
 //    auto ts3 = std::chrono::high_resolution_clock::now();
-    testOur<uint8_t,true, false>(1, 69, 2,1);
+//    testOur<uint8_t,true, false>(1, 128, 2,1);
 //    testOur<uint16_t,true, false>(1, 230, 2);
 //    testOur<uint32_t,true, false>(1, 302, 2);
 //    testOur<uint64_t,true, false>(1, 399, 2);

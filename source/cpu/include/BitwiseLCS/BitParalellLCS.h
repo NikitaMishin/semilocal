@@ -43,8 +43,9 @@
 
 template<class UnsignedMachineWord>
 constexpr UnsignedMachineWord getBraidMaskOnesMSB(int alignment, int bitsPerSymbol) {
-    UnsignedMachineWord braidOnes = UnsignedMachineWord(1) << alignment;
-    for (int i = 0; i < sizeof(UnsignedMachineWord) * 8; i += bitsPerSymbol) braidOnes |= (braidOnes << i);
+    UnsignedMachineWord singleStrand = UnsignedMachineWord(1);
+    UnsignedMachineWord braidOnes = UnsignedMachineWord(1);
+    for (int i = 0; i < sizeof(UnsignedMachineWord) * 8 - alignment; i += bitsPerSymbol) braidOnes |= (singleStrand << i);
     return braidOnes;
 }
 
@@ -72,19 +73,11 @@ namespace bit_parallel::lcs {
 
             inline int getNumberOfEmbeddingsInWord() const { return machineWordSize / bitsPerSymbol; }
 
-            inline MachineWordType getAlignmentMask(bool isLSB) const {
+            inline MachineWordType getAlignmentMask() const {
                 auto alignmentInBits = getWordAlignmentInBits();
-//                std::cout<<"ALINEMNT_BITS"<<alignmentInBits<<std::endl;
-
                 if (alignmentInBits == 0) return MachineWordType(0);
-                if (isLSB) {
-                    MachineWordType mask = MachineWordType((~MachineWordType(0))) - (MachineWordType((~MachineWordType(0))) >> alignmentInBits);
-//                    std::cout<<alignmentInBits<<"MUSKO:"<<std::bitset<8>(mask)<<"-"<<std::bitset<32>(MachineWordType(((~MachineWordType(0))) >> alignmentInBits))<<std::endl;
-                    return mask;
-                } else {
-                    MachineWordType mask = (MachineWordType(1) << alignmentInBits) - 1;
-                    return mask;
-                }
+                MachineWordType mask = MachineWordType((~MachineWordType(0))) - (MachineWordType((~MachineWordType(0))) >> alignmentInBits);
+                return mask;
             }
 
             inline MachineWordType getPaddingMaskOfLastWord(bool isLSB) const {
@@ -95,8 +88,8 @@ namespace bit_parallel::lcs {
                 if (isLSB) {
                     return (MachineWordType(~MachineWordType(0)) >> align) - ((MachineWordType(1) << activeSymb * bitsPerSymbol) - 1);
                 } else {
-//                    std::cout<<"HUA:"<<std::bitset<8>(((MachineWordType(1) << (align + paddedSymb * bitsPerSymbol)) - 1))<<'-'<<std::bitset<8>(getAlignmentMask(isLSB))<<std::endl;
-                    return ((MachineWordType(1) << (align + paddedSymb * bitsPerSymbol)) - 1) - getAlignmentMask(isLSB);
+//                    std::cout<<"HUA:"<<std::bitset<16>(((MachineWordType(1) << (align + paddedSymb * bitsPerSymbol)) - 1))<<'-'<<std::bitset<16>(getAlignmentMask(isLSB))<<std::endl;
+                    return ((MachineWordType(1) << (paddedSymb * bitsPerSymbol)) - 1);
                 }
 
 
@@ -157,7 +150,7 @@ namespace bit_parallel::lcs {
             auto bytesNeeded = conversionDetails.getCompressedSizeInBytes();
             auto bitsetArray = static_cast<Output *> (aligned_alloc(sizeof(Output), bytesNeeded));
 
-            auto alignment = conversionDetails.getWordAlignmentInBits();
+//            auto alignment = conversionDetails.getWordAlignmentInBits();
             auto total = 0;
             auto symbolsInWord = conversionDetails.getNumberOfEmbeddingsInWord();
             auto bitsPerSymbol = conversionDetails.bitsPerSymbol;
@@ -182,7 +175,7 @@ namespace bit_parallel::lcs {
 //                            auto offset = (bitsPerSymbol * (symbolsInWord - 1 - symbol) + residue);
 //                            word |= (Output(0)  << offset);
 //                        }
-                        auto offset = (bitsPerSymbol * (symbolsInWord - 1 - symbol) + alignment);
+                        auto offset = (bitsPerSymbol * (symbolsInWord - 1 - symbol) );
                         word |= Output(character) << offset;
                     }
                 }
@@ -583,11 +576,11 @@ namespace bit_parallel::lcs {
                                          UnsignedMachineWord const *b) {
 
             auto constexpr IS_BINARY = BITS_PER_STRAND == 1;
-            auto constexpr ALIGN_SIZE = sizeof(UnsignedMachineWord) * 8 - (sizeof(UnsignedMachineWord) * 8 / BITS_PER_STRAND) * BITS_PER_STRAND; // 2
-            UnsignedMachineWord constexpr singleStrand = UnsignedMachineWord(1) << ALIGN_SIZE; //
-            constexpr int size = sizeof(UnsignedMachineWord) * 8 - ALIGN_SIZE - BITS_PER_STRAND;// 8-2-3 = 5
+            constexpr  int ALIGN_SIZE = sizeof(UnsignedMachineWord) * 8 - (sizeof(UnsignedMachineWord) * 8 / BITS_PER_STRAND) * BITS_PER_STRAND; // 2
+            UnsignedMachineWord constexpr singleStrand = UnsignedMachineWord(1); //
+            constexpr int size = sizeof(UnsignedMachineWord) * 8 - BITS_PER_STRAND - ALIGN_SIZE;// 8-2-3 = 5
 
-            constexpr int activeNumBits = (sizeof(UnsignedMachineWord) * 8) - BITS_PER_STRAND;//CHANGE om bits
+            constexpr int activeNumBits = (sizeof(UnsignedMachineWord) * 8) - ALIGN_SIZE - BITS_PER_STRAND;//CHANGE om bits
             constexpr UnsignedMachineWord braidOnesMask = getBraidMaskOnesMSB<UnsignedMachineWord>(ALIGN_SIZE, BITS_PER_STRAND);
 
 
@@ -606,7 +599,7 @@ namespace bit_parallel::lcs {
                 UnsignedMachineWord mask = singleStrand;
 
                 UNROLL_LOOP(sizeof(UnsignedMachineWord) * 8 + 1)
-                for (int shift = activeNumBits; shift > ALIGN_SIZE; shift -= BITS_PER_STRAND) {
+                for (int shift = activeNumBits; shift > 0; shift -= BITS_PER_STRAND) {
                     // 15 operations inside cycle
                     // could be reduced to 14 if we store not a but ~a in memory
 
@@ -623,15 +616,15 @@ namespace bit_parallel::lcs {
                         UnsignedMachineWord eq = cond;
                         PRIVATE_UNROLL_LOOP(COMPARISON_LOOP_UNROLL)
                         for (int i = 1; i < BITS_PER_STRAND; i++) cond &= (eq >> i);
-                        std::cout<<"oldL"<<std::bitset<8>(lStrand)<<std::endl;
-                        std::cout<<"oldR"<<std::bitset<8>(tStrand)<<std::endl;
+                        std::cout<<"oldL"<<std::bitset<16>(lStrand)<<std::endl;
+                        std::cout<<"oldR"<<std::bitset<16>(tStrand)<<std::endl;
 
-                        tStrand = (lStrandCap | ((braidOnesMask ^ (mask))>>ALIGN_SIZE)) & (tStrand | (cond & (mask>>ALIGN_SIZE)));
+                        tStrand = (lStrandCap | ((braidOnesMask ^ (mask)))) & (tStrand | (cond & (mask)));
                         lStrand = tStrandCap ^ (tStrand << shift) ^ lStrand;
-//                        std::cout<<"mask"<<std::bitset<8>(braidOnesMask ^ mask)<<","<<std::bitset<8>(cond & (mask))<<",!"<<std::bitset<8>(lStrandCap)<<std::endl;
-                        std::cout<<"L"<<std::bitset<8>(lStrand)<<std::endl;
-                        std::cout<<"R"<<std::bitset<8>(tStrand)<<std::endl;
-                        std::cout<<"invmadsk"<<std::bitset<8>((braidOnesMask ^ (mask))>>ALIGN_SIZE)<<std::endl;
+//                        std::cout<<"mask"<<std::bitset<16>(braidOnesMask ^ mask)<<","<<std::bitset<16>(cond & (mask))<<",!"<<std::bitset<16>(lStrandCap)<<std::endl;
+                        std::cout<<"L"<<std::bitset<16>(lStrand)<<std::endl;
+                        std::cout<<"R"<<std::bitset<16>(tStrand)<<std::endl;
+                        std::cout<<"invmadsk"<<std::bitset<16>((braidOnesMask ^ (mask))>>ALIGN_SIZE)<<std::endl;
                     } else {
                         if constexpr(USE_FIRST_FORMULA) {
                             /**
@@ -671,33 +664,33 @@ namespace bit_parallel::lcs {
                 }
 
                 if constexpr(!IS_BINARY) {
-                    cond = ~((symbolA >> ALIGN_SIZE) ^ symbolB);
+                    cond = ~((symbolA) ^ symbolB);
                     UnsignedMachineWord eq = cond;
 
-                    std::cout<<"SCConda"<<std::bitset<8>(cond)<<std::endl;
-                    std::cout<<"A"<<std::bitset<8>(symbolA)<<std::endl;
-                    std::cout<<"B"<<std::bitset<8>(symbolB)<<std::endl;
+                    std::cout<<"SCConda"<<std::bitset<16>(cond)<<std::endl;
+                    std::cout<<"A"<<std::bitset<16>(symbolA)<<std::endl;
+                    std::cout<<"B"<<std::bitset<16>(symbolB)<<std::endl;
 
 
                     PRIVATE_UNROLL_LOOP(COMPARISON_LOOP_UNROLL)
                     for (int i = 1; i < BITS_PER_STRAND; i++) cond &= (eq >> i);
-                    std::cout<<"CConda"<<std::bitset<8>(cond)<<std::endl;
+                    std::cout<<"CConda"<<std::bitset<16>(cond)<<std::endl;
 
-                    std::cout<<"oldL"<<std::bitset<8>(lStrand)<<std::endl;
-                    std::cout<<"oldR"<<std::bitset<8>(tStrand)<<std::endl;
+                    std::cout<<"oldL"<<std::bitset<16>(lStrand)<<std::endl;
+                    std::cout<<"oldR"<<std::bitset<16>(tStrand)<<std::endl;
 
-                    lStrandCap = lStrand >> ALIGN_SIZE;
+                    lStrandCap = lStrand;
 //                    tStrandCap = tStrand;
-                    tStrandCap = tStrand << ALIGN_SIZE;
+                    tStrandCap = tStrand;
 
 
-                    tStrand = (lStrandCap) & (tStrand | (cond & (mask>>ALIGN_SIZE )));//TODO simplify mask>>ALIGN
+                    tStrand = (lStrandCap) & (tStrand | (cond & (braidOnesMask)));//TODO simplify mask>>ALIGN
 
-                    lStrand = tStrandCap ^ (tStrand << ALIGN_SIZE) ^ lStrand;
-//                    std::cout<<"mask"<<std::bitset<8>(mask)<<","<<std::bitset<8>(cond & (mask>>ALIGN_SIZE))<<",!"<<std::bitset<8>(lStrandCap)<<std::endl;
-                    std::cout<<"L"<<std::bitset<8>(lStrand)<<std::endl;
-                    std::cout<<"RR"<<std::bitset<8>(tStrand)<<std::endl;
-//                    std::cout<<"RRMMMASK"<<std::bitset<8>(mask)<<std::endl;
+                    lStrand = tStrandCap ^ (tStrand) ^ lStrand;
+//                    std::cout<<"mask"<<std::bitset<16>(mask)<<","<<std::bitset<16>(cond & (mask>>ALIGN_SIZE))<<",!"<<std::bitset<16>(lStrandCap)<<std::endl;
+                    std::cout<<"L"<<std::bitset<16>(lStrand)<<std::endl;
+                    std::cout<<"RR"<<std::bitset<16>(tStrand)<<std::endl;
+//                    std::cout<<"RRMMMASK"<<std::bitset<16>(mask)<<std::endl;
 
 
                     mask = braidOnesMask;
@@ -734,24 +727,26 @@ namespace bit_parallel::lcs {
 
                     if constexpr(!IS_BINARY) {
                         //reduction block
-                        cond = ~((symbolA << shift) ^ (symbolB<<ALIGN_SIZE));
+                        cond = ~((symbolA << shift) ^ (symbolB));
                         UnsignedMachineWord eq = cond;
-                        std::cout<<"Cond"<<std::bitset<8>(cond)<<std::endl;
+                        std::cout<<"Cond"<<std::bitset<16>(cond)<<std::endl;
+
                         PRIVATE_UNROLL_LOOP(COMPARISON_LOOP_UNROLL)
                         for (int i = 1; i < BITS_PER_STRAND; i++) cond &= (eq >> i);
-                        std::cout<<"Cond"<<std::bitset<8>(cond)<<std::endl;
-                        lStrandCap = lStrand << (shift-ALIGN_SIZE);
-                        tStrandCap = tStrand >> (shift-ALIGN_SIZE);
+                        std::cout<<"Cond"<<std::bitset<16>(cond)<<std::endl;
+                        lStrandCap = lStrand << (shift);
+                        tStrandCap = tStrand >> (shift);
 
-                        std::cout<<"oldL"<<std::bitset<8>(lStrand)<<std::endl;
-                        std::cout<<"oldR"<<std::bitset<8>(tStrand)<<std::endl;
+                        std::cout<<"oldL"<<std::bitset<16>(lStrand)<<std::endl;
+                        std::cout<<"oldR"<<std::bitset<16>(tStrand)<<std::endl;
 
-                        tStrand = (lStrandCap | ((braidOnesMask ^ mask)>>(shift-ALIGN_SIZE))) & (tStrand | ( ((cond & mask)>>ALIGN_SIZE)));
-                        lStrand = (tStrandCap ^ (tStrand >> (shift-ALIGN_SIZE)) ^ lStrand);
-                        std::cout<<"M"<<std::bitset<8>(mask)<<std::endl;
-                        std::cout<<"T"<<std::bitset<8>(((braidOnesMask) ^ mask))<<","<<std::bitset<8>(braidOnesMask)<<","<<std::bitset<8>(((cond & mask)>>ALIGN_SIZE))<<std::endl;
-                        std::cout<<"L"<<std::bitset<8>(lStrand)<<std::endl;
-                        std::cout<<"R"<<std::bitset<8>(tStrand)<<std::endl;
+                        tStrand = (lStrandCap | ((braidOnesMask ^ mask))) & (tStrand | ( ((cond & mask))));
+                        lStrand = (tStrandCap ^ (tStrand >> (shift)) ^ lStrand);
+
+                        std::cout<<"M"<<std::bitset<16>(mask)<<std::endl;
+                        std::cout<<"T"<<std::bitset<16>(((braidOnesMask) ^ mask))<<","<<std::bitset<16>(braidOnesMask)<<","<<std::bitset<16>(((cond & mask)))<<std::endl;
+                        std::cout<<"L"<<std::bitset<16>(lStrand)<<std::endl;
+                        std::cout<<"R"<<std::bitset<16>(tStrand)<<std::endl;
                     } else {
                         if constexpr(USE_FIRST_FORMULA) {
                             lStrandCap = lStrand << (shift);
@@ -886,7 +881,7 @@ namespace bit_parallel::lcs {
             std::unordered_set<InputType> alphabet;
             for (int i = 0; i < aSize; ++i) alphabet.insert(a[i]);
             for (int i = 0; i < bSize; ++i) alphabet.insert(b[i]);
-//            alphabet.insert({7,8,9,10,});
+            alphabet.insert({7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27});
             auto[forwardMapper, inverseMapper] = converter.encodeAlphabet(alphabet);
             std::cout<<"SET"<<std::endl;
             for (auto[k, v]: forwardMapper) {
@@ -920,6 +915,8 @@ namespace bit_parallel::lcs {
                             res = llcs2SymbolSmartCombing<USE_FAST_FORMULA, 4>(packedRevA, packedADetails, packedB, packedBDetails, threadsNum);
                             break;
                         case 5:
+                            std::cout<<"32 symbol alphabet"<<std::endl;
+
                             res = llcs2SymbolSmartCombing<USE_FAST_FORMULA, 5>(packedRevA, packedADetails, packedB, packedBDetails, threadsNum);
                             break;
                         case 6:
@@ -984,8 +981,8 @@ namespace bit_parallel::lcs {
 
 
             auto bitsPerChar = aDetails.bitsPerSymbol;
-            lStrands[0] = (~aDetails.getPaddingMaskOfLastWord(false)) & (~aDetails.getAlignmentMask(false));
-            tStrands[n - 1] = (bDetails.getPaddingMaskOfLastWord(true)) & (~bDetails.getAlignmentMask(true));
+            lStrands[0] = (~aDetails.getPaddingMaskOfLastWord(false)) & (~aDetails.getAlignmentMask());
+            tStrands[n - 1] = (bDetails.getPaddingMaskOfLastWord(true)) & (~bDetails.getAlignmentMask());
 
 #pragma omp parallel num_threads(thdsNum)  default(none) shared(lStrands, tStrands, aReverse, b, m, n, disBraid, totalSameLengthDiag, aDetails, bDetails, rBorder, bBorderStart, bBorderEnd, braidOnes)
             {
@@ -1171,16 +1168,16 @@ namespace bit_parallel::lcs {
 
             auto constexpr ALIGN_SIZE = sizeof(UnsignedMachineWord) * 8 - (sizeof(UnsignedMachineWord) * 8 / BITS_PER_SYMBOL) * BITS_PER_SYMBOL;
             std::cout<<ALIGN_SIZE<<","<<BITS_PER_SYMBOL<<std::endl;
-            UnsignedMachineWord braidOnes = getBraidMaskOnesMSB<UnsignedMachineWord>(ALIGN_SIZE,BITS_PER_SYMBOL);
-
+            auto constexpr braidOnes = getBraidMaskOnesMSB<UnsignedMachineWord>(ALIGN_SIZE, BITS_PER_SYMBOL);
+            std::cout<<"HUI"<<std::bitset<16>(braidOnes)<<std::endl;
 
             auto bitsPerChar = aDetails.bitsPerSymbol;
-            lStrands[0] = ((~aDetails.getPaddingMaskOfLastWord(false)) & (~aDetails.getAlignmentMask(false))) & braidOnes;
-            tStrands[n - 1] = (bDetails.getPaddingMaskOfLastWord(true)) & (~bDetails.getAlignmentMask(true))  & (braidOnes>>ALIGN_SIZE);
+            lStrands[0] = ((~aDetails.getPaddingMaskOfLastWord(false)) & (~aDetails.getAlignmentMask())) & braidOnes;
+            tStrands[n - 1] = (bDetails.getPaddingMaskOfLastWord(true)) & (~bDetails.getAlignmentMask())  & (braidOnes);
 
-            std::cout<<"maskA"<<std::bitset<8>(aDetails.getPaddingMaskOfLastWord(false))<<"AD"<< std::bitset<8>(aDetails.getAlignmentMask(false))<<std::endl;
-            std::cout<<"braid:"<<std::bitset<8>(braidOnes)<<"lStrand:"<<std::bitset<8>(lStrands[0])<<"tStrand:"<<std::bitset<8>(tStrands[n-1])<<","<<std::endl;
-            std::cout<<"LAST:"<<std::bitset<8>(bDetails.getPaddingMaskOfLastWord(true))<<"C"<<std::bitset<8>(bDetails.getAlignmentMask(true))<<","<<std::endl;
+            std::cout<<"maskA"<<std::bitset<16>(aDetails.getPaddingMaskOfLastWord(false))<<"AD"<< std::bitset<16>(aDetails.getAlignmentMask())<<std::endl;
+            std::cout<<"braid:"<<std::bitset<16>(braidOnes)<<"lStrand:"<<std::bitset<16>(lStrands[0])<<"tStrand:"<<std::bitset<16>(tStrands[n-1])<<","<<std::endl;
+            std::cout<<"LAST:"<<std::bitset<16>(bDetails.getPaddingMaskOfLastWord(true))<<"C"<<std::bitset<16>(bDetails.getAlignmentMask())<<","<<std::endl;
 
 #pragma omp parallel num_threads(1)  default(none) shared(lStrands, tStrands, aReverse, b, m, n, disBraid, totalSameLengthDiag, aDetails, bDetails, rBorder, bBorderStart, bBorderEnd, braidOnes,std::cout)
             {
@@ -1188,13 +1185,13 @@ namespace bit_parallel::lcs {
                 // phase 1: process upper left triangle
 
                 std::cout<<"A:"<<std::endl;
-                for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(aReverse[i])<<",";
+                for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(aReverse[i])<<",";
                 std::cout<<"B:"<<std::endl;
-                for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(b[i])<<",";
+                for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(b[i])<<",";
                 std::cout<<"Lstrands:"<<std::endl;
-                for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(lStrands[i])<<",";
+                for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(lStrands[i])<<",";
                 std::cout<<"tStradns:"<<std::endl;
-                for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(tStrands[i])<<",";
+                for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(tStrands[i])<<",";
                 std::cout<<std::endl;
 
 
@@ -1202,9 +1199,9 @@ namespace bit_parallel::lcs {
                     this->template processAntidiagonale<BITS_PER_SYMBOL, !USE_FAST_COND>(0, diagLen + 1, m - 1 - diagLen, 0, lStrands, tStrands, aReverse, b);
                     std::cout<<"1stphase:"<<std::endl;
                     std::cout<<"Lstrands:"<<std::endl;
-                    for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(lStrands[i])<<",";
+                    for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(lStrands[i])<<",";
                     std::cout<<"tStradns:"<<std::endl;
-                    for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(tStrands[i])<<",";
+                    for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(tStrands[i])<<",";
                     std::cout<<std::endl;
                 }
 
@@ -1213,9 +1210,9 @@ namespace bit_parallel::lcs {
                     this->template processAntidiagonale<BITS_PER_SYMBOL, !USE_FAST_COND>(0, m, 0, k, lStrands, tStrands, aReverse, b);
                     std::cout<<"2stphase:"<<totalSameLengthDiag<<std::endl;
                     std::cout<<"Lstrands:"<<std::endl;
-                    for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(lStrands[i])<<",";
+                    for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(lStrands[i])<<",";
                     std::cout<<"tStradns:"<<std::endl;
-                    for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(tStrands[i])<<",";
+                    for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(tStrands[i])<<",";
                     std::cout<<std::endl;
                 }
 
@@ -1228,14 +1225,15 @@ namespace bit_parallel::lcs {
 
                     std::cout<<"3stphase:"<<totalSameLengthDiag<<std::endl;
                     std::cout<<"Lstrands:"<<std::endl;
-                    for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(lStrands[i])<<",";
+                    for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(lStrands[i])<<",";
                     std::cout<<"tStradns:"<<std::endl;
-                    for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(tStrands[i])<<",";
+                    for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(tStrands[i])<<",";
                     std::cout<<std::endl;
                 }
 
                 std::cout<<"Borders:"<<rBorder.first + 1<<","<< m<< "or "<<bBorderStart.first + 1<<","<< bBorderEnd.first<<","<<std::endl;
 
+                std::cout<<" countOnes(lStrands," <<rBorder.first + 1<<", "<< m<<")"<<std::endl;
                 int ones = (m <= n) ? countOnes(lStrands, rBorder.first + 1, m) : countOnes(tStrands, bBorderStart.first + 1, bBorderEnd.first);
 
 #pragma omp atomic update
@@ -1245,10 +1243,12 @@ namespace bit_parallel::lcs {
             if ((m <= n)) {
                 std::cout<<"!Borders:"<<rBorder.first<<":"<<  rBorder.second<<","<<(bBorderEnd.second)<<std::endl;
                 std::cout<<"Count:"<<bitsPerChar * (rBorder.second)<<bDetails.getWordAlignmentInBits()<<std::endl;
-                disBraid += countOnesInWord(lStrands[0], bitsPerChar * (rBorder.second) + bDetails.getWordAlignmentInBits());
+                disBraid += countOnesInWord(lStrands[0], bitsPerChar * (rBorder.second));
+                std::cout<<"countOnesInWord(lStrands[0],"<<bitsPerChar * (rBorder.second) + bDetails.getWordAlignmentInBits()<<")"<<std::endl;
                 disBraid += countOnesInWord(tStrands[n - 1], (bBorderEnd.second + 1)*bitsPerChar);
+                std::cout<<"countOnesInWord(tStrands[n - 1]"<<(bBorderEnd.second + 1)*bitsPerChar<<")"<<std::endl;
                 std::cout<<"Count:"<< (bBorderEnd.second +1)* (bitsPerChar)<<std::endl;
-
+                std::cout<<"PADDINGL"<<bDetails.getPaddingOfLastWordInSymbols()<<std::endl;
                 disBraid = aDetails.initalNumSymbols - disBraid + bDetails.getPaddingOfLastWordInSymbols();
             } else {
                 if (bBorderStart.first == bBorderEnd.first) {
@@ -1259,18 +1259,18 @@ namespace bit_parallel::lcs {
                     disBraid += countOnesInWord(tStrands[bBorderStart.first], bBorderStart.second * bitsPerChar);
                     disBraid += countOnesInWord(tStrands[bBorderEnd.first], 0, (bBorderEnd.second+1) * (bitsPerChar));
                 }
-                disBraid += countOnesInWord(lStrands[0], 0, bitsPerChar * (rBorder.second) + aDetails.getWordAlignmentInBits()); // offset
+                disBraid += countOnesInWord(lStrands[0], 0, bitsPerChar * (rBorder.second) ); // offset
             }
 
             std::cout<<"finale:"<<std::endl;
             std::cout<<"A:"<<std::endl;
-            for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(aReverse[i])<<",";
+            for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(aReverse[i])<<",";
             std::cout<<"B:"<<std::endl;
-            for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(b[i])<<",";
+            for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(b[i])<<",";
             std::cout<<"Lstrands:"<<std::endl;
-            for(int i = 0;i<m;i++) std::cout<<std::bitset<8>(lStrands[i])<<",";
+            for(int i = 0;i<m;i++) std::cout<<std::bitset<16>(lStrands[i])<<",";
             std::cout<<"tStradns:"<<std::endl;
-            for(int i = 0;i<n;i++) std::cout<<std::bitset<8>(tStrands[i])<<",";
+            for(int i = 0;i<n;i++) std::cout<<std::bitset<16>(tStrands[i])<<",";
             std::cout<<std::endl;
             delete[] lStrands;
             delete[] tStrands;
@@ -1318,10 +1318,10 @@ namespace bit_parallel::lcs {
             if (fromInclusive != 0) maskTakeAllFrom &= ~((UnsignedMachineWord(1) << (fromInclusive)) - 1);
             UnsignedMachineWord maskTakeAllTo = ~UnsignedMachineWord(0);
             if (toExclusive != sizeof(UnsignedMachineWord) * 8) maskTakeAllTo &= (UnsignedMachineWord(1) << (toExclusive)) - 1;
-//            std::cout<<"number"<<std::bitset<8>(number)<<","<<std::endl;
+//            std::cout<<"number"<<std::bitset<16>(number)<<","<<std::endl;
             number = number & maskTakeAllFrom & maskTakeAllTo;
-//            std::cout<<std::bitset<8>(maskTakeAllFrom)<<","<<std::bitset<8>(maskTakeAllTo)<<","<<fromInclusive<<","<<toExclusive<<std::endl;
-//            std::cout<<std::bitset<8>(number)<<","<<std::endl;
+//            std::cout<<std::bitset<16>(maskTakeAllFrom)<<","<<std::bitset<16>(maskTakeAllTo)<<","<<fromInclusive<<","<<toExclusive<<std::endl;
+//            std::cout<<std::bitset<16>(number)<<","<<std::endl;
             auto counter = 0;
             while (number) {
                 number &= (number - 1);
