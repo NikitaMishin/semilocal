@@ -12,7 +12,7 @@ add_library(cpu semi_local.h
 # disable vectorization: -fno-tree-vectorize
 
 #set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++11 -O0 -fopenmp  -fno-tree-vectorize -fopt-info-vec-optimized-optimized -fopt-info-vec-optimized-all")
-set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++17 -fopenmp  -march=native  -O3  " )#    ")
+set(CMAKE_CXX_FLAGS   "${CMAKE_CXX_FLAGS}  -std=c++17 -fopenmp  -march=native  -O1  " )#    ")
 # -I /home/garrancha/libs/boost_1_75_0/ -for  boost libary
 #add_executable(main main.cpp)
 #target_link_libraries(main cpu)
@@ -81,13 +81,29 @@ add_executable(braid_multiplication_sequential_memory cpu_impl/braid_multiplicat
 add_executable(braid_multiplication_sequential_precompute cpu_impl/braid_multiplication_sequential_precompute.cpp)
 #
 
+
 find_package(GTest REQUIRED )
 include_directories(${GTEST_INCLUDE_DIRS})
 
-add_executable(
-        ApproximateMatchingTest
-        test/ApproximateMatchingTest.cpp
-)
-target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )
-target_include_directories(ApproximateMatchingTest  PUBLIC cpu ${GTEST_INCLUDE_DIRS}  )
+
+
+function(generateTest testName executableName files)
+
+    add_executable(${executableName} ${files})
+    target_include_directories(${executableName} PUBLIC ${PROJECT_NAME} ${GTEST_INCLUDE_DIRS})
+    target_link_libraries(${executableName} GTest::gtest GTest::gtest_main ${PROJECT_NAME})
+    add_test(${testName} ${executableName})
+endfunction()
+
+generateTest(ApproximateMatching ApproximateMatchingTest test/ApproximateMatchingTest.cpp)
+
+generateTest(SemiLocalLCS SemiLocalLCSTest test/SemiLocalLCS/SemiLocalLCSTest.cpp)
+
+generateTest(StradyAnt StradyAntTest test/MongeMatrixMultiplication/SteadyAntTest.cpp)
+
+
+generateTest(LCS LCSTest test/LCS/LCSTest.cpp)
+
+#target_link_libraries(ApproximateMatchingTest GTest::gtest GTest::gtest_main  cpu  )
+#target_include_directories(ApproximateMatchingTest  PUBLIC cpu ${GTEST_INCLUDE_DIRS}  )
 

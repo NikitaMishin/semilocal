@@ -29,8 +29,8 @@ int main(int argc, char *argv[]) {
     auto p = new Permutation(n,n);
     auto q = new Permutation(n,n);
 
-    fill_permutation_matrix(p,n,n,seed);
-    fill_permutation_matrix(q,n,n,-seed);
+    fillPermutationMatrix(p, n, n, seed);
+    fillPermutationMatrix(q, n, n, -seed);
 
     auto map = std::unordered_map<int, std::unordered_map<long long, std::unordered_map<long long, std::vector<std::pair<int, int>>>>>();
     auto beg_precalc = std::chrono::high_resolution_clock::now();

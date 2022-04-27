@@ -142,7 +142,7 @@ encode_reverse(std::vector<Input> const &a, std::unordered_map<Input, Output> *m
 
 /**
  * Decode given packed sequence in bits in numeric type Input to symbol vector of type Output
- * according to decoder and amount of bits per symbol
+ * according to decode and amount of bits per symbol
  * @tparam Input
  * @tparam Output
  * @param a
@@ -194,7 +194,7 @@ std::vector<Output> decode(Input const *a, int n, int total_symbols, std::unorde
 
 /**
  * Decode given reversed packed sequence in bits in numeric type Input to symbol vector of type Output
- * according to decoder and amount of bits per symbol
+ * according to decode and amount of bits per symbol
  * @tparam Input
  * @tparam Output
  * @param a

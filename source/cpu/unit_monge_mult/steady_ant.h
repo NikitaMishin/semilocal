@@ -281,8 +281,7 @@ namespace distance_unit_monge_product {
 
 
             if (n <= map.size()) {
-                auto precalced = new Permutation(n, n, map[n][std::hash<AbstractPermutation>()(
-                        *p)][std::hash<AbstractPermutation>()(*q)]);
+                auto precalced = new Permutation(n, n, map[n][std::hash<AbstractPermutation>()(*p)][std::hash<AbstractPermutation>()(*q)]);
                 return precalced;
             }
 
@@ -678,7 +677,6 @@ namespace distance_unit_monge_product {
                 // take last k columns from P and first k rows from Q, multiply
                 get_vertical_slice(p, p->row_size - k, p->row_size, mapping_row, &p_red);
                 get_horizontal_slice(q, 0, k, mapping_col, &q_red);
-
             }
 
             if (UseParallel) {
@@ -687,6 +685,7 @@ namespace distance_unit_monge_product {
             } else {
                 steady_ant_optimized_seq(&p_red, &q_red, free_block_1, free_block_2, free_indices_block, map);
             }
+
 
 
 

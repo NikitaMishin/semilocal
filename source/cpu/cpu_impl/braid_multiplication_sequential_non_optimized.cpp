@@ -28,8 +28,8 @@ int main(int argc, char *argv[]) {
     auto p = new Permutation(n,n);
     auto q = new Permutation(n,n);
 
-    fill_permutation_matrix(p,n,n,seed);
-    fill_permutation_matrix(q,n,n,-seed);
+    fillPermutationMatrix(p, n, n, seed);
+    fillPermutationMatrix(q, n, n, -seed);
 
 
 

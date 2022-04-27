@@ -22,6 +22,7 @@ namespace std {
     };
 
 
+
     template<>
     struct hash<AbstractPermutation> {
         std::size_t operator()(const AbstractPermutation &k) const {
